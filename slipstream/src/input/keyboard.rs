@@ -171,6 +171,8 @@ impl Slipstream {
             Action::ToggleFloating => self.toggle_floating(),
             Action::SwitchFloatingFocus => self.switch_floating_focus(),
             Action::Zoom(step) => self.zoom_step(step),
+            Action::RunOrRaise(index) => self.run_or_raise(index),
+            Action::SendTo(index) => self.send_to_raise_workspace(index),
         }
     }
 

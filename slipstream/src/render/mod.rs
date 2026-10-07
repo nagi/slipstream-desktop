@@ -296,6 +296,7 @@ fn card_elements(
     if state.sheet.is_open() {
         let colours = (state.panel_ring(), crate::panel::opaque(state.bullet_rgb));
         let effects = state.settings.motion.effects;
+        let apps = state.raise_names();
         elements.extend(
             state
                 .sheet
@@ -307,6 +308,7 @@ fn card_elements(
                         style: state.settings.keys.style,
                         screens: state.space.outputs().count(),
                         own: state.shortcuts.own(),
+                        apps: &apps,
                     },
                     colours,
                     effects,
@@ -323,7 +325,7 @@ fn card_elements(
                 .map(OutputElement::Memory),
         );
     }
-    // Gravity's arrangements, while Super is held after Super+T.
+    // Gravity's arrangements, while Super is held after Super+G.
     if state.arrange.is_some() {
         elements.extend(
             state

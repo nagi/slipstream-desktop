@@ -108,6 +108,7 @@ pub mod screens;
 pub mod shortcuts;
 pub mod sounds;
 pub mod sun;
+mod run_or_raise;
 mod wallpaper;
 pub mod weight;
 mod workspaces;
@@ -127,6 +128,7 @@ pub use input::{
     system_layouts_from_env,
 };
 pub use pages::{SETTINGS_PAGES, SettingsPage};
+pub use run_or_raise::{RaiseApp, RunOrRaise};
 pub use wallpaper::{VARIATIONS, Variation, Wallpaper, current_id};
 pub use workspaces::{MAX_WORKSPACES, WorkspaceEntry, Workspaces, unused_id, workspace_label};
 
@@ -151,6 +153,7 @@ pub struct Settings {
     pub mouse: Mouse,
     pub touchpad: Touchpad,
     pub keyboard: Keyboard,
+    pub run_or_raise: RunOrRaise,
 }
 
 /// The keyboard shortcuts.
@@ -613,6 +616,51 @@ mod tests {
     use crate::file::{HEADER, parse};
 
     #[test]
+    fn run_or_raise_apps_and_home_screens_read_and_write_back_the_same() {
+        let text = r#"
+            [[workspaces.list]]
+            id = 1
+            name = " Chrome "
+            screen = " DP-1 "
+
+            [run-or-raise]
+            raise = "ctrl+super+alt"
+
+            [[run-or-raise.app]]
+            workspace = "Chrome"
+            key = "c"
+            app = "browser"
+
+            [[run-or-raise.app]]
+            workspace = "Lists"
+            key = "l"
+            class = "chrome-trello.com__b_x-Default"
+            command = "omarchy-launch-webapp https://trello.com/b/x"
+        "#;
+        let settings = parse(text).unwrap();
+        let entries = settings.workspaces.entries();
+        assert_eq!(entries[0].name, "Chrome");
+        assert_eq!(entries[0].screen, "DP-1");
+        assert_eq!(settings.run_or_raise.app.len(), 2);
+        assert_eq!(settings.run_or_raise.app[0].app, "browser");
+        assert_eq!(settings.run_or_raise.app[1].key, "l");
+        let again = parse(&toml::to_string(&settings).unwrap()).unwrap();
+        assert_eq!(again, settings);
+    }
+
+    #[test]
+    fn with_no_run_or_raise_section_the_chord_is_hyper_and_there_are_no_apps() {
+        let settings = parse("").unwrap();
+        assert_eq!(settings.run_or_raise.raise, "ctrl+super+alt");
+        assert!(settings.run_or_raise.app.is_empty());
+        assert!(
+            !toml::to_string(&settings.workspaces)
+                .unwrap()
+                .contains("screen")
+        );
+    }
+
+    #[test]
     fn an_empty_file_means_every_default() {
         let settings = parse("").unwrap();
         assert_eq!(settings, Settings::default());
@@ -772,10 +820,12 @@ mod tests {
                     WorkspaceEntry {
                         id: 3,
                         name: "Mail".into(),
+                        ..Default::default()
                     },
                     WorkspaceEntry {
                         id: 1,
                         name: String::new(),
+                        ..Default::default()
                     },
                 ],
             },
@@ -803,6 +853,7 @@ mod tests {
                 layouts: vec![KeyboardLayout::new("gb", "dvorak")],
                 ..Keyboard::default()
             },
+            run_or_raise: RunOrRaise::default(),
         };
         let text = toml::to_string(&settings).unwrap();
         assert!(text.contains("fade-after-secs = 300"), "{text}");

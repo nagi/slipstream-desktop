@@ -59,6 +59,7 @@ mod polkit;
 mod portal;
 mod portal_inhibit;
 mod power;
+mod raise;
 mod render;
 mod restore;
 mod resume;
@@ -467,7 +468,7 @@ fn start_on_hardware(
     }
     udev::run(event_loop, state)?;
     tracing::info!(
-        "Slipstream is running on WAYLAND_DISPLAY={}. Super+Return opens a terminal, Super+E \
+        "Slipstream is running on WAYLAND_DISPLAY={}. Super+Return opens a terminal, Super+Shift+F \
          files, a tapped Super the apps; Ctrl+Alt+Del is the way out",
         state.socket_name.to_string_lossy()
     );
@@ -513,8 +514,8 @@ fn start_nested(
     unsafe { std::env::set_var("WAYLAND_DISPLAY", &state.socket_name) };
     tracing::info!(
         "listening on WAYLAND_DISPLAY={}. Nested, Alt is the Mod key: Alt+arrows move focus, \
-         Alt+1–9 and Alt+Ctrl+←/→ switch workspace, Alt+Shift+1–9 and Alt+Shift+←/→ move the \
-         window there, Alt+Return opens a terminal, and closing the window quits",
+         Alt+1–0 and Alt+Ctrl+←/→ switch workspace, Alt+Shift+1–0 and Alt+Ctrl+Shift+←/→ move \
+         the window there, Alt+Return opens a terminal, and closing the window quits",
         state.socket_name.to_string_lossy()
     );
     Ok(())

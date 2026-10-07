@@ -8,7 +8,7 @@
 //! gives the window the centre, then more of the screen; lighter makes every window the same
 //! size, then puts the window in orbit around another, then off to the strip along the bottom.
 //!
-//! **Tiling is not a rung**, so stepping along the ladder never turns gravity off. Super+T is the
+//! **Tiling is not a rung**, so stepping along the ladder never turns gravity off. Super+G is the
 //! way back to tiling, and on again; held, it shows the arrangements side by side to choose from
 //! (`arrange.rs`). A step taken from tiling turns gravity on at the end it points at: heavier
 //! gives the window the centre, lighter puts every window in the grid.
@@ -27,7 +27,7 @@ pub enum Rung {
     Orbit,
     /// Every window the same size, in an even grid.
     Grid,
-    /// Gravity off: the tiling tree. Not on the ladder, since Super+T is the way to it and back,
+    /// Gravity off: the tiling tree. Not on the ladder, since Super+G is the way to it and back,
     /// but what every window is on while gravity is off, and what a record calls that.
     Tiling,
     /// The middle of the screen, the others in columns either side.
