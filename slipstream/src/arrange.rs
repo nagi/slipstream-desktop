@@ -1,12 +1,12 @@
-//! Super+T held: tiling and gravity's arrangements side by side, each drawn from the workspace's
+//! Super+G held: tiling and gravity's arrangements side by side, each drawn from the workspace's
 //! own windows. The strip keeps the two apart: tiling, where windows go where you put them, on
 //! its own, and after a divider the four arrangements gravity makes for itself.
 //!
-//! A quick Super+T turns gravity on or off. Keep Super down and a strip of the arrangements
+//! A quick Super+G turns gravity on or off. Keep Super down and a strip of the arrangements
 //! appears — tiling, grid, centre, wide, spotlight — with the one in force selected. Each further
 //! T, or ← and →, moves along it, and the workspace takes that arrangement there and then, so
 //! what the strip points at is what the screen shows. Letting go of Super keeps it; Esc puts back
-//! what was there before Super+T.
+//! what was there before Super+G.
 //!
 //! Like Alt+Tab's switcher, the strip is drawn only once Super has been held a moment, so a quick
 //! press flips gravity without anything flashing up.
@@ -33,7 +33,7 @@ pub const CHOICES: [Rung; 5] = [
     Rung::Spotlight,
 ];
 
-/// How long Super must still be held after Super+T before the strip is drawn, in seconds.
+/// How long Super must still be held after Super+G before the strip is drawn, in seconds.
 pub const APPEAR: f64 = 0.2;
 /// The strip's fade in, once it appears.
 const FADE: f64 = 0.12;
@@ -58,10 +58,10 @@ const BOTTOM: f32 = 96.0;
 /// and whether it's the one the arrangement is centred on.
 pub type Pane = ([f32; 4], bool);
 
-/// Super+T while it's held.
+/// Super+G while it's held.
 pub struct Arrange<W> {
     selected: usize,
-    /// When Super+T was pressed, on wall time.
+    /// When Super+G was pressed, on wall time.
     started: f64,
     /// The window the arrangements are centred on, and its workspace.
     pub window: W,
@@ -76,7 +76,7 @@ pub struct Arrange<W> {
 }
 
 impl<W> Arrange<W> {
-    /// Super+T, with `selected` already in force.
+    /// Super+G, with `selected` already in force.
     pub fn start(
         selected: Rung,
         window: W,

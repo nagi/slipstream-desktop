@@ -1905,6 +1905,7 @@ fn card_elements(
     if state.sheet.is_open() {
         let ring = state.panel_ring();
         let effects = state.settings.motion.effects;
+        let apps = state.raise_names();
         elements.extend(
             state
                 .sheet
@@ -1915,6 +1916,7 @@ fn card_elements(
                     now,
                     &state.bindings,
                     state.settings.keys.style,
+                    &apps,
                     ring,
                     effects,
                     state.space.outputs().count(),
@@ -1931,7 +1933,7 @@ fn card_elements(
                 .map(OutputElement::Memory),
         );
     }
-    // Gravity's arrangements, while Super is held after Super+T.
+    // Gravity's arrangements, while Super is held after Super+G.
     if state.arrange.is_some() {
         elements.extend(
             state

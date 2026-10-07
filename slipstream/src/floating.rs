@@ -432,7 +432,7 @@ impl Slipstream {
         }
     }
 
-    /// Super+Shift+V: the focused window floats, or goes back into the tiling.
+    /// Super+T: the focused window floats, or goes back into the tiling.
     pub fn toggle_floating(&mut self) {
         let Some(window) = self.focused_window() else {
             return;
@@ -539,7 +539,7 @@ impl Slipstream {
         self.retile();
     }
 
-    /// Super+[ ] (with Shift for height) on a floating window: a twentieth of the area narrower or
+    /// Super+- = (with Shift for height) on a floating window: a twentieth of the area narrower or
     /// wider, never under its minimum or over the area.
     pub fn resize_floating(&mut self, window: &Window, how: crate::layout::Resize) {
         use crate::layout::Resize;

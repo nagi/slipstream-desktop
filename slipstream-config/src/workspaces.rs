@@ -20,6 +20,10 @@ pub struct WorkspaceEntry {
     pub id: u32,
     /// Empty means the workspace goes by its number.
     pub name: String,
+    /// The screen it opens on, by connector name (`DP-1`). Empty, or a screen that isn't
+    /// connected, leaves it to open wherever the keyboard is.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub screen: String,
 }
 
 impl Default for Workspaces {
@@ -30,6 +34,7 @@ impl Default for Workspaces {
                 .map(|id| WorkspaceEntry {
                     id,
                     name: String::new(),
+                    ..Default::default()
                 })
                 .collect(),
         }
@@ -57,12 +62,14 @@ impl Workspaces {
             out.push(WorkspaceEntry {
                 id,
                 name: entry.name.trim().to_string(),
+                screen: entry.screen.trim().to_string(),
             });
         }
         if out.is_empty() {
             out.push(WorkspaceEntry {
                 id: 1,
                 name: String::new(),
+                ..Default::default()
             });
         }
         out
@@ -130,6 +137,7 @@ mod tests {
                 .map(|id| WorkspaceEntry {
                     id,
                     name: String::new(),
+                    ..Default::default()
                 })
                 .collect(),
         };

@@ -310,6 +310,11 @@ impl Slipstream {
         if self.claim_restored(&window, area) {
             return;
         }
+        // A window a run-or-raise launch is waiting for goes to that app's workspace. Its dialogs
+        // float as anyone's do.
+        if !crate::floating::opens_floating(&window) && self.claim_launched(&window, area) {
+            return;
+        }
         // A window you didn't ask for, or one that would take the keyboard while you type in
         // another app, pours into the code rain instead, and a toast says so.
         // Exception: a window from an explicit launch or file-manager open (xdg-activation token
@@ -448,6 +453,7 @@ impl Slipstream {
         self.floating_sizes.retain(|(held, _)| held != window);
         self.centre_when_sized.retain(|(held, _)| held != window);
         self.focus_history.retain(|w| w != window);
+        self.raise_unnamed.retain(|w| w != window);
         if let Some(plan) = self.restoring.as_mut() {
             plan.release(window);
         }

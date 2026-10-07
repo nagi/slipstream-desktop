@@ -99,6 +99,11 @@ pub enum Action {
     ToggleFloating,
     /// Move the keyboard between the floating windows and the tiles.
     SwitchFloatingFocus,
+    /// Run or raise the `[[run-or-raise.app]]` at this index: go to its workspace and bring its
+    /// window forward, or start it there.
+    RunOrRaise(u8),
+    /// Send the focused window to that app's workspace, and follow it.
+    SendTo(u8),
 }
 
 /// What `Action::Edit` does in the focused app.
@@ -188,6 +193,8 @@ impl Action {
             Action::ClipboardHistory => "clipboard history",
             Action::ToggleFloating => "float the window, or tile it",
             Action::SwitchFloatingFocus => "keyboard between floating and tiled",
+            Action::RunOrRaise(_) => "go to an app, or start it",
+            Action::SendTo(_) => "send window to an app's workspace",
         }
     }
 
@@ -209,7 +216,8 @@ impl Action {
             | Action::Undock
             | Action::Maximise
             | Action::ToggleFloating
-            | Action::SwitchFloatingFocus => Group::AppsAndWindows,
+            | Action::SwitchFloatingFocus
+            | Action::RunOrRaise(_) => Group::AppsAndWindows,
             Action::Resize(_)
             | Action::Rotate { .. }
             | Action::Workspace(_)
@@ -220,7 +228,8 @@ impl Action {
             | Action::NextScreen
             | Action::MoveToNextScreen
             | Action::SwapScreens
-            | Action::ShowDesktop => Group::WorkspacesAndArranging,
+            | Action::ShowDesktop
+            | Action::SendTo(_) => Group::WorkspacesAndArranging,
             Action::BulletTime => Group::BulletTime,
             Action::WayOut
             | Action::SwitchVt(_)
@@ -373,6 +382,7 @@ const MOD_SHIFT: Mods = mods(true, false, false, true);
 const MOD_CTRL: Mods = mods(true, true, false, false);
 const MOD_ALT: Mods = mods(true, false, true, false);
 const MOD_ALT_SHIFT: Mods = mods(true, false, true, true);
+const MOD_CTRL_SHIFT: Mods = mods(true, true, false, true);
 
 fn bind(mods: Mods, key: Keysym, action: Action) -> Binding {
     Binding { mods, key, action }
@@ -739,6 +749,21 @@ fn omarchy() -> Vec<Binding> {
         bind(MOD_SHIFT, Keysym::m, Action::Restore),
         bind(MOD, Keysym::h, Action::HideAll),
         bind(MOD, Keysym::d, Action::ShowDesktop),
+        // Slipstream's own, kept on keys Omarchy leaves free: Windows' virtual desktop keys,
+        // with Shift to take the window along, the overview beside Super+Tab, quick settings and
+        // the notification centre on Windows' keys, and the floating windows' focus beside the
+        // clipboard's V.
+        bind(MOD_CTRL, Keysym::Left, Action::WorkspaceBy(-1)),
+        bind(MOD_CTRL, Keysym::Right, Action::WorkspaceBy(1)),
+        bind(MOD_CTRL_SHIFT, Keysym::Left, Action::MoveToWorkspaceBy(-1)),
+        bind(MOD_CTRL_SHIFT, Keysym::Right, Action::MoveToWorkspaceBy(1)),
+        bind(MOD_ALT, Keysym::Tab, Action::BulletTime),
+        bind(MOD, Keysym::a, Action::QuickSettings),
+        bind(MOD, Keysym::n, Action::NotificationCentre),
+        bind(MOD_ALT, Keysym::v, Action::SwitchFloatingFocus),
+        // Omarchy's tenth workspace is on 0.
+        bind(MOD, Keysym::_0, Action::Workspace(10)),
+        bind(MOD_SHIFT, Keysym::_0, Action::MoveToWorkspace(10)),
     ];
     // Shift and an arrow swaps the tile with its neighbour.
     bindings.extend(move_tile(MOD_SHIFT));
@@ -748,6 +773,87 @@ fn omarchy() -> Vec<Binding> {
     ));
     bindings.extend(workspace_numbers(MOD, MOD_SHIFT));
     bindings
+}
+
+/// The bindings for `style` with the run-or-raise keys from settings laid over them. Each app
+/// gets the raise chord on its key and the same with Shift to send a window there; the digits
+/// under the raise chord go to a workspace by number, and with Shift send a window there. A
+/// run-or-raise key takes over a default on the same keys. An app that can't be bound is logged
+/// and left out.
+pub fn bindings(settings: &slipstream_config::RunOrRaise, style: KeyStyle) -> Vec<Binding> {
+    let mut extra = Vec::new();
+    if !settings.app.is_empty() {
+        match parse_mods(&settings.raise) {
+            Some(raise) => {
+                let send = Mods {
+                    shift: true,
+                    ..raise
+                };
+                for (index, app) in settings.app.iter().enumerate().take(usize::from(u8::MAX)) {
+                    let Some(key) = parse_key(&app.key) else {
+                        tracing::warn!(key = app.key, "run-or-raise: no such key");
+                        continue;
+                    };
+                    let index = index as u8;
+                    extra.push(bind(raise, key, Action::RunOrRaise(index)));
+                    extra.push(bind(send, key, Action::SendTo(index)));
+                }
+                for (n, key) in (1..).zip(DIGITS.into_iter().chain([Keysym::_0])) {
+                    extra.push(bind(raise, key, Action::Workspace(n)));
+                    extra.push(bind(send, key, Action::MoveToWorkspace(n)));
+                }
+            }
+            None => tracing::warn!(raise = settings.raise, "run-or-raise: can't read the chord"),
+        }
+    }
+    let mut all: Vec<Binding> = Vec::new();
+    for binding in extra.into_iter().chain(defaults(style)) {
+        if all
+            .iter()
+            .any(|b| (b.mods, b.key) == (binding.mods, binding.key))
+        {
+            continue;
+        }
+        all.push(binding);
+    }
+    checked(all, style)
+}
+
+/// Modifiers written `ctrl+super+alt`, in any order and case. `logo`, `mod4` and `win` are Super
+/// too. None for an empty chord or a word that isn't a modifier.
+pub fn parse_mods(text: &str) -> Option<Mods> {
+    let mut mods = Mods::default();
+    let mut any = false;
+    for word in text.split('+').map(str::trim) {
+        match word.to_ascii_lowercase().as_str() {
+            "super" | "logo" | "mod4" | "win" => mods.logo = true,
+            "ctrl" | "control" => mods.ctrl = true,
+            "alt" | "mod1" => mods.alt = true,
+            "shift" => mods.shift = true,
+            _ => return None,
+        }
+        any = true;
+    }
+    any.then_some(mods)
+}
+
+/// A key by its xkb name (`c`, `Return`, `F5`). A single letter is taken as the lower-case key,
+/// which is what bindings match on whatever Shift is doing.
+pub fn parse_key(text: &str) -> Option<Keysym> {
+    let text = text.trim();
+    let mut chars = text.chars();
+    if let (Some(ch), None) = (chars.next(), chars.clone().next())
+        && ch.is_ascii_alphabetic()
+    {
+        return Some(xkb::utf32_to_keysym(ch.to_ascii_lowercase() as u32));
+    }
+    let key = xkb::keysym_from_name(text, xkb::KEYSYM_NO_FLAGS);
+    let key = if key.raw() == 0 {
+        xkb::keysym_from_name(text, xkb::KEYSYM_CASE_INSENSITIVE)
+    } else {
+        key
+    };
+    (key.raw() != 0).then_some(key)
 }
 
 /// How long Super can be held and still count as a tap.
@@ -893,11 +999,13 @@ pub fn is_reserved(mods: Mods, key: Keysym) -> bool {
         return true;
     }
     // Emoji and Unicode entry (Super+. Super+; Ctrl+. Ctrl+;), and the whole Ctrl+Shift layer,
-    // which terminals and IDEs use (including Ctrl+Shift+U).
+    // which terminals and IDEs use (including Ctrl+Shift+U). With Super held too the chord is
+    // never an app's: apps don't get Super chords, so Super+Ctrl+Shift, and the hyper chord's
+    // Shift half, stay the desktop's.
     if (mods.logo || mods.ctrl) && (key == Keysym::period || key == Keysym::semicolon) {
         return true;
     }
-    if mods.ctrl && mods.shift {
+    if mods.ctrl && mods.shift && !mods.logo {
         return true;
     }
     // Orca: Insert and Caps Lock act as its modifier; Super+Alt+S toggles it.
@@ -1429,6 +1537,159 @@ mod tests {
             action_for(&windows_checked(defaults()), SUPER, Keysym::slash),
             Some(Action::ShortcutSheet)
         );
+    }
+
+    #[test]
+    fn the_omarchy_style_keeps_slipstreams_own_keys_where_omarchy_leaves_room() {
+        let bindings = checked(super::defaults(KeyStyle::Omarchy), KeyStyle::Omarchy);
+        let with = |shift, ctrl, alt| Mods {
+            shift,
+            ctrl,
+            alt,
+            logo: true,
+        };
+        for (mods, key, action) in [
+            (SUPER, Keysym::_0, Action::Workspace(10)),
+            (
+                with(true, false, false),
+                Keysym::_0,
+                Action::MoveToWorkspace(10),
+            ),
+            (with(false, true, false), Keysym::Left, Action::WorkspaceBy(-1)),
+            (
+                with(true, true, false),
+                Keysym::Right,
+                Action::MoveToWorkspaceBy(1),
+            ),
+            (with(false, false, true), Keysym::Tab, Action::BulletTime),
+            (SUPER, Keysym::a, Action::QuickSettings),
+            (SUPER, Keysym::n, Action::NotificationCentre),
+        ] {
+            assert_eq!(
+                action_for(&bindings, mods, key),
+                Some(action),
+                "{mods:?} {key:?}"
+            );
+        }
+    }
+
+    fn hyper(shift: bool) -> Mods {
+        Mods {
+            ctrl: true,
+            alt: true,
+            shift,
+            logo: true,
+        }
+    }
+
+    fn app(workspace: &str, key: &str) -> slipstream_config::RaiseApp {
+        slipstream_config::RaiseApp {
+            workspace: workspace.into(),
+            key: key.into(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn each_run_or_raise_app_gets_the_hyper_chord_and_its_shift_half() {
+        let settings = slipstream_config::RunOrRaise {
+            app: vec![
+                app("Chrome", "c"),
+                app("Terminal", "T"),
+                app("Bad", "nokey"),
+            ],
+            ..Default::default()
+        };
+        for style in KeyStyle::ALL {
+            let bindings = bindings(&settings, style);
+            assert_eq!(
+                action_for(&bindings, hyper(false), Keysym::c),
+                Some(Action::RunOrRaise(0))
+            );
+            assert_eq!(
+                action_for(&bindings, hyper(true), Keysym::c),
+                Some(Action::SendTo(0))
+            );
+            assert_eq!(
+                action_for(&bindings, hyper(false), Keysym::t),
+                Some(Action::RunOrRaise(1)),
+                "a capital letter is the letter's key"
+            );
+            assert_eq!(
+                action_for(&bindings, hyper(false), Keysym::_0),
+                Some(Action::Workspace(10))
+            );
+            assert_eq!(
+                action_for(&bindings, hyper(true), Keysym::_6),
+                Some(Action::MoveToWorkspace(6))
+            );
+            // The style's own keys are all still there beside them.
+            assert_eq!(
+                action_for(&bindings, Mods::default(), Keysym::XF86_AudioMute),
+                Some(Action::ToggleMute { microphone: false })
+            );
+        }
+    }
+
+    #[test]
+    fn without_apps_there_are_no_hyper_keys() {
+        for style in KeyStyle::ALL {
+            let bindings = bindings(&slipstream_config::RunOrRaise::default(), style);
+            assert_eq!(action_for(&bindings, hyper(false), Keysym::_1), None);
+            assert_eq!(bindings, checked(super::defaults(style), style));
+        }
+    }
+
+    #[test]
+    fn a_run_or_raise_key_takes_over_a_default_on_the_same_keys() {
+        let settings = slipstream_config::RunOrRaise {
+            raise: "super".into(),
+            app: vec![app("Mail", "w")],
+        };
+        let bindings = bindings(&settings, KeyStyle::Omarchy);
+        assert_eq!(
+            action_for(&bindings, SUPER, Keysym::w),
+            Some(Action::RunOrRaise(0))
+        );
+        let once = bindings
+            .iter()
+            .filter(|b| (b.mods, b.key) == (SUPER, Keysym::w))
+            .count();
+        assert_eq!(once, 1);
+    }
+
+    #[test]
+    fn chords_and_keys_read_as_written() {
+        assert_eq!(parse_mods("ctrl+super+alt"), Some(hyper(false)));
+        assert_eq!(
+            parse_mods(" Control + Win + Alt + Shift "),
+            Some(hyper(true))
+        );
+        assert_eq!(parse_mods(""), None);
+        assert_eq!(parse_mods("super+hyper"), None);
+        assert_eq!(parse_key("c"), Some(Keysym::c));
+        assert_eq!(parse_key("C"), Some(Keysym::c));
+        assert_eq!(parse_key("Return"), Some(Keysym::Return));
+        assert_eq!(parse_key("return"), Some(Keysym::Return));
+        assert_eq!(parse_key("F5"), Some(Keysym::F5));
+        assert_eq!(parse_key("1"), Some(Keysym::_1));
+        assert_eq!(parse_key("nokey"), None);
+    }
+
+    #[test]
+    fn the_hyper_chords_shift_half_is_not_reserved_but_ctrl_shift_alone_is() {
+        assert!(!is_reserved(hyper(true), Keysym::c));
+        let super_ctrl_shift = Mods {
+            alt: false,
+            ..hyper(true)
+        };
+        assert!(!is_reserved(super_ctrl_shift, Keysym::Left));
+        let ctrl_shift = Mods {
+            ctrl: true,
+            shift: true,
+            ..Mods::default()
+        };
+        assert!(is_reserved(ctrl_shift, Keysym::c));
     }
 
     #[test]

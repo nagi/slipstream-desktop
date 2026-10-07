@@ -210,8 +210,8 @@ mod tests {
 
     #[test]
     fn a_key_the_style_has_no_action_for_is_left_as_written() {
-        // Omarchy has no key that sends a window to the next workspace along.
+        // Omarchy has no key that saves the whole screen straight away.
         let omarchy = KeyNames::new(KeyStyle::Omarchy);
-        assert_eq!(omarchy.cap("Super+Shift+→"), "Super+Shift+→");
+        assert_eq!(omarchy.cap("Super+Print"), "Super+Print");
     }
 }

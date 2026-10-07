@@ -21,7 +21,7 @@ impl Rect {
     }
 }
 
-/// Which way Super+[ and Super+] (with Shift for height) take the focused tile.
+/// Which way Super+- and Super+= (with Shift for height) take the focused tile.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Resize {
     Wider,
@@ -373,7 +373,7 @@ impl<T: Clone + PartialEq> Dwindle<T> {
         }
     }
 
-    /// Super+[ ] and Super+Shift+[ ]: moves the nearest split above `id` whose sides lie along
+    /// Super+- = and Super+Shift+- =: moves the nearest split above `id` whose sides lie along
     /// that axis (side by side for wider and narrower, stacked for taller and shorter) one step
     /// towards the side that grows. When `id`'s tile in `area`, with minimum sizes, comes out the
     /// same, the ratio is put back and the tile is at its limit.

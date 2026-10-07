@@ -66,6 +66,7 @@ impl CompositorHandler for Slipstream {
         // A window's app id arrives here, not when its toplevel is created, so a layout coming
         // back can only recognise a Wayland window once it has committed.
         self.claim_on_commit(surface);
+        self.claim_launched_on_commit(surface);
 
         // An X11 window maps before XWayland gives it a surface; it takes focus once it has one.
         if let Some(window) = self

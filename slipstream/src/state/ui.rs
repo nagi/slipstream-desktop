@@ -286,10 +286,6 @@ impl Slipstream {
             self.night.schedule_changed();
         }
         self.set_reduced_motion(settings.motion.reduced);
-        if settings.keys != self.settings.keys {
-            let style = settings.keys.style;
-            self.bindings = crate::keys::checked(crate::keys::defaults(style), style);
-        }
         // Apps hear about dark and light over the settings portal, and change without restarting.
         crate::appearance::set(settings.appearance.colour_scheme);
         meter::configure(&settings.meter);
@@ -302,9 +298,14 @@ impl Slipstream {
         self.rain.set_ring_colour(self.ring_rgb);
         self.rain.set_effects(settings.motion.effects);
         self.bullet_rgb = settings.borders.bullet_time_rgb();
+        if settings.run_or_raise != self.settings.run_or_raise || settings.keys != self.settings.keys
+        {
+            self.set_run_or_raise(&settings.run_or_raise, settings.keys.style);
+        }
         if settings.workspaces != self.settings.workspaces {
             let entries = workspace_entries(&settings);
             self.set_workspaces(&entries, self.screens.len());
+            self.refresh_pins(&settings.workspaces);
         }
         let rearrange = settings.display.screens != self.settings.display.screens;
         if !settings.clipboard.history && self.settings.clipboard.history {
@@ -524,7 +525,7 @@ impl Slipstream {
         }
     }
 
-    /// Super+Return, Super+E, Super+B and All settings: starts the app, or says what's missing.
+    /// Super+Return, Super+Shift+F, Super+Shift+B and All settings: starts the app, or says what's missing.
     pub fn launch_app(&mut self, app: crate::keys::App) {
         use crate::keys::App;
         self.concentration.asked(std::time::Instant::now());

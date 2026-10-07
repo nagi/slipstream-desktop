@@ -112,6 +112,7 @@ mod debug_steps;
 mod docked;
 mod keyboard_focus;
 mod lifecycle;
+mod raise;
 mod screens;
 mod streams;
 mod ui;
@@ -240,7 +241,7 @@ pub struct Slipstream {
     pub switcher_on_super: bool,
     /// Gravity's arrangements, while Super is held after Super+T (`arrange.rs`).
     pub arrange: Option<crate::arrange::Arrange<Window>>,
-    /// The arrangement a quick Super+T turns gravity on at: the last one kept.
+    /// The arrangement a quick Super+G turns gravity on at: the last one kept.
     pub arrangement: Rung,
     /// The windows filling a screen at their own request (F11, video, games). At most one per
     /// workspace, so a video can fill one screen while another is worked on.
@@ -301,7 +302,7 @@ pub struct Slipstream {
     pub user: String,
     /// The notification centre (Super+N).
     pub centre: crate::centre::Centre,
-    /// The shortcut sheet (Super+/).
+    /// The shortcut sheet (Super+K).
     pub sheet: crate::sheet::Sheet,
     /// Night light's warmth and schedule (`nightlight.rs`).
     pub night: crate::nightlight::Night,
@@ -349,6 +350,13 @@ pub struct Slipstream {
     pub fullscreen_on_map: Vec<Window>,
     /// The recorded layout going back up, while the apps are still starting.
     pub restoring: Option<restore::Plan<Window>>,
+    /// The run-or-raise apps from the settings, one per entry, which `Action::RunOrRaise` indexes.
+    pub raise_targets: Vec<Option<crate::raise::Target>>,
+    /// Run-or-raise launches waiting for their windows.
+    pub launches: crate::raise::Launches,
+    /// New Wayland windows that hadn't said which app they are while a launch was waiting, to be
+    /// looked at again when they do.
+    pub raise_unnamed: Vec<Window>,
     /// The card at login asking whether to put the last layout back.
     pub offer: Option<Offer>,
     /// The card asking what a screen Slipstream has never seen should show.
@@ -389,7 +397,7 @@ pub struct Slipstream {
     pub keyboard_shortcuts_inhibit_state: KeyboardShortcutsInhibitState,
     /// Which windows have been told they hold the pointer or the keys, and the one refused.
     pub takeback: crate::takeback::TakeBack,
-    /// Bullet time while it's open (Super+Tab).
+    /// Bullet time while it's open (Super+Alt+Tab).
     pub bullet: Option<bullet::Mode<Window>>,
     /// A three-finger swipe under way (`input/swipe.rs`).
     pub swipe: Option<crate::input::swipe::Swipe>,
@@ -645,7 +653,7 @@ impl Slipstream {
             seat,
             cursor_status: CursorImageStatus::default_named(),
 
-            bindings: keys::checked(keys::defaults(settings.keys.style), settings.keys.style),
+            bindings: keys::bindings(&settings.run_or_raise, settings.keys.style),
             suppressed_keys: Vec::new(),
             caps_key: Default::default(),
             caps_waking: false,
@@ -715,6 +723,9 @@ impl Slipstream {
             background_icon_rev: 0,
             fullscreen_on_map: Vec::new(),
             restoring: None,
+            raise_targets: crate::raise::targets(&settings.run_or_raise, launch::app_class),
+            launches: Default::default(),
+            raise_unnamed: Vec::new(),
             offer: None,
             connect: None,
             known: known::read(&known::path()),

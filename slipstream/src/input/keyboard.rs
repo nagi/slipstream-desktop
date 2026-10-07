@@ -149,6 +149,8 @@ impl Slipstream {
             Action::ClipboardHistory => self.toggle_history(),
             Action::ToggleFloating => self.toggle_floating(),
             Action::SwitchFloatingFocus => self.switch_floating_focus(),
+            Action::RunOrRaise(index) => self.run_or_raise(index),
+            Action::SendTo(index) => self.send_to_raise_workspace(index),
         }
     }
 

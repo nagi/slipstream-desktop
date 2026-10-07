@@ -105,12 +105,17 @@ fn keycaps(bindings: &[(Mods, Keysym)]) -> Vec<String> {
                     names.push(name);
                 }
             }
-            let digits: Vec<u32> = names.iter().filter_map(|name| name.parse().ok()).collect();
+            // The digits count 1 to 9 and then 0, the tenth, as they sit on the keyboard.
+            let digits: Vec<u32> = names
+                .iter()
+                .filter_map(|name| name.parse().ok())
+                .map(|digit| if digit == 0 { 10 } else { digit })
+                .collect();
             let run = digits.len() == names.len()
                 && digits.len() > 2
                 && digits.windows(2).all(|pair| pair[1] == pair[0] + 1);
             let joined = if run {
-                format!("{}–{}", digits[0], digits[digits.len() - 1])
+                format!("{}–{}", digits[0], digits[digits.len() - 1] % 10)
             } else {
                 names.join(" ")
             };
@@ -137,8 +142,9 @@ const SWIPE_UP_DOWN: &str = "3 fingers ↑ ↓";
 
 /// The sheet's sections for `bindings`, in `Group::ALL`'s order: each group's bindings merged by
 /// what they do, bullet time's keys after its own binding, and the panels' shared keys last.
-/// `tap` is whether a tapped Super opens the explorer.
-pub fn sections(bindings: &[Binding], tap: bool) -> Vec<Section> {
+/// `tap` is whether a tapped Super opens the explorer. `apps` names each run-or-raise app's
+/// workspace, for its rows.
+pub fn sections(bindings: &[Binding], tap: bool, apps: &[String]) -> Vec<Section> {
     let mut sections: Vec<Section> = Group::ALL
         .iter()
         .map(|group| Section {
@@ -155,7 +161,16 @@ pub fn sections(bindings: &[Binding], tap: bool) -> Vec<Section> {
             continue;
         }
         let group = binding.action.group();
-        let does = binding.action.describe();
+        let app = |index: u8| {
+            apps.get(usize::from(index))
+                .filter(|name| !name.is_empty())
+                .map_or("an app", String::as_str)
+        };
+        let does = match binding.action {
+            keys::Action::RunOrRaise(index) => format!("{}: go there, or start it", app(index)),
+            keys::Action::SendTo(index) => format!("send window to {}", app(index)),
+            action => action.describe().to_string(),
+        };
         let Some(section) = sections.iter_mut().find(|section| section.group == group) else {
             continue;
         };
@@ -163,7 +178,7 @@ pub fn sections(bindings: &[Binding], tap: bool) -> Vec<Section> {
             Some(row) => row.bindings.push((binding.mods, binding.key)),
             None => section.rows.push(Row {
                 keys: Vec::new(),
-                does: does.to_string(),
+                does,
                 bindings: vec![(binding.mods, binding.key)],
             }),
         }
@@ -285,6 +300,8 @@ struct Look {
     style: KeyStyle,
     /// How many screens there are: with one, the keys between screens have nothing to do.
     screens: usize,
+    /// The run-or-raise apps' workspaces, which name their rows.
+    apps: Vec<String>,
 }
 
 /// Everything the tour's miniature depends on: the lesson, the moment in its loop and the rain's
@@ -511,6 +528,7 @@ impl Sheet {
         now: f64,
         bindings: &[Binding],
         style: KeyStyle,
+        apps: &[String],
         ring: u32,
         effects: Effects,
         screens: usize,
@@ -533,6 +551,7 @@ impl Sheet {
             ring,
             style,
             screens,
+            apps: apps.to_vec(),
         };
         if self.shown.as_ref() != Some(&look) {
             self.painted = match self.tour {
@@ -540,7 +559,7 @@ impl Sheet {
                 None => {
                     let tap = keys::taps_super(style);
                     let bindings = for_screens(bindings, screens);
-                    let sections = filtered(sections(&bindings, tap), &look.query);
+                    let sections = filtered(sections(&bindings, tap, &look.apps), &look.query);
                     paint(&look, &sections)
                 }
             };
@@ -1019,7 +1038,7 @@ mod tests {
     fn every_binding_appears_once_but_the_laptops_own_keys() {
         for style in KeyStyle::ALL {
             let bindings = bindings_for(style);
-            let sections = sections(&bindings, keys::taps_super(style));
+            let sections = sections(&bindings, keys::taps_super(style), &[]);
             for binding in &bindings {
                 let rows = sections
                     .iter()
@@ -1039,7 +1058,7 @@ mod tests {
             assert_eq!(apps, 1, "{style:?}: the explorer's keys share one row");
         }
         let bindings = bindings_for(KeyStyle::Windows);
-        let sections = sections(&bindings, true);
+        let sections = sections(&bindings, true, &[]);
         // And at least one of each, so this is testing something.
         assert!(bindings.iter().any(|b| keys::is_hardware_key(b.key)));
         assert!(bindings.iter().any(|b| !keys::is_hardware_key(b.key)));
@@ -1083,7 +1102,7 @@ mod tests {
     #[test]
     fn other_styles_list_their_own_keys() {
         let row = |style: KeyStyle, does: &str| {
-            sections(&bindings_for(style), keys::taps_super(style))
+            sections(&bindings_for(style), keys::taps_super(style), &[])
                 .iter()
                 .flat_map(|section| &section.rows)
                 .find(|row| row.does == does)
@@ -1106,6 +1125,35 @@ mod tests {
         );
         assert_eq!(row(KeyStyle::Omarchy, "narrower, wider"), ["Super+- ="]);
         assert_eq!(row(KeyStyle::Omarchy, "every key"), ["Super+K"]);
+    }
+
+    #[test]
+    fn each_run_or_raise_app_has_its_own_rows_by_name() {
+        let settings = slipstream_config::RunOrRaise {
+            app: vec![slipstream_config::RaiseApp {
+                workspace: "Chrome".into(),
+                key: "c".into(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        let bindings = keys::bindings(&settings, KeyStyle::Omarchy);
+        let sections = sections(&bindings, false, &["Chrome".to_string()]);
+        let row = |does: &str| {
+            sections
+                .iter()
+                .flat_map(|section| &section.rows)
+                .find(|row| row.does == does)
+                .map(|row| row.keys.clone())
+        };
+        assert_eq!(
+            row("Chrome: go there, or start it"),
+            Some(vec!["Super+Ctrl+Alt+C".to_string()])
+        );
+        assert_eq!(
+            row("send window to Chrome"),
+            Some(vec!["Super+Ctrl+Alt+Shift+C".to_string()])
+        );
     }
 
     #[test]
@@ -1133,7 +1181,7 @@ mod tests {
     fn the_keys_between_screens_show_once_there_is_a_second() {
         let bindings = bindings_for(KeyStyle::Windows);
         let listed = |screens: usize| {
-            sections(&for_screens(&bindings, screens), true)
+            sections(&for_screens(&bindings, screens), true, &[])
                 .iter()
                 .flat_map(|section| &section.rows)
                 .any(|row| row.does == Action::NextScreen.describe())
@@ -1145,7 +1193,7 @@ mod tests {
     #[test]
     fn typing_filters_the_rows() {
         let bindings = bindings_for(KeyStyle::Windows);
-        let found = filtered(sections(&bindings, true), "minim");
+        let found = filtered(sections(&bindings, true, &[]), "minim");
         let rows: Vec<&str> = found
             .iter()
             .flat_map(|section| &section.rows)
@@ -1159,7 +1207,7 @@ mod tests {
                 "minimise"
             ]
         );
-        assert!(filtered(sections(&bindings, true), "nothing like this").is_empty());
+        assert!(filtered(sections(&bindings, true, &[]), "nothing like this").is_empty());
         let mut sheet = Sheet::default();
         sheet.open(0.0);
         sheet.key(Keysym::k, Some('k'), 0.0);

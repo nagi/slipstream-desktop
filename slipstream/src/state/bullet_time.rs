@@ -1,9 +1,9 @@
-//! Bullet time (Super+Tab): opening it, its keys, the pointer in it, and leaving.
+//! Bullet time (Super+Alt+Tab): opening it, its keys, the pointer in it, and leaving.
 
 use super::*;
 
 impl Slipstream {
-    /// Super+Tab: bullet time, or back out of it with nothing changed.
+    /// Super+Alt+Tab: bullet time, or back out of it with nothing changed.
     pub fn toggle_bullet_time(&mut self) {
         if self.bullet.is_some() {
             self.bullet_back();
@@ -304,7 +304,7 @@ impl Slipstream {
             return;
         }
         match command {
-            // Esc clears a half-typed label first; Super+Tab always goes straight back.
+            // Esc clears a half-typed label first; Super+Alt+Tab always goes straight back.
             bullet::Command::Back if typing && key == Keysym::Escape => {
                 if let Some(mode) = self.bullet.as_mut() {
                     mode.typed.clear();
