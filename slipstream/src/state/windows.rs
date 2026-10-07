@@ -370,6 +370,11 @@ impl Slipstream {
         if self.claim_restored(&window, area) {
             return;
         }
+        // A window a run-or-raise launch is waiting for goes to that app's workspace. Its dialogs
+        // float as anyone's do.
+        if !crate::floating::opens_floating(&window) && self.claim_launched(&window, area) {
+            return;
+        }
         // A window you didn't ask for, or one that would take the keyboard while you type in
         // another app, pours into the code rain instead, and a toast says so.
         if !self.fullscreen_on_screen()
@@ -640,6 +645,7 @@ impl Slipstream {
         self.floating_sizes.retain(|(held, _)| held != window);
         self.centre_when_sized.retain(|(held, _)| held != window);
         self.focus_history.retain(|w| w != window);
+        self.raise_unnamed.retain(|w| w != window);
         if let Some(plan) = self.restoring.as_mut() {
             plan.release(window);
         }
@@ -1081,7 +1087,7 @@ impl Slipstream {
         }
     }
 
-    /// Super+[ ] and Super+Shift+[ ]: the split beside the focused tile moves a step, on the
+    /// Super+- = and Super+Shift+- =: the split beside the focused tile moves a step, on the
     /// press, and the tiles glide to their new sizes.
     /// Super+R and Super+Shift+R: the workspace's whole layout turns a quarter, clockwise or
     /// anticlockwise, every tile going with it. Which window has the keyboard doesn't matter.
@@ -1090,17 +1096,14 @@ impl Slipstream {
             return;
         };
         if self.workspaces.is_floating(&window) {
-            self.show_toast(
-                "This window floats",
-                "Super+Shift+V puts it back in the tiling.",
-            );
+            self.show_toast("This window floats", "Super+T puts it back in the tiling.");
             return;
         }
         let ws = self.current_workspace();
         if ws.gravity.is_on() {
             self.show_toast(
                 "Only tiling turns",
-                "Gravity has no rows or columns to turn. Super+T goes back to tiling.",
+                "Gravity has no rows or columns to turn. Super+G goes back to tiling.",
             );
             return;
         }
@@ -1285,7 +1288,7 @@ impl Slipstream {
         if self.workspaces.is_floating(&window) {
             self.show_toast(
                 "Floating windows keep their size",
-                "Super+Shift+V puts it back in the tiling, where Super+F fills the space.",
+                "Super+T puts it back in the tiling, where Super+F fills the space.",
             );
             return;
         }
@@ -1295,7 +1298,7 @@ impl Slipstream {
         tracing::info!(window = logged_app(&window), maximised, "maximise");
     }
 
-    /// Super+T. A quick press turns gravity on, at the arrangement last kept, or back to tiling;
+    /// Super+G. A quick press turns gravity on, at the arrangement last kept, or back to tiling;
     /// with Super held the arrangements appear side by side, and each further T moves along
     /// them (`arrange.rs`).
     pub fn toggle_gravity(&mut self) {
@@ -1375,7 +1378,7 @@ impl Slipstream {
         self.retile();
     }
 
-    /// Super let go: the arrangement on the strip stays, and a quick Super+T turns gravity on at
+    /// Super let go: the arrangement on the strip stays, and a quick Super+G turns gravity on at
     /// it next time.
     pub fn finish_arrangement(&mut self) {
         let Some(arrange) = self.arrange.take() else {
@@ -1394,7 +1397,7 @@ impl Slipstream {
         }
     }
 
-    /// Esc with Super held: the workspace goes back to how it was before Super+T.
+    /// Esc with Super held: the workspace goes back to how it was before Super+G.
     pub fn cancel_arrangement(&mut self) {
         let Some(arrange) = self.arrange.take() else {
             return;

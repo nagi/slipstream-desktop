@@ -13,12 +13,14 @@ impl Slipstream {
             let active = self.active_workspace();
             self.workspaces.get_mut(active).last_focus = leaving;
         }
-        let here = self.focused_screen_name();
         let show = self.screens.show(index, self.workspaces.count());
         if !show.changed {
             return;
         }
         if show.moved_to.is_none() {
+            // The screen that now shows it: the focused one, or the one it's pinned to, which the
+            // keyboard has moved to.
+            let here = self.focused_screen_name();
             // The camera runs on wall time: moving about is never slowed, even in bullet time.
             let wall = self.wall();
             self.motion.slide_to(&here, index, wall);

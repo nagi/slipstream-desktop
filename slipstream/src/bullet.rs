@@ -1,8 +1,8 @@
-//! Bullet time's logic (Super+Tab): what can be chosen, the letter labels, and moving the
+//! Bullet time's logic (Super+Alt+Tab): what can be chosen, the letter labels, and moving the
 //! selection. Pure and generic over the window type, so it's unit-tested without Wayland.
 //!
-//! Bullet time uses the everyday keys without Super: arrows and Tab choose, 1–9 look at a
-//! workspace, Shift+1–9 sends the chosen window there, PgUp/PgDn weigh it, M minimises it, Delete
+//! Bullet time uses the everyday keys without Super: arrows and Tab choose, 1–0 look at a
+//! workspace, Shift+1–0 sends the chosen window there, PgUp/PgDn weigh it, M minimises it, Delete
 //! closes it, Enter goes and Esc goes back. A letter label goes straight to its target.
 
 use smithay::{
@@ -316,7 +316,7 @@ pub enum BarClick {
     Leave,
     /// Stopping a share or Awake needs nothing on screen to change, so the overview stays.
     Stay,
-    /// The overview button: back out of bullet time, as Super+Tab does.
+    /// The overview button: back out of bullet time, as Super+Alt+Tab does.
     Back,
 }
 
@@ -470,7 +470,7 @@ pub const KEYS: [KeyRow; 11] = [
     },
     KeyRow {
         kind: Kind::Look,
-        keys: "1–9",
+        keys: "1–0",
         does: "look at a workspace",
         legend: None,
         example: (Keysym::_2, false),
@@ -484,9 +484,9 @@ pub const KEYS: [KeyRow; 11] = [
     },
     KeyRow {
         kind: Kind::Send,
-        keys: "Shift+1–9",
+        keys: "Shift+1–0",
         does: "send the window to a workspace",
-        legend: Some("Shift+1–9 send"),
+        legend: Some("Shift+1–0 send"),
         example: (Keysym::_3, true),
     },
     KeyRow {
@@ -540,7 +540,7 @@ mod tests {
     fn the_legend_and_the_keys_agree() {
         assert_eq!(
             legend(),
-            "← → ↑ ↓ choose · j k l… jump · ⏎ go · Shift+1–9 send · PgUp/PgDn weigh · M minimise · Del close · Esc back"
+            "← → ↑ ↓ choose · j k l… jump · ⏎ go · Shift+1–0 send · PgUp/PgDn weigh · M minimise · Del close · Esc back"
         );
         for row in &KEYS {
             let (key, shift) = row.example;

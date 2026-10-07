@@ -9,8 +9,8 @@
 //! miniature held T of the way through its loop if given), `power:off` and `power:on` (the
 //! screens off, as after a long idle, and lit again), `type:TEXT` and `key:NAME` (type into the open explorer, or
 //! press a key there by its xkb name, such as `Down`, `Return` or `ctrl+BackSpace`), `heavier`,
-//! `lighter` and `gravity` (a step along gravity's ladder, and Super+T, on the focused window),
-//! `tile:DIRECTION` (Super+Alt+arrow: move the focused tile `left`, `right`, `up` or `down`),
+//! `lighter` and `gravity` (a step along gravity's ladder, and Super+G, on the focused window),
+//! `tile:DIRECTION` (Super+Shift+arrow: move the focused tile `left`, `right`, `up` or `down`),
 //! `focus:DIRECTION` (Super+arrow: the keyboard to the neighbouring tile), `full` and `unfull`
 //! (the focused window fills its screen, or stops), `click:X,Y` (a left click on a window, in
 //! logical pixels: focus follows it and the client gets the press, which is the way to open an
@@ -21,11 +21,11 @@
 //! go, for a drag), `drag:X1,Y1 X2,Y2` (a press, a drag and a release, as selecting text in a
 //! terminal does), `cycle` or `cycle:N` (Alt held, Tab pressed N times, then Alt let go), `tab`
 //! (one Tab with Alt held down, and kept held) and `letgo` (Alt let go after `tab`), `minimise`
-//! and `restore` (Super+M and Super+Shift+M), `dock` and `undock` (Super+W and Super+Shift+W), `float` (Super+Shift+V), `hideall` (Super+H: every window on the workspace
+//! and `restore` (Super+M and Super+Shift+M), `dock` and `undock` (Super+O and Super+Shift+O), `float` (Super+Shift+V), `hideall` (Super+H: every window on the workspace
 //! into the code rain, and the same ones back), `idle` (fade the UI out now) and `wake` (as any
 //! input would), `fade:F` (hold the fade to the wallpaper at F, 0 to 1), `slow:MS` (count each
 //! drawn frame as MS milliseconds, script times included; `slow:0` is real time again),
-//! `demand:F` (pin every minimised app's load at F, 0 to 1), `bullet` (Super+Tab), `bkey:NAME` (a
+//! `demand:F` (pin every minimised app's load at F, 0 to 1), `bullet` (Super+Alt+Tab), `bkey:NAME` (a
 //! key in bullet time, by xkb name with optional `shift+` or `ctrl+`, such as `bkey:Right` or
 //! `bkey:shift+2`), `bclick:X,Y` (a click in bullet time, in logical pixels on the screen, the
 //! bar's buttons included), `quick` (Super+A), `qkey:NAME` (a key in quick settings, by xkb name
@@ -126,9 +126,9 @@ pub enum Step {
     Restore,
     /// Super+H: every window on this workspace into the code rain, and back.
     HideAll,
-    /// Super+W: the focused window up to the bar, or the docked pane's next size.
+    /// Super+O: the focused window up to the bar, or the docked pane's next size.
     Dock,
-    /// Super+Shift+W: the docked window back down among the windows.
+    /// Super+Shift+O: the docked window back down among the windows.
     Undock,
     /// Super+Shift+V: the focused window floats, or goes back into the tiling.
     Float,

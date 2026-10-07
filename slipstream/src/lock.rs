@@ -221,7 +221,7 @@ pub enum Outcome {
 /// Why the screen is locking, which decides how a refusal is told.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Reason {
-    /// Super+L, quick settings, or `loginctl lock-session`: said every time.
+    /// Super+Ctrl+L, quick settings, or `loginctl lock-session`: said every time.
     Asked,
     /// Idle for its minutes, or about to sleep: said once a session, so a toast doesn't come
     /// back every time the machine sleeps or sits idle.

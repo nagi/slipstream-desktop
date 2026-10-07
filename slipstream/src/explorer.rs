@@ -514,7 +514,7 @@ impl Explorer {
             run,
             files,
             log_out: "log out".contains(&query) || "logout".contains(&query),
-            // Asked for by name, never shown on an empty query: the hint card teaches Super+/.
+            // Asked for by name, never shown on an empty query: the hint card teaches Super+K.
             shortcuts: !query.is_empty()
                 && ["keyboard shortcuts", "keys", "help"]
                     .iter()
@@ -1155,7 +1155,7 @@ impl Explorer {
                 &Row {
                     icon: icons::KEYBOARD,
                     label: "Keyboard shortcuts".into(),
-                    trailing: Some("Super+/".into()),
+                    trailing: Some("Super+K".into()),
                     keycap: true,
                     selected: index == look.selected,
                     dim: false,

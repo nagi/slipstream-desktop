@@ -86,6 +86,81 @@ pub fn launch(app: App) -> Result<(), Failure> {
     }
 }
 
+/// The window class (Wayland app id) the app `launch` would start opens its windows with, lower
+/// case, for run-or-raise to find them by: the desktop entry ID where there is one, since apps
+/// name their windows after it, and a desktop entry's `StartupWMClass` is often wrong.
+pub fn app_class(app: App) -> Option<String> {
+    let class = match app {
+        App::Terminal => terminal_id(),
+        App::Browser => std::env::var("BROWSER")
+            .ok()
+            .filter(|browser| installed(browser))
+            .map(|browser| base_name(&browser))
+            .or_else(default_browser_id),
+        App::Files => {
+            first_installed(FILE_MANAGERS).map(|command| match base_name(&command[0]).as_str() {
+                "dolphin" => "org.kde.dolphin".to_string(),
+                "nautilus" => "org.gnome.nautilus".to_string(),
+                other => other.to_string(),
+            })
+        }
+        App::Settings => None,
+    }?;
+    let class = class.strip_suffix(".desktop").unwrap_or(&class);
+    Some(class.to_lowercase())
+}
+
+/// The default terminal's desktop entry ID, as `xdg-terminal-exec --print-id` says it, or the
+/// terminal's own name when `$TERMINAL` names another one or there's no `xdg-terminal-exec`.
+fn terminal_id() -> Option<String> {
+    if let Ok(terminal) = std::env::var("TERMINAL")
+        && installed(&terminal)
+        && base_name(&terminal) != XDG_TERMINAL_EXEC
+    {
+        return Some(base_name(&terminal));
+    }
+    if installed(XDG_TERMINAL_EXEC) {
+        let asked = within(std::time::Duration::from_millis(500), || {
+            command(XDG_TERMINAL_EXEC)
+                .arg("--print-id")
+                .stdin(Stdio::null())
+                .stderr(Stdio::null())
+                .output()
+        });
+        if let Some(Ok(output)) = asked
+            && output.status.success()
+        {
+            // It can add `:reason` after the ID.
+            let text = String::from_utf8_lossy(&output.stdout);
+            let id = text.trim().split(':').next().unwrap_or_default();
+            if !id.is_empty() {
+                return Some(id.to_string());
+            }
+        }
+    }
+    first_installed(TERMINALS).map(|command| base_name(&command[0]))
+}
+
+/// The desktop entry ID set to open a web page, from the first `mimeapps.list` that sets one.
+fn default_browser_id() -> Option<String> {
+    mimeapps_files()
+        .iter()
+        .filter_map(|file| std::fs::read_to_string(file).ok())
+        .find_map(|text| web_browser_id(&text))
+}
+
+fn base_name(program: &str) -> String {
+    Path::new(program)
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_else(|| program.to_string())
+}
+
+/// Starts `line` with `sh -c`, as a desktop entry or a settings file writes a command.
+pub fn shell(line: &str) -> io::Result<()> {
+    spawn(&strings(&["sh", "-c", line]))
+}
+
 /// Launches the default terminal set by the Default Terminal Specification
 /// (`~/.config/xdg-terminals.list`), the same choice other desktops' apps follow.
 const XDG_TERMINAL_EXEC: &str = "xdg-terminal-exec";
@@ -103,7 +178,7 @@ fn terminal() -> Option<Vec<String>> {
 
 /// `$BROWSER`, else whichever browser the desktop is set to open a web page with. Nothing is
 /// preferred over anything else: this is the same choice every other app on the machine follows,
-/// so Super+B opens the browser the person already chose.
+/// so Super+Shift+B opens the browser the person already chose.
 fn browser() -> Option<Vec<String>> {
     std::env::var("BROWSER")
         .ok()

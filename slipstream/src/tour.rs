@@ -1,4 +1,4 @@
-//! The tour (Super+/, then Enter): what tiling is, why this desktop works the way it does, and
+//! The tour (Super+K, then Enter): what tiling is, why this desktop works the way it does, and
 //! the places a window can be besides a tile, in sixteen short lessons, each one drawn happening.
 //!
 //! Someone coming from overlapping windows doesn't get stuck because there are too many keys.
@@ -89,19 +89,19 @@ pub const LESSONS: [Lesson; 16] = [
               Layouts are built by moving windows into place rather than by dragging edges to \
               the pixel, so they come out tidy every time.",
         habit: Some("With a mouse, hold Super and drag one window onto another."),
-        keys: &["Super+Alt+← → ↑ ↓"],
+        keys: &["Super+Shift+← → ↑ ↓"],
         beats: 3,
         still: 0.34,
     },
     Lesson {
         chapter: 1,
         title: "Give it more room",
-        why: "Super+] gives a window more of the space it shares and Super+[ gives it less; with \
+        why: "Super+= gives a window more of the space it shares and Super+- gives it less; with \
               Shift they do the same for height. The split moves, not the window, so its \
               neighbour always takes up the rest and there is never a gap to tidy. Halves and \
               thirds catch as you pass them.",
         habit: None,
-        keys: &["Super+]", "Super+["],
+        keys: &["Super+=", "Super+-"],
         beats: 3,
         still: 1.0,
     },
@@ -120,11 +120,11 @@ pub const LESSONS: [Lesson; 16] = [
         chapter: 1,
         title: "Or let them place themselves",
         why: "Tiling puts windows where you put them. Gravity arranges them round the one you're \
-              in: in the centre, wide, in a spotlight or in a grid. Super+T switches between the \
-              two. Keep Super held and each further T takes the next arrangement; let go on the \
+              in: in the centre, wide, in a spotlight or in a grid. Super+G switches between the \
+              two. Keep Super held and each further G takes the next arrangement; let go on the \
               one you want.",
         habit: None,
-        keys: &["Super+T"],
+        keys: &["Super+G"],
         beats: 4,
         still: 0.5,
     },
@@ -136,18 +136,18 @@ pub const LESSONS: [Lesson; 16] = [
               too. Each workspace keeps its layout while you're away, so changing task never \
               means rearranging.",
         habit: Some("Windows calls these virtual desktops. Here each one is a single key away."),
-        keys: &["Super+1–9", "Super+Shift+1–9"],
+        keys: &["Super+1–0", "Super+Shift+1–0"],
         beats: 3,
         still: 0.34,
     },
     Lesson {
         chapter: 2,
         title: "See everything at once",
-        why: "Super+Tab tips the desktop back so every workspace sits side by side, with a letter \
+        why: "Super+Alt+Tab tips the desktop back so every workspace sits side by side, with a letter \
               on each window. Press the letter and you're there. While you look, everything slows \
               to a quarter of its speed so nothing moves under you, and catches up when you leave.",
         habit: None,
-        keys: &["Super+Tab"],
+        keys: &["Super+Alt+Tab"],
         beats: 3,
         still: 0.32,
     },
@@ -158,10 +158,7 @@ pub const LESSONS: [Lesson; 16] = [
               workspace it's on. One quick tap flips between the two you're working in. Hold Alt \
               and keep tapping Tab to go further back, and let go when the one you want is at \
               the front.",
-        habit: Some(
-            "Alt+Tab as you know it. Alt+F4, Super+L, Super+E and Print are where you left \
-                     them too.",
-        ),
+        habit: Some("Alt+Tab as you know it. Alt+F4 and Print are where you left them too."),
         keys: &["Alt+Tab"],
         beats: 3,
         still: 0.3,
@@ -181,13 +178,13 @@ pub const LESSONS: [Lesson; 16] = [
         chapter: 3,
         title: "Lift a window off the tiles",
         why: "A calculator, a video or a chat you only glance at doesn't want a tile. \
-              Super+Shift+V lifts a window off to float above the rest, and again puts it back. \
-              Super+Ctrl+V takes the keyboard down to the tiles, and back up.",
+              Super+T lifts a window off to float above the rest, and again puts it back. \
+              Super+Alt+V takes the keyboard down to the tiles, and back up.",
         habit: Some(
             "The kind of window Windows has. Hold Super and drag to move it with the \
                      mouse.",
         ),
-        keys: &["Super+Shift+V", "Super+Ctrl+V"],
+        keys: &["Super+T", "Super+Alt+V"],
         beats: 4,
         still: 0.5,
     },
@@ -206,11 +203,11 @@ pub const LESSONS: [Lesson; 16] = [
     Lesson {
         chapter: 3,
         title: "Keep one window in view",
-        why: "A build, a call or a video is for watching, not working in. Super+W hangs the \
+        why: "A build, a call or a video is for watching, not working in. Super+O hangs the \
               window from the bar as a pane of glass, in front of every workspace. Super+Up from \
               the top row puts the keyboard in it; Super and any arrow brings it back out.",
         habit: Some("Always on top, for one window, on every desktop at once."),
-        keys: &["Super+W", "Super+Shift+W"],
+        keys: &["Super+O", "Super+Shift+O"],
         beats: 4,
         still: 0.5,
     },
@@ -230,11 +227,11 @@ pub const LESSONS: [Lesson; 16] = [
     Lesson {
         chapter: 4,
         title: "Every key, one press away",
-        why: "You don't need to remember any of this. Super+/ lists every key, and typing narrows \
+        why: "You don't need to remember any of this. Super+K lists every key, and typing narrows \
               the list to what you're after. Enter there brings this tour back, and an empty \
               workspace always says how to find it.",
         habit: None,
-        keys: &["Super+/"],
+        keys: &["Super+K"],
         beats: 2,
         still: 1.0,
     },
@@ -340,7 +337,7 @@ pub struct Deck {
     pub alpha: f32,
 }
 
-/// Super+T's strip of arrangements while Super is held: which one is in force, counted along
+/// Super+G's strip of arrangements while Super is held: which one is in force, counted along
 /// `arrangements()`, and how visible the strip is.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Choosing {
@@ -562,7 +559,7 @@ fn gapped(r: Rect) -> Rect {
     }
 }
 
-/// Where the gravity lesson's four windows sit in each arrangement on Super+T's strip, in the
+/// Where the gravity lesson's four windows sit in each arrangement on Super+G's strip, in the
 /// strip's order: tiling, grid, centre, wide, spotlight. The windows are a terminal, a browser,
 /// an editor and files; the editor has the keyboard, so gravity arranges the rest round it.
 pub fn arrangements() -> [[Rect; 4]; 5] {
@@ -729,7 +726,7 @@ pub fn scene(step: usize, t: f32) -> Scene {
                 window.at = tween(places[i][n], places[i + 1][n], b.moved);
             }
             let mut scene = Scene::desk(windows, Some(0));
-            scene.key = press(["Super+Alt+→", "Super+Alt+↓", "Super+Alt+←"][i], &b);
+            scene.key = press(["Super+Shift+→", "Super+Shift+↓", "Super+Shift+←"][i], &b);
             scene
         }
         // Three presses widen the terminal, the last one catching on two thirds.
@@ -742,7 +739,7 @@ pub fn scene(step: usize, t: f32) -> Scene {
                 vec![win(Kind::Terminal, left), win(Kind::Browser, right)],
                 Some(0),
             );
-            scene.key = press("Super+]", &b);
+            scene.key = press("Super+=", &b);
             scene
         }
         // A wide window across the top turns to run down the right, and back.
@@ -765,8 +762,8 @@ pub fn scene(step: usize, t: f32) -> Scene {
             scene.key = press(keys, &b);
             scene
         }
-        // Super+T turns gravity on round the editor and, with Super still down, shows the
-        // arrangements; each further T takes the next one; letting go of Super keeps it.
+        // Super+G turns gravity on round the editor and, with Super still down, shows the
+        // arrangements; each further G takes the next one; letting go of Super keeps it.
         6 => {
             let all = arrangements();
             let (from, to) = match b.index {
@@ -792,7 +789,7 @@ pub fn scene(step: usize, t: f32) -> Scene {
                 alpha,
             });
             match b.index {
-                0 => scene.key = press("Super+T", &b),
+                0 => scene.key = press("Super+G", &b),
                 1 | 2 => scene.key = press("T", &b),
                 _ => scene.caption = Some("let go of Super"),
             }
@@ -815,7 +812,7 @@ pub fn scene(step: usize, t: f32) -> Scene {
             match b.index {
                 0 => {
                     scene.zoom = if b.pressed { b.moved } else { 0.0 };
-                    scene.key = press("Super+Tab", &b);
+                    scene.key = press("Super+Alt+Tab", &b);
                 }
                 1 => {
                     scene.zoom = 1.0 - b.moved;
@@ -901,10 +898,10 @@ pub fn scene(step: usize, t: f32) -> Scene {
                 ..nudged
             };
             let (from, to, keys) = match b.index {
-                0 => (tiled[1], lifted, "Super+Shift+V"),
-                1 => (lifted, nudged, "Super+Alt+←"),
-                2 => (nudged, wider, "Super+]"),
-                _ => (wider, wider, "Super+Ctrl+V"),
+                0 => (tiled[1], lifted, "Super+T"),
+                1 => (lifted, nudged, "Super+Shift+←"),
+                2 => (nudged, wider, "Super+="),
+                _ => (wider, wider, "Super+Alt+V"),
             };
             let mut windows = three();
             windows[1].at = tween(from, to, b.moved);
@@ -1003,12 +1000,12 @@ pub fn scene(step: usize, t: f32) -> Scene {
                     windows[4].at = tween(tiled[0], small, b.moved);
                     windows[4].dock = b.moved;
                     scene = Scene::desk(windows, Some(4));
-                    scene.key = press("Super+W", &b);
+                    scene.key = press("Super+O", &b);
                 }
                 1 => {
                     windows[4].at = tween(small, medium, b.moved);
                     scene = Scene::desk(windows, Some(4));
-                    scene.key = press("Super+W", &b);
+                    scene.key = press("Super+O", &b);
                 }
                 2 => {
                     scene = Scene::desk(windows, Some(if b.pressed { 3 } else { 4 }));
@@ -1024,7 +1021,7 @@ pub fn scene(step: usize, t: f32) -> Scene {
                     scene = Scene::desk(windows, Some(if b.pressed { 4 } else { 3 }));
                     scene.camera = 1.0;
                     scene.bar_workspace = 1;
-                    scene.key = press("Super+Shift+W", &b);
+                    scene.key = press("Super+Shift+O", &b);
                 }
             }
             let strip = scene.windows[4].dock;
@@ -1069,7 +1066,7 @@ pub fn scene(step: usize, t: f32) -> Scene {
                         chars: 0,
                         alpha: if b.pressed { b.moved.max(0.15) } else { 0.0 },
                     });
-                    scene.key = press("Super+/", &b);
+                    scene.key = press("Super+K", &b);
                 }
                 _ => {
                     scene.sheet = Some(Typed {
@@ -1108,7 +1105,7 @@ pub fn practise(step: usize, action: &Action, t: f32) -> Option<f32> {
         (4, Action::Resize(_)) => 0,
         (5, Action::Rotate { clockwise: true }) => 0,
         (5, Action::Rotate { clockwise: false }) => 1,
-        // Each T with Super still held is the next arrangement along.
+        // Each G with Super still held is the next arrangement along.
         (6, Action::ToggleGravity) => next_beat(6, t, 2),
         (7, Action::Workspace(_) | Action::MoveToWorkspace(_)) => 0,
         (8, Action::BulletTime) => 0,
@@ -1374,14 +1371,14 @@ mod tests {
         assert!(down.slot.is_none());
     }
 
-    /// The keys a keycap stands for: `Super+← → ↑ ↓` is four, `Super+1–9` nine.
+    /// The keys a keycap stands for: `Super+← → ↑ ↓` is four, `Super+1–0` ten.
     fn spelled_out(cap: &str) -> Vec<String> {
         let (mods, keys) = match cap.rfind('+') {
             Some(plus) => cap.split_at(plus + 1),
             None => ("", cap),
         };
         let keys = match keys {
-            "1–9" => (1..=9).map(|n| n.to_string()).collect(),
+            "1–0" => (1..=9).chain([0]).map(|n| n.to_string()).collect(),
             "⏎" => vec!["Enter".to_string()],
             _ => keys.split(' ').map(str::to_string).collect::<Vec<_>>(),
         };
@@ -1397,7 +1394,7 @@ mod tests {
                     // A tap, which is no binding.
                     "Super" => Action::Explorer,
                     // The key list is where the last lesson says this goes, tour or no tour.
-                    "Super+/" => continue,
+                    "Super+K" => continue,
                     _ => {
                         bindings
                             .iter()

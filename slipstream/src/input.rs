@@ -138,6 +138,8 @@ impl Slipstream {
             Action::ClipboardHistory => self.toggle_history(),
             Action::ToggleFloating => self.toggle_floating(),
             Action::SwitchFloatingFocus => self.switch_floating_focus(),
+            Action::RunOrRaise(index) => self.run_or_raise(index),
+            Action::SendTo(index) => self.send_to_raise_workspace(index),
         }
     }
 
@@ -1227,7 +1229,7 @@ impl Slipstream {
                         let typed = crate::lock::key_for(key, handle.modified_sym(), modifiers);
                         return FilterResult::Intercept(Some(KeyUse::Lock(typed)));
                     }
-                    // Super+L locks whatever holds the keys: the share picker, the cards and bullet
+                    // Super+Ctrl+L locks whatever holds the keys: the share picker, the cards and bullet
                     // time all take keys before bindings, and locking closes each of them.
                     if pressed && keys::action_for(&state.bindings, mods, key) == Some(Action::Lock)
                     {
@@ -1342,7 +1344,7 @@ impl Slipstream {
                         state.suppressed_keys.push(key);
                         return FilterResult::Intercept(Some(KeyUse::CancelSwitch));
                     }
-                    // With Super still held after Super+T, Esc puts the workspace back and the
+                    // With Super still held after Super+G, Esc puts the workspace back and the
                     // arrows move along the arrangements.
                     if pressed && state.arrange.is_some() {
                         let arrange_key = match key {

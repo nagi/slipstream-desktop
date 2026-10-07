@@ -1,4 +1,4 @@
-//! The shortcut sheet (Super+/): every key, in four groups.
+//! The shortcut sheet (Super+K): every key, in four groups.
 //!
 //! It is generated rather than written out: the bindings' rows come from the bindings themselves
 //! and each action's own description, bullet time's from the table its key handling reads, so a
@@ -74,15 +74,15 @@ fn set_rank(key: Keysym) -> Option<u32> {
         Keysym::Right => 1,
         Keysym::Up => 2,
         Keysym::Down => 3,
-        Keysym::bracketleft | Keysym::braceleft => 4,
-        Keysym::bracketright | Keysym::braceright => 5,
+        Keysym::bracketleft | Keysym::braceleft | Keysym::minus | Keysym::underscore => 4,
+        Keysym::bracketright | Keysym::braceright | Keysym::equal | Keysym::plus => 5,
         _ => 10 + keys::DIGITS.iter().position(|digit| *digit == key)? as u32,
     };
     Some(rank)
 }
 
 /// The keycaps for a row's bindings: one per modifier combination when its keys form a set
-/// (`Super+← → ↑ ↓`, `Super+1–9`), otherwise one per key.
+/// (`Super+← → ↑ ↓`, `Super+1–0`), otherwise one per key.
 fn keycaps(bindings: &[(Mods, Keysym)]) -> Vec<String> {
     let mut by_mods: Vec<(Mods, Vec<Keysym>)> = Vec::new();
     for (mods, key) in bindings {
@@ -102,12 +102,17 @@ fn keycaps(bindings: &[(Mods, Keysym)]) -> Vec<String> {
                     names.push(name);
                 }
             }
-            let digits: Vec<u32> = names.iter().filter_map(|name| name.parse().ok()).collect();
+            // The digits count 1 to 9 and then 0, the tenth, as they sit on the keyboard.
+            let digits: Vec<u32> = names
+                .iter()
+                .filter_map(|name| name.parse().ok())
+                .map(|digit| if digit == 0 { 10 } else { digit })
+                .collect();
             let run = digits.len() == names.len()
                 && digits.len() > 2
                 && digits.windows(2).all(|pair| pair[1] == pair[0] + 1);
             let joined = if run {
-                format!("{}–{}", digits[0], digits[digits.len() - 1])
+                format!("{}–{}", digits[0], digits[digits.len() - 1] % 10)
             } else {
                 names.join(" ")
             };
@@ -130,7 +135,8 @@ fn keycaps(bindings: &[(Mods, Keysym)]) -> Vec<String> {
 
 /// The sheet's sections for `bindings`, in `Group::ALL`'s order: each group's bindings merged by
 /// what they do, bullet time's keys after its own binding, and the panels' shared keys last.
-pub fn sections(bindings: &[Binding]) -> Vec<Section> {
+/// `apps` names each run-or-raise app's workspace, for its rows.
+pub fn sections(bindings: &[Binding], apps: &[String]) -> Vec<Section> {
     let mut sections: Vec<Section> = Group::ALL
         .iter()
         .map(|group| Section {
@@ -147,7 +153,16 @@ pub fn sections(bindings: &[Binding]) -> Vec<Section> {
             continue;
         }
         let group = binding.action.group();
-        let does = binding.action.describe();
+        let app = |index: u8| {
+            apps.get(usize::from(index))
+                .filter(|name| !name.is_empty())
+                .map_or("an app", String::as_str)
+        };
+        let does = match binding.action {
+            keys::Action::RunOrRaise(index) => format!("{}: go there, or start it", app(index)),
+            keys::Action::SendTo(index) => format!("send window to {}", app(index)),
+            action => action.describe().to_string(),
+        };
         let Some(section) = sections.iter_mut().find(|section| section.group == group) else {
             continue;
         };
@@ -155,7 +170,7 @@ pub fn sections(bindings: &[Binding]) -> Vec<Section> {
             Some(row) => row.bindings.push((binding.mods, binding.key)),
             None => section.rows.push(Row {
                 keys: Vec::new(),
-                does: does.to_string(),
+                does,
                 bindings: vec![(binding.mods, binding.key)],
             }),
         }
@@ -440,6 +455,7 @@ impl Sheet {
         scale: f64,
         now: f64,
         bindings: &[Binding],
+        apps: &[String],
         ring: u32,
         effects: Effects,
     ) -> Vec<MemoryRenderBufferRenderElement<R>>
@@ -461,7 +477,7 @@ impl Sheet {
             self.painted = match self.tour {
                 Some(touring) => paint_tour(&look, touring.step, touring.tried),
                 None => {
-                    let sections = filtered(sections(bindings), &look.query);
+                    let sections = filtered(sections(bindings, apps), &look.query);
                     paint(&look, &sections)
                 }
             };
@@ -784,7 +800,7 @@ fn paint(look: &Look, sections: &[Section]) -> Option<Painted> {
         p.fill(x + typed + 2.0, centre - 11.0, 3.0, 22.0, 0.0, panel::AMBER);
     }
     let mut right_x = fx + width - PADDING;
-    for key in ["Esc", "Super+/"] {
+    for key in ["Esc", "Super+K"] {
         right_x -= paint::keycap_width(key);
         p.keycap(key, right_x, centre);
         right_x -= KEY_GAP;
@@ -864,9 +880,9 @@ fn paint(look: &Look, sections: &[Section]) -> Option<Painted> {
 }
 
 impl Slipstream {
-    /// Super+/: the shortcut sheet opens, or closes.
+    /// Super+K: the shortcut sheet opens, or closes.
     pub fn toggle_sheet(&mut self) {
-        // From the tour, Super+/ goes to the key list, which is what the last lesson says it does.
+        // From the tour, Super+K goes to the key list, which is what the last lesson says it does.
         if self.sheet.touring() {
             self.sheet.leave_tour();
             return;
@@ -911,7 +927,7 @@ mod tests {
     #[test]
     fn every_binding_appears_once_but_the_laptops_own_keys() {
         let bindings = keys::checked(keys::defaults());
-        let sections = sections(&bindings);
+        let sections = sections(&bindings, &[]);
         for binding in &bindings {
             let rows = sections
                 .iter()
@@ -946,9 +962,9 @@ mod tests {
                 .clone()
         };
         assert_eq!(row("move focus"), ["Super+← → ↑ ↓"]);
-        assert_eq!(row("go to a workspace"), ["Super+1–9"]);
-        assert_eq!(row("narrower, wider (gravity: weight)"), ["Super+[ ]"]);
-        assert_eq!(row("shorter, taller"), ["Super+Shift+[ ]"]);
+        assert_eq!(row("go to a workspace"), ["Super+1–0"]);
+        assert_eq!(row("narrower, wider (gravity: weight)"), ["Super+- ="]);
+        assert_eq!(row("shorter, taller"), ["Super+Shift+- ="]);
         assert_eq!(row("switch window"), ["Alt+Tab", "Alt+Shift+Tab"]);
         assert_eq!(row("apps"), ["Super"]);
         let turn = row("turn the layout a quarter, either way");
@@ -959,14 +975,43 @@ mod tests {
         );
         assert!(turn.len() <= 2, "both ways on one row: {turn:?}");
         assert_eq!(row("maximise"), ["Super+F"]);
-        assert_eq!(row("every key"), ["Super+/"]);
+        assert_eq!(row("every key"), ["Super+K"]);
         assert_eq!(row("jump to a label"), ["J K L…"]);
+    }
+
+    #[test]
+    fn each_run_or_raise_app_has_its_own_rows_by_name() {
+        let settings = slipstream_config::RunOrRaise {
+            app: vec![slipstream_config::RaiseApp {
+                workspace: "Chrome".into(),
+                key: "c".into(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        let bindings = keys::bindings(&settings);
+        let sections = sections(&bindings, &["Chrome".to_string()]);
+        let row = |does: &str| {
+            sections
+                .iter()
+                .flat_map(|section| &section.rows)
+                .find(|row| row.does == does)
+                .map(|row| row.keys.clone())
+        };
+        assert_eq!(
+            row("Chrome: go there, or start it"),
+            Some(vec!["Super+Ctrl+Alt+C".to_string()])
+        );
+        assert_eq!(
+            row("send window to Chrome"),
+            Some(vec!["Super+Ctrl+Alt+Shift+C".to_string()])
+        );
     }
 
     #[test]
     fn typing_filters_the_rows() {
         let bindings = keys::checked(keys::defaults());
-        let found = filtered(sections(&bindings), "minim");
+        let found = filtered(sections(&bindings, &[]), "minim");
         let rows: Vec<&str> = found
             .iter()
             .flat_map(|section| &section.rows)
@@ -980,7 +1025,7 @@ mod tests {
                 "minimise"
             ]
         );
-        assert!(filtered(sections(&bindings), "nothing like this").is_empty());
+        assert!(filtered(sections(&bindings, &[]), "nothing like this").is_empty());
         let mut sheet = Sheet::default();
         sheet.open(0.0);
         sheet.key(Keysym::k, Some('k'), 0.0);

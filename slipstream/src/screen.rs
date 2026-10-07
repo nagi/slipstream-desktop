@@ -66,6 +66,9 @@ pub struct Screens<O> {
     focused: usize,
     /// Per workspace, the name of the screen that last showed it.
     homes: Vec<Option<String>>,
+    /// Per workspace, the screen the settings say it opens on, by name. It wins over `homes`
+    /// while that screen is lit.
+    pins: Vec<Option<String>>,
     /// Screens that went out, by name, with the workspace each was showing.
     gone: Vec<(String, usize)>,
 }
@@ -76,6 +79,7 @@ impl<O> Default for Screens<O> {
             list: Vec::new(),
             focused: 0,
             homes: Vec::new(),
+            pins: Vec::new(),
             gone: Vec::new(),
         }
     }
@@ -122,8 +126,13 @@ impl<O: Clone + PartialEq + Named> Screens<O> {
             screen.carried_from = None;
             self.set_home(own, carrier_name);
         }
+        let pinned_here = (0..count).find(|index| {
+            self.pins.get(*index).and_then(Option::as_ref) == Some(&name)
+                && self.showing(*index).is_none()
+        });
         let workspace = remembered
             .filter(|wanted| self.showing(*wanted).is_none())
+            .or(pinned_here)
             .or_else(|| wanted.filter(|index| *index < count && self.showing(*index).is_none()))
             .or_else(|| (0..count).find(|index| self.showing(*index).is_none()))
             .unwrap_or(0);
@@ -285,6 +294,7 @@ impl<O: Clone + PartialEq + Named> Screens<O> {
     /// showed it, if that one is lit; else the focused one, where it would appear if switched to.
     pub fn screen_for_workspace(&self, index: usize) -> usize {
         self.showing(index)
+            .or_else(|| self.pinned(index))
             .or_else(|| {
                 let home = self.homes.get(index)?.as_ref()?;
                 self.list
@@ -303,8 +313,22 @@ impl<O: Clone + PartialEq + Named> Screens<O> {
         true
     }
 
+    /// Workspace `index`'s pinned screen, while it's lit.
+    fn pinned(&self, index: usize) -> Option<usize> {
+        let pin = self.pins.get(index)?.as_ref()?;
+        self.list
+            .iter()
+            .position(|screen| screen.output.name() == *pin)
+    }
+
+    /// The screens the settings pin the workspaces to, by name, in workspace order.
+    pub fn set_pins(&mut self, pins: Vec<Option<String>>) {
+        self.pins = pins;
+    }
+
     /// Goes to workspace `index` of `count`. If another screen is showing it, the keyboard moves
-    /// to that screen and nothing else changes; otherwise the focused screen shows it.
+    /// to that screen and nothing else changes. Otherwise, if it's pinned to a lit screen, the
+    /// keyboard moves there and that screen shows it; failing that, the focused screen shows it.
     pub fn show(&mut self, index: usize, count: usize) -> Show {
         let index = index.min(count.saturating_sub(1));
         let Some(from) = self.focused().map(|screen| screen.workspace) else {
@@ -320,6 +344,9 @@ impl<O: Clone + PartialEq + Named> Screens<O> {
                 from,
                 moved_to: Some(other),
             };
+        }
+        if let Some(pinned) = self.pinned(index) {
+            self.focused = pinned;
         }
         let focused = self.focused;
         let screen = &mut self.list[focused];
@@ -459,6 +486,59 @@ mod tests {
 
     fn shown(screens: &Screens<&str>) -> Vec<usize> {
         screens.iter().map(|screen| screen.workspace).collect()
+    }
+
+    /// Workspaces 0–2 on DP-1, 3 and 4 on HDMI-A-1, 5 anywhere.
+    fn pins() -> Vec<Option<String>> {
+        let pin = |name: &str| Some(name.to_string());
+        vec![
+            pin("DP-1"),
+            pin("DP-1"),
+            pin("DP-1"),
+            pin("HDMI-A-1"),
+            pin("HDMI-A-1"),
+            None,
+        ]
+    }
+
+    #[test]
+    fn a_pinned_workspace_opens_on_its_own_screen_and_the_keyboard_follows() {
+        let mut screens: Screens<&str> = Screens::default();
+        screens.set_pins(pins());
+        screens.add("DP-1", 0, 0, 6, None);
+        screens.add("HDMI-A-1", 2560, 0, 6, None);
+        assert_eq!(
+            shown(&screens),
+            vec![0, 3],
+            "each screen opens on its first pin"
+        );
+        assert_eq!(screens.focused_output(), Some("DP-1"));
+        let show = screens.show(4, 6);
+        assert_eq!(
+            show.moved_to, None,
+            "the pinned screen changed what it shows"
+        );
+        assert_eq!(shown(&screens), vec![0, 4]);
+        assert_eq!(screens.focused_output(), Some("HDMI-A-1"));
+        // Back to one of DP-1's, and the keyboard goes back with it.
+        screens.show(2, 6);
+        assert_eq!(shown(&screens), vec![2, 4]);
+        assert_eq!(screens.focused_output(), Some("DP-1"));
+        // One pinned nowhere opens where the keyboard is.
+        screens.show(5, 6);
+        assert_eq!(shown(&screens), vec![5, 4]);
+        assert_eq!(screens.screen_for_workspace(3), 1);
+    }
+
+    #[test]
+    fn a_workspace_pinned_to_a_screen_that_isnt_there_opens_where_the_keyboard_is() {
+        let mut screens: Screens<&str> = Screens::default();
+        screens.set_pins(pins());
+        screens.add("eDP-1", 0, 0, 6, None);
+        assert_eq!(shown(&screens), vec![0]);
+        screens.show(3, 6);
+        assert_eq!(shown(&screens), vec![3]);
+        assert_eq!(screens.focused_output(), Some("eDP-1"));
     }
 
     #[test]

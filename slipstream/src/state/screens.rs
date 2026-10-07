@@ -4,6 +4,22 @@
 use super::*;
 
 impl Slipstream {
+    /// Tells the screens which workspace the settings pin to which screen, following each
+    /// workspace by its id, so a reorder or a workspace made for a screen moves nothing.
+    pub fn refresh_pins(&mut self, settings: &slipstream_config::Workspaces) {
+        let entries = settings.entries();
+        let pins = (0..self.workspaces.count())
+            .map(|index| {
+                let id = self.workspaces.get(index).id;
+                entries
+                    .iter()
+                    .find(|entry| entry.id == id && !entry.screen.is_empty())
+                    .map(|entry| entry.screen.clone())
+            })
+            .collect();
+        self.screens.set_pins(pins);
+    }
+
     /// A screen lit up: it joins the row, left to right, and shows a workspace of its own rather
     /// than taking one of the user's. Called by both backends when an output is mapped.
     pub fn screen_connected(&mut self, output: &Output, x: i32) {
@@ -13,6 +29,14 @@ impl Slipstream {
             let entries = workspace_entries(&self.settings);
             self.set_workspaces(&entries, self.screens.len() + 1);
         }
+        let workspaces = self.settings.workspaces.clone();
+        self.refresh_pins(&workspaces);
+        // A screen with workspaces pinned to it opens on the first of them (`Screens::add`), so
+        // it needs no workspace set aside and nothing asked about it.
+        let pinned_here = workspaces
+            .entries()
+            .iter()
+            .any(|entry| entry.screen == output.name());
         // What this screen should be looking at. A screen met before takes back what it had; one
         // never seen here gets a workspace of its own, so plugging a monitor in never takes a
         // workspace off the screen already in use.
@@ -21,7 +45,7 @@ impl Slipstream {
         // Only once something else is lit. The first screen of a session has no one to take a
         // workspace from, so it starts on the first workspace as it always has, and there is
         // nothing worth asking about.
-        if new_screen && !self.screens.is_empty() {
+        if new_screen && !self.screens.is_empty() && !pinned_here {
             let monitor = self.monitor_id(output);
             match self.known.get(&monitor) {
                 Some(known) if known.own_workspace => wanted = Some(self.workspaces.add_scratch()),

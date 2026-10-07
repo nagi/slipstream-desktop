@@ -1524,6 +1524,7 @@ fn fill_workspaces(card: &gtk::Box, store: &Store) {
                 list.push(slipstream_config::WorkspaceEntry {
                     id,
                     name: String::new(),
+                    ..Default::default()
                 });
             }
             settings.workspaces.list = list;

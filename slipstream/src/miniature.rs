@@ -1370,26 +1370,26 @@ fn explorer(p: &mut Painter, typed: Typed, w: f32, look: &Look) {
     }
 }
 
-/// The key list, as Super+/ opens it, narrowed as it's typed into.
+/// The key list, as Super+K opens it, narrowed as it's typed into.
 fn sheet(p: &mut Painter, typed: Typed, w: f32, h: f32) {
     const QUERY: &str = "work";
     const ROWS: [(&str, &str); 16] = [
         ("Super", "apps"),
         ("Super+← → ↑ ↓", "move focus"),
-        ("Super+Alt+← → ↑ ↓", "move the window"),
+        ("Super+Shift+← → ↑ ↓", "move the window"),
         ("Alt+Tab", "switch window"),
-        ("Alt+F4", "close window"),
+        ("Super+W", "close window"),
         ("Super+F", "fill the area"),
         ("Super+R", "turn the layout"),
-        ("Super+T", "tiling or gravity"),
-        ("Super+1–9", "go to a workspace"),
-        ("Super+Shift+1–9", "send window to a workspace"),
-        ("Super+Ctrl+← →", "previous, next workspace"),
-        ("Super+Tab", "bullet time"),
+        ("Super+G", "tiling or gravity"),
+        ("Super+1–0", "go to a workspace"),
+        ("Super+Shift+1–0", "send window to a workspace"),
+        ("Super+Tab", "next workspace"),
+        ("Super+Alt+Tab", "bullet time"),
         ("Super+M", "minimise to a stream"),
         ("Super+H", "hide every window"),
         ("Super+N", "notifications"),
-        ("Super+L", "lock the screen"),
+        ("Super+Ctrl+L", "lock the screen"),
     ];
     let a = typed.alpha;
     if a <= 0.01 {

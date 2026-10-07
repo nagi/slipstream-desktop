@@ -323,11 +323,11 @@ pub(super) fn shift_for_workspace(
 }
 
 /// The prompt on an empty workspace: where to find every key, and nothing else, so the wallpaper
-/// stays clear at the one moment it is all there is to look at. Super+/ lists every key, so the
+/// stays clear at the one moment it is all there is to look at. Super+K lists every key, so the
 /// empty workspace only has to say so.
 pub(super) const TIPS_TEXT: &str = "Keyboard tips";
 
-pub(super) const TIPS_KEY: &str = "Super+/";
+pub(super) const TIPS_KEY: &str = "Super+K";
 
 /// Under the pill: how to get the tour, which nothing else says. Quieter than the pill, because
 /// it is the second thing to read, not a second pill. Its words either side of its keycap.

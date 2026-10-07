@@ -75,6 +75,7 @@ mod panel;
 mod power;
 mod quick;
 mod rain;
+mod raise;
 mod render;
 mod restore;
 mod resume;
@@ -315,7 +316,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         udev::run(&mut event_loop, &mut state)?;
         tracing::info!(
-            "Slipstream is running on WAYLAND_DISPLAY={}. Super+Return opens a terminal, Super+E \
+            "Slipstream is running on WAYLAND_DISPLAY={}. Super+Return opens a terminal, Super+Shift+F \
              files, a tapped Super the apps; Ctrl+Alt+Del is the way out",
             state.socket_name.to_string_lossy()
         );
@@ -356,8 +357,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         unsafe { std::env::set_var("WAYLAND_DISPLAY", &state.socket_name) };
         tracing::info!(
             "listening on WAYLAND_DISPLAY={}. Nested, Alt is the Mod key: Alt+arrows move focus, \
-             Alt+1–9 and Alt+Ctrl+←/→ switch workspace, Alt+Shift+1–9 and Alt+Shift+←/→ move the \
-             window there, Alt+Return opens a terminal, and closing the window quits",
+             Alt+1–0 and Alt+Ctrl+←/→ switch workspace, Alt+Shift+1–0 and Alt+Ctrl+Shift+←/→ move \
+             the window there, Alt+Return opens a terminal, and closing the window quits",
             state.socket_name.to_string_lossy()
         );
     }

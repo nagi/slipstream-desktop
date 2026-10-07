@@ -72,6 +72,7 @@ fn written_settings_read_back_and_leave_nothing_else_behind() {
             every_secs: 120,
         },
         workspaces: Default::default(),
+        run_or_raise: Default::default(),
     };
     write(&path, &settings).unwrap();
     assert_eq!(read(&path).unwrap(), settings);
