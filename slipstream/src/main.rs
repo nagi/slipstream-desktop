@@ -25,6 +25,7 @@ mod centre;
 mod clipboard;
 mod concentration;
 mod connect;
+mod copypaste;
 mod cursor;
 mod debug;
 mod deck;

@@ -6,7 +6,10 @@
 
 use smithay::input::keyboard::{Keysym, ModifiersState, xkb};
 
-use crate::layout::{Direction, Resize};
+use crate::{
+    copypaste::Edit,
+    layout::{Direction, Resize},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Action {
@@ -89,6 +92,8 @@ pub enum Action {
     TakeBack,
     /// Open or close the clipboard history.
     ClipboardHistory,
+    /// Copy, cut or paste in the focused app, with whichever keys it takes for that.
+    Edit(Edit),
     /// Float the focused window, or put it back into the tiling.
     ToggleFloating,
     /// Move the keyboard between the floating windows and the tiles.
@@ -175,6 +180,9 @@ impl Action {
             Action::Media(_) => "play, pause, next, previous",
             Action::TakeBack => "take the mouse and keys back from an app",
             Action::ClipboardHistory => "clipboard history",
+            Action::Edit(Edit::Copy) => "copy, in any app",
+            Action::Edit(Edit::Cut) => "cut, in any app",
+            Action::Edit(Edit::Paste) => "paste, in any app",
             Action::ToggleFloating => "float the window, or tile it",
             Action::SwitchFloatingFocus => "between floating and tiled windows",
             Action::RunOrRaise(_) => "go to an app, or start it",
@@ -199,6 +207,7 @@ impl Action {
             | Action::Maximise
             | Action::ToggleFloating
             | Action::SwitchFloatingFocus
+            | Action::Edit(_)
             | Action::RunOrRaise(_) => Group::AppsAndWindows,
             Action::Resize(_)
             | Action::Rotate { .. }
@@ -453,6 +462,11 @@ pub fn defaults() -> Vec<Binding> {
         bind(mod_ctrl, Keysym::l, Action::Lock),
         // Omarchy's clipboard manager key.
         bind(mod_ctrl, Keysym::v, Action::ClipboardHistory),
+        // Omarchy's copy, cut and paste: the same three keys in a terminal, an editor and
+        // everything else, each sent the keys it takes for them.
+        bind(mod_, Keysym::c, Action::Edit(Edit::Copy)),
+        bind(mod_, Keysym::x, Action::Edit(Edit::Cut)),
+        bind(mod_, Keysym::v, Action::Edit(Edit::Paste)),
         // Omarchy's float key, and the floating windows' own focus beside the clipboard's V.
         bind(mod_, Keysym::t, Action::ToggleFloating),
         bind(mod_alt, Keysym::v, Action::SwitchFloatingFocus),
@@ -1231,6 +1245,9 @@ mod tests {
                 Keysym::v,
                 Action::ClipboardHistory,
             ),
+            (SUPER, Keysym::c, Action::Edit(Edit::Copy)),
+            (SUPER, Keysym::x, Action::Edit(Edit::Cut)),
+            (SUPER, Keysym::v, Action::Edit(Edit::Paste)),
         ] {
             assert_eq!(
                 action_for(&bindings, mods, key),
@@ -1247,7 +1264,7 @@ mod tests {
             action_for(&bindings, with(false, false, true), Keysym::Tab),
             Some(Action::BulletTime)
         );
-        for key in [Keysym::l, Keysym::v, Keysym::e, Keysym::b, Keysym::slash] {
+        for key in [Keysym::l, Keysym::e, Keysym::b, Keysym::slash] {
             assert_eq!(action_for(&bindings, SUPER, key), None, "{key:?}");
         }
     }

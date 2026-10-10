@@ -8,7 +8,7 @@ use smithay::{
         PointerMotionEvent, Switch, SwitchState, SwitchToggleEvent,
     },
     input::{
-        keyboard::{FilterResult, Keycode, Keysym, xkb},
+        keyboard::{FilterResult, KeyboardTarget, Keycode, Keysym, ModifiersState, xkb},
         pointer::{
             AxisFrame, ButtonEvent, GestureHoldBeginEvent, GestureHoldEndEvent,
             GesturePinchBeginEvent, GesturePinchEndEvent, GesturePinchUpdateEvent,
@@ -136,6 +136,7 @@ impl Slipstream {
             Action::Maximise => self.toggle_maximise(),
             Action::TakeBack => self.take_back(),
             Action::ClipboardHistory => self.toggle_history(),
+            Action::Edit(edit) => self.edit_in_focused(edit),
             Action::ToggleFloating => self.toggle_floating(),
             Action::SwitchFloatingFocus => self.switch_floating_focus(),
             Action::RunOrRaise(index) => self.run_or_raise(index),
@@ -1471,15 +1472,75 @@ impl Slipstream {
         self.key_event(keycode, state, InputTime::now(), true);
     }
 
-    /// The key that types `sym` without modifiers in the active layout.
+    /// Super+C, X or V: the focused app is sent the keys it copies, cuts or pastes with.
+    fn edit_in_focused(&mut self, edit: crate::copypaste::Edit) {
+        if self.lock.is_some() {
+            return;
+        }
+        let app_id = self
+            .focused_window()
+            .and_then(|window| crate::state::window_app_id(&window));
+        if let Some(chord) = crate::copypaste::chord(edit, app_id.as_deref()) {
+            self.send_chord(chord);
+        }
+    }
+
+    /// Presses and lets go of the chord's key in the focused app, which is told that the chord's
+    /// modifiers and no others are held while it happens, then what really is. Super is down when
+    /// this is asked for, and a key pressed through the keyboard's own routing would arrive with
+    /// it: Super+Ctrl+V, which pastes nowhere.
+    ///
+    /// The keyboard's own state isn't touched. `set_modifier_state` would do the same through it,
+    /// but it loses the layout on the way, and whoever types in a second layout would be back in
+    /// the first after every paste.
+    fn send_chord(&mut self, chord: crate::copypaste::Chord) {
+        // Shift and Control are real modifiers, which have the same place in every keymap.
+        const SHIFT: u32 = 1 << 0;
+        const CONTROL: u32 = 1 << 2;
+        let keyboard = self.seat.get_keyboard().unwrap();
+        let Some(focus) = keyboard.current_focus() else {
+            return;
+        };
+        let Some(keycode) = self.keycode_for(chord.key) else {
+            tracing::warn!(key = ?chord.key, "no key for that in the layout, so nothing was sent");
+            return;
+        };
+        let held = keyboard.modifier_state();
+        let mut sent = ModifiersState {
+            ctrl: chord.ctrl,
+            shift: chord.shift,
+            alt: false,
+            logo: false,
+            iso_level3_shift: false,
+            iso_level5_shift: false,
+            ..held
+        };
+        sent.serialized.depressed =
+            if chord.ctrl { CONTROL } else { 0 } | if chord.shift { SHIFT } else { 0 };
+        sent.serialized.latched = 0;
+        let time = InputTime::now();
+        let seat = self.seat.clone();
+        focus.modifiers(&seat, self, sent, SERIAL_COUNTER.next_serial());
+        for state in [KeyState::Pressed, KeyState::Released] {
+            let serial = SERIAL_COUNTER.next_serial();
+            keyboard.input_forward(self, keycode, state, serial, time, false);
+        }
+        focus.modifiers(&seat, self, held, SERIAL_COUNTER.next_serial());
+    }
+
+    /// The key that types `sym` without modifiers in the active layout, or failing that in
+    /// another of the keymap's: a Cyrillic or Greek layout has no C or V of its own, and an app
+    /// reads Ctrl with that key as the Latin letter all the same.
     fn keycode_for(&mut self, sym: Keysym) -> Option<Keycode> {
         let keyboard = self.seat.get_keyboard()?;
         keyboard.with_xkb_state(self, |context| {
             let xkb = context.xkb().lock().ok()?;
-            let layout = xkb.active_layout();
-            (8..=255)
-                .map(Keycode::new)
-                .find(|code| xkb.raw_syms_for_key_in_layout(*code, layout).contains(&sym))
+            let key_in = |layout| {
+                (8..=255)
+                    .map(Keycode::new)
+                    .find(|code| xkb.raw_syms_for_key_in_layout(*code, layout).contains(&sym))
+            };
+            key_in(xkb.active_layout()).or_else(|| xkb.layouts().find_map(key_in))
         })
     }
 }

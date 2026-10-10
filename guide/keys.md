@@ -29,6 +29,7 @@ Super+K shows this list inside Slipstream, whenever you forget one. Press Enter 
 | Super+P, Super+Shift+P | Next screen, move the window there |
 | Super+Ctrl+P | Swap workspaces with the next screen, windows and all |
 | Super+A, Super+N | Quick settings, notifications |
+| Super+C, Super+X, Super+V | Copy, cut and paste in any app: a terminal, Emacs and gVim are each sent their own keys for it |
 | Super+Ctrl+V | Clipboard history |
 | Print, Super+Shift+S | Screenshot of the screen; snip a region or a window |
 | Super+Ctrl+L | Lock |
