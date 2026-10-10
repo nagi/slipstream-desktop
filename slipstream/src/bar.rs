@@ -49,6 +49,9 @@ pub struct Content {
     pub keyboard_here: bool,
     /// One per workspace: its name, or its number.
     pub labels: Vec<String>,
+    /// One per workspace: whether it's pinned to another screen, so this bar leaves it out.
+    /// Shorter than `labels` (empty, say) hides none past its end.
+    pub hidden: Vec<bool>,
     pub title: String,
     /// A mode's label, such as `BULLET TIME`, and the colour of its chip, 0xRRGGBBAA.
     pub mode: Option<(&'static str, u32)>,
@@ -260,13 +263,15 @@ fn paint(content: &Content, width: i32, scale: f64) -> Option<(Pixmap, Targets)>
     x += 34.0 + 8.0;
     // Names take room the clock needs. When they would run past a third of the bar, only the
     // workspace in front shows its name and the rest go by their numbers.
-    let widths: Vec<f32> = content
-        .labels
+    let listed: Vec<usize> = (0..content.labels.len())
+        .filter(|index| !content.hidden.get(*index).copied().unwrap_or(false))
+        .collect();
+    let widths: Vec<f32> = listed
         .iter()
-        .map(|label| text::width(label, &Style::new(Face::Mono, 15.0, 0)))
+        .map(|index| text::width(&content.labels[*index], &Style::new(Face::Mono, 15.0, 0)))
         .collect();
     let names_fit = names_fit(&widths, wide);
-    for index in 0..content.labels.len() {
+    for index in listed {
         let on = index == content.active;
         let label = if names_fit || on {
             content.labels[index].clone()
@@ -570,6 +575,7 @@ mod tests {
             elsewhere: vec![false; 5],
             keyboard_here: true,
             labels: (1..=5).map(|n| n.to_string()).collect(),
+            hidden: Vec::new(),
             title: "Firefox".into(),
             mode: Some(("BULLET TIME", AMBER)),
             status: Shown {
@@ -867,6 +873,30 @@ mod tests {
         assert_eq!((pixmap.width(), pixmap.height()), (1920, 40));
         let (pixmap, _) = paint(&content(), 1280, 2.0).unwrap();
         assert_eq!((pixmap.width(), pixmap.height()), (2560, 64));
+    }
+
+    #[test]
+    fn a_hidden_workspace_leaves_no_gap_and_the_rest_keep_their_numbers() {
+        let content = Content {
+            hidden: vec![false, false, true, true],
+            ..content()
+        };
+        let (_, targets) = paint(&content, 1536, 1.25).unwrap();
+        let shown: Vec<_> = targets
+            .iter()
+            .filter_map(|(target, area)| match target {
+                Target::Workspace(index) => Some((*index, *area)),
+                _ => None,
+            })
+            .collect();
+        let indices: Vec<usize> = shown.iter().map(|(index, _)| *index).collect();
+        assert_eq!(indices, vec![0, 1, 4], "past the end of `hidden`, shown");
+        let (_, second) = shown[1];
+        let (_, fifth) = shown[2];
+        assert!(
+            fifth.loc.x - (second.loc.x + second.size.w) < 10.0,
+            "side by side"
+        );
     }
 
     #[test]

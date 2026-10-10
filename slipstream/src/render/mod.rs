@@ -1829,6 +1829,13 @@ fn bar_content(
         labels: (0..state.workspaces.count())
             .map(|index| state.workspaces.label(index))
             .collect(),
+        // Each screen lists its own workspaces, except in bullet time, which pans across all.
+        hidden: (0..state.workspaces.count())
+            .map(|index| {
+                bullet.is_none()
+                    && screen_index.is_some_and(|screen| !state.screens.belongs(index, screen))
+            })
+            .collect(),
         title,
         mode: state.bullet.as_ref().map(|_| {
             let channel = |value: f32| (value.clamp(0.0, 1.0) * 255.0).round() as u32;
