@@ -1,12 +1,12 @@
-//! Clipboard history (Super+V): the last things copied, text and pictures, any of which can be
-//! pasted again.
+//! Clipboard history (Super+Ctrl+V): the last things copied, text and pictures, any of which can
+//! be pasted again.
 //!
 //! Whenever an app puts something on the clipboard, Slipstream reads a copy for itself, on a
 //! thread of its own, and keeps it in memory only: nothing is written to disk, and logging out
 //! forgets it all. Anything a password manager marks as secret (`x-kde-passwordManagerHint`) is
 //! never read at all. Screenshots and snips join the list as they're copied.
 //!
-//! Super+V lists them, newest first. ↑ and ↓ choose, Enter puts the chosen one back on the
+//! Super+Ctrl+V lists them, newest first. ↑ and ↓ choose, Enter puts the chosen one back on the
 //! clipboard and pastes it into the focused app (Ctrl+V, or Ctrl+Shift+V in a terminal), Delete
 //! forgets it, Esc closes. The chosen row's text decodes out of rain glyphs as the selection
 //! reaches it.
@@ -523,8 +523,8 @@ impl History {
             centre + 1.0,
             &Style::new(Face::Body, 15.0, panel::PLACEHOLDER),
         );
-        let key_w = paint::keycap_width("Super+V");
-        p.keycap("Super+V", fx + width - PADDING - key_w, centre);
+        let key_w = paint::keycap_width("Super+Ctrl+V");
+        p.keycap("Super+Ctrl+V", fx + width - PADDING - key_w, centre);
         p.fill(fx, fy + HEAD_H, width, 1.0, 0.0, panel::DIVIDER);
 
         let mut rows = Vec::new();
@@ -688,7 +688,7 @@ pub fn is_terminal(app_id: &str) -> bool {
 }
 
 impl Slipstream {
-    /// Super+V: the history opens, or closes.
+    /// Super+Ctrl+V: the history opens, or closes.
     pub fn toggle_history(&mut self) {
         if self.history.is_open() {
             self.history.close();

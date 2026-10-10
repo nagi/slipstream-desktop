@@ -320,7 +320,7 @@ pub struct Slipstream {
     pub night: crate::nightlight::Night,
     /// Low battery's warnings and its countdown card (`battery.rs`).
     pub battery: crate::battery::Battery,
-    /// The clipboard history (Super+V).
+    /// The clipboard history (Super+Ctrl+V).
     pub history: crate::history::History,
     /// Where copies read for the history come back from their threads.
     pub clip_answers: channel::Sender<crate::history::Clip>,

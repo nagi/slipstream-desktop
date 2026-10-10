@@ -924,9 +924,9 @@ impl Privacy {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "kebab-case")]
 pub struct Clipboard {
-    /// Keep the last things copied, text and pictures, for Super+V to paste again. In memory
-    /// only, forgotten at logout, and never what a password manager marks as secret. Turning it
-    /// off forgets everything kept.
+    /// Keep the last things copied, text and pictures, for Super+Ctrl+V to paste again. In
+    /// memory only, forgotten at logout, and never what a password manager marks as secret.
+    /// Turning it off forgets everything kept.
     pub history: bool,
 }
 
