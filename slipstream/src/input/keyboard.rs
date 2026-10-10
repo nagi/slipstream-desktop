@@ -664,10 +664,12 @@ impl Slipstream {
         let keyboard = self.seat.get_keyboard()?;
         keyboard.with_xkb_state(self, |context| {
             let xkb = context.xkb().lock().ok()?;
-            let layout = xkb.active_layout();
-            (8..=255)
-                .map(Keycode::new)
-                .find(|code| xkb.raw_syms_for_key_in_layout(*code, layout).contains(&sym))
+            let key_in = |layout| {
+                (8..=255)
+                    .map(Keycode::new)
+                    .find(|code| xkb.raw_syms_for_key_in_layout(*code, layout).contains(&sym))
+            };
+            key_in(xkb.active_layout()).or_else(|| xkb.layouts().find_map(key_in))
         })
     }
 }
