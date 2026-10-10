@@ -217,7 +217,11 @@ impl Scope {
                         AgentStatus::Active | AgentStatus::Subagents => 1.0,
                         AgentStatus::Idle => 0.0,
                     },
-                    amp: if agent.status == AgentStatus::Active { 1.0 } else { 0.0 },
+                    amp: if agent.status == AgentStatus::Active {
+                        1.0
+                    } else {
+                        0.0
+                    },
                 });
             }
         }
@@ -348,7 +352,10 @@ impl Scope {
             .iter()
             .map(|t| ((t.colour.to_bits() as u64) << 32) | t.amp.to_bits() as u64)
             .collect();
-        let moving = !self.reduced_motion && traces.iter().any(|trace| trace.amp > 0.0 || trace.colour > 0.01);
+        let moving = !self.reduced_motion
+            && traces
+                .iter()
+                .any(|trace| trace.amp > 0.0 || trace.colour > 0.01);
         if levels != canvas.painted || (moving && now - canvas.painted_at >= STEP) {
             let Canvas { buffer, base, .. } = canvas;
             let size = (device.0 as usize, device.1 as usize);
@@ -563,13 +570,18 @@ mod tests {
     fn a_waiting_agent_s_trace_is_a_dim_flat_cyan_line() {
         let (wait_px, wait_rows) = rows(1.0, 0.0, Some(0.0));
         let (wait_px2, _) = rows(1.0, 0.0, Some(0.5));
-        assert!(wait_rows.len() <= DOT as usize * 3, "waiting has only a slight wave");
+        assert!(
+            wait_rows.len() <= DOT as usize * 3,
+            "waiting has only a slight wave"
+        );
         assert_ne!(wait_px, wait_px2, "waiting line moves");
         // Dimmer than the stopped amber line even at the pulse's peak.
-        let stop_alpha = rows(0.0, 0.0, Some(0.0)).0.chunks_exact(4)
-            .find(|p| p[3] > 0).unwrap()[3];
-        let wait_alpha = wait_px.chunks_exact(4)
-            .find(|p| p[3] > 0).unwrap()[3];
+        let stop_alpha = rows(0.0, 0.0, Some(0.0))
+            .0
+            .chunks_exact(4)
+            .find(|p| p[3] > 0)
+            .unwrap()[3];
+        let wait_alpha = wait_px.chunks_exact(4).find(|p| p[3] > 0).unwrap()[3];
         assert!(wait_alpha < stop_alpha, "waiting is dimmer than stopped");
         // But still cyan in hue (blue channel dominates).
         let pixel = wait_px.chunks_exact(4).find(|p| p[3] > 0).unwrap();
@@ -584,7 +596,11 @@ mod tests {
         };
         assert_eq!(colour(&rows(0.0, 0.0, Some(0.0)).0), (true, false));
         assert_eq!(colour(&rows(1.0, 1.0, Some(0.0)).0), (false, true));
-        assert_eq!(colour(&rows(1.0, 0.0, Some(0.0)).0), (false, true), "waiting is also cyan");
+        assert_eq!(
+            colour(&rows(1.0, 0.0, Some(0.0)).0),
+            (false, true),
+            "waiting is also cyan"
+        );
     }
 
     #[test]
@@ -635,7 +651,11 @@ mod tests {
     fn an_idle_session_shows_a_trace_from_the_start() {
         let mut scope = Scope::new(false);
         scope.follow(&[idle_agent(300, "kiln")]);
-        assert_eq!(scope.traces.len(), 1, "idle session gets a trace immediately");
+        assert_eq!(
+            scope.traces.len(),
+            1,
+            "idle session gets a trace immediately"
+        );
         assert_eq!(scope.traces[0].status, AgentStatus::Idle);
         assert_eq!(scope.traces[0].colour, 0.0, "starts amber");
     }
@@ -693,7 +713,10 @@ mod tests {
         assert_eq!(scope.traces.len(), 1);
         assert_eq!(scope.traces[0].name, "robin: mending the kiln door");
         scope.follow(&[idle_agent(300, "robin: mending the kiln door")]);
-        assert_eq!(scope.traces[0].name, "robin: mending the kiln door", "idle keeps last name");
+        assert_eq!(
+            scope.traces[0].name, "robin: mending the kiln door",
+            "idle keeps last name"
+        );
     }
 
     #[test]
@@ -714,7 +737,10 @@ mod tests {
         );
         // Active again: name updates.
         scope.follow(&[agent(300, "robin: back to work")]);
-        assert_eq!(scope.traces[0].name, "robin: back to work", "name resumes updating");
+        assert_eq!(
+            scope.traces[0].name, "robin: back to work",
+            "name resumes updating"
+        );
     }
 
     #[test]

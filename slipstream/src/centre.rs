@@ -578,8 +578,8 @@ impl Centre {
                     let (app_id, name, icon) = &bg_data[i];
                     let cw = chip_ws[i];
                     // Launch animation: the clicked chip brightens and glows in the focus colour.
-                    let is_launching = look.launch_frac > 0
-                        && self.launch_app.as_deref() == Some(app_id.as_str());
+                    let is_launching =
+                        look.launch_frac > 0 && self.launch_app.as_deref() == Some(app_id.as_str());
                     let is_selected = look.selected == Item::BackgroundApp(i);
                     if is_launching {
                         let t = look.launch_frac as f32 / 255.0;

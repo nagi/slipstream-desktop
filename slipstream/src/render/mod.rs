@@ -1901,7 +1901,15 @@ fn card_elements(
         elements.extend(
             state
                 .centre
-                .element(renderer, size, scale, now, facts, &state.notices, &state.background_apps)
+                .element(
+                    renderer,
+                    size,
+                    scale,
+                    now,
+                    facts,
+                    &state.notices,
+                    &state.background_apps,
+                )
                 .map(OutputElement::Memory),
         );
         if let Some(app_id) = state.centre.take_launch(now) {

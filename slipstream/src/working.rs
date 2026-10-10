@@ -80,9 +80,7 @@ fn clean_stale(notes: &Path, uid: u32, ticks: u64) {
             .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
             .map(|d| d.as_secs());
         let started = resume::started(Path::new("/proc"), pid, ticks);
-        let alive = started.is_some_and(|s| {
-            written.is_some_and(|w| w + 2 >= s)
-        });
+        let alive = started.is_some_and(|s| written.is_some_and(|w| w + 2 >= s));
         if !alive {
             let _ = fs::remove_file(entry.path());
         }
@@ -262,7 +260,11 @@ mod tests {
         machine.note_saying(302, "claude: growing the orchard\n", 170);
         let agents = machine.read();
         assert_eq!(agents[0].name, "claude: fixing the kiln");
-        assert_eq!(agents[0].status, AgentStatus::Subagents, "second line 'waiting'");
+        assert_eq!(
+            agents[0].status,
+            AgentStatus::Subagents,
+            "second line 'waiting'"
+        );
         assert_eq!(agents[1].name, "claude: counting the ledger");
         assert_eq!(agents[1].status, AgentStatus::Idle, "second line 'idle'");
         assert_eq!(agents[2].name, "claude: growing the orchard");
@@ -296,7 +298,14 @@ mod tests {
         );
         // status words only count when they are the second line.
         let statuses: Vec<AgentStatus> = machine.read().into_iter().map(|a| a.status).collect();
-        assert_eq!(statuses, [AgentStatus::Active, AgentStatus::Active, AgentStatus::Active]);
+        assert_eq!(
+            statuses,
+            [
+                AgentStatus::Active,
+                AgentStatus::Active,
+                AgentStatus::Active
+            ]
+        );
     }
 
     #[test]
@@ -322,5 +331,4 @@ mod tests {
         fs::create_dir(machine.root.join("notes/300")).unwrap();
         assert_eq!(machine.read(), Vec::new());
     }
-
 }
