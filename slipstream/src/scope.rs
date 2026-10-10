@@ -360,9 +360,7 @@ impl Scope {
                 .iter()
                 .any(|trace| trace.amp > WAITING_AMP + 0.01 || trace.colour > 0.01);
         // Pulse animation only (waiting trace, no wave): 10fps is enough for a 1Hz pulse.
-        let pulsing = !self.reduced_motion
-            && !waving
-            && traces.iter().any(|trace| trace.amp > 0.0);
+        let pulsing = !self.reduced_motion && !waving && traces.iter().any(|trace| trace.amp > 0.0);
         if levels != canvas.painted
             || (waving && now - canvas.painted_at >= STEP)
             || (pulsing && now - canvas.painted_at >= WAITING_STEP)
