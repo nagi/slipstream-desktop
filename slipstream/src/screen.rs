@@ -335,6 +335,15 @@ impl<O: Clone + PartialEq + Named> Screens<O> {
             .position(|screen| screen.output.name() == *pin)
     }
 
+    /// Whether workspace `index` is one of screen `screen`'s, to list on its bar and step through
+    /// from it: pinned there, or pinned to no screen that's lit. Whatever it's showing is.
+    pub fn belongs(&self, index: usize, screen: usize) -> bool {
+        self.list
+            .get(screen)
+            .is_some_and(|it| it.workspace == index)
+            || self.pinned(index).is_none_or(|pinned| pinned == screen)
+    }
+
     /// The screens the settings pin the workspaces to, by name, in workspace order.
     pub fn set_pins(&mut self, pins: Vec<Option<String>>) {
         self.pins = pins;
@@ -553,6 +562,24 @@ mod tests {
         screens.show(3, 6);
         assert_eq!(shown(&screens), vec![3]);
         assert_eq!(screens.focused_output(), Some("eDP-1"));
+    }
+
+    #[test]
+    fn each_screen_has_its_pinned_workspaces_and_the_unpinned_ones() {
+        let mut screens: Screens<&str> = Screens::default();
+        screens.set_pins(pins());
+        screens.add("DP-1", 0, 0, 6, None);
+        screens.add("HDMI-A-1", 2560, 0, 6, None);
+        let of = |screens: &Screens<&str>, screen| {
+            (0..6)
+                .filter(|index| screens.belongs(*index, screen))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(of(&screens, 0), vec![0, 1, 2, 5]);
+        assert_eq!(of(&screens, 1), vec![3, 4, 5]);
+        // HDMI-A-1 goes out: its workspaces have nowhere else to be, so DP-1 has them all.
+        screens.remove(&"HDMI-A-1");
+        assert_eq!(of(&screens, 0), vec![0, 1, 2, 3, 4, 5]);
     }
 
     #[test]
