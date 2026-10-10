@@ -110,16 +110,19 @@ impl Slipstream {
     }
 
     /// Super+Ctrl+←/→: the previous or next workspace on this screen, passing over any another
-    /// screen is showing.
+    /// screen is showing or the settings pin to another screen.
     pub fn switch_workspace_by(&mut self, delta: i32) {
         let count = self.workspaces.count() as i32;
+        let here = self.screens.focused_index();
         let mut target = self.active_workspace() as i32;
         loop {
             target += delta.signum();
             if target < 0 || target >= count || delta == 0 {
                 return;
             }
-            if self.screens.showing(target as usize).is_none() {
+            if self.screens.showing(target as usize).is_none()
+                && self.screens.belongs(target as usize, here)
+            {
                 break;
             }
         }
@@ -250,9 +253,20 @@ impl Slipstream {
         }
     }
 
+    /// The focused window to the previous or next of this screen's workspaces.
     pub fn move_focused_by(&mut self, delta: i32) {
-        let target =
-            (self.active_workspace() as i32 + delta).clamp(0, self.workspaces.count() as i32 - 1);
+        let count = self.workspaces.count() as i32;
+        let here = self.screens.focused_index();
+        let mut target = self.active_workspace() as i32;
+        loop {
+            target += delta.signum();
+            if target < 0 || target >= count || delta == 0 {
+                return;
+            }
+            if self.screens.belongs(target as usize, here) {
+                break;
+            }
+        }
         self.move_focused_to_workspace(target as usize);
     }
 

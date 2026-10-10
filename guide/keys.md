@@ -141,7 +141,7 @@ command = "emacsclient --alternate-editor= --create-frame"
 
 Ctrl+Super+Alt is the "hyper" chord a keyd layer on one key gives, for example right Alt as `[hyper_mod:C-M-A]`. A run-or-raise key takes over a built-in key on the same chord. Each app appears on the Super+K list under its workspace's name.
 
-A workspace can be pinned to a screen by its connector name, and then always opens there, taking the keyboard with it. If that screen isn't connected, the workspace opens wherever the keyboard is:
+A workspace can be pinned to a screen by its connector name, and then always opens there, taking the keyboard with it. The other screens' bars leave it out, and their Super+Tab passes over it. If that screen isn't connected, the workspace opens wherever the keyboard is:
 
 ```toml
 [[workspaces.list]]
