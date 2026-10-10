@@ -103,6 +103,8 @@ printf 'my-agent: the task\nidle\n' > "$XDG_RUNTIME_DIR/slipstream/working/$AGEN
 
 The note is left in place until the session's process exits; the desktop cleans up notes whose process is gone. Tools that start agents outside the normal process tree, such as multiplexers with their own session management, can set `AGENT_NOTIFY_PID` to the agent's PID when running any hook command, to use that PID directly instead of walking the process ancestry.
 
+A ready-made hook package for Claude Code and Codex is in `extras/agent-notify`. Run `extras/agent-notify setup` to wire up the hooks and `extras/agent-notify status` to see what it has done. It also handles desktop notifications and usage reporting; `extras/agent-notify --help` covers those.
+
 - **Only while the desktop is faded.** Nothing is drawn over your windows; the traces come in after the wallpaper has taken the screen and go as the desktop comes back.
 - **Every open session.** A trace shows for each session that has left a note, whether or not it is doing anything right now. A stopped session keeps its amber line until you touch a key or the mouse.
 - **The agent itself, not its helpers.** A note is named for one process, so the helpers an agent starts for a task don't each get a trace unless they leave notes of their own.
