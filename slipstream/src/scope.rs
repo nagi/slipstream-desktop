@@ -79,6 +79,8 @@ const WAITING: f32 = 0.22;
 /// How much the waiting line brightens at the peak of its pulse, and how many pulses a second.
 const PULSE_SWING: f32 = 0.35;
 const PULSE_RATE: f64 = 1.0;
+/// Wave amplitude for a waiting trace: enough to carry the sweep along it, not enough to look active.
+const WAITING_AMP: f32 = 0.15;
 
 /// One agent's readout.
 #[derive(Debug, Clone, PartialEq)]
@@ -259,8 +261,11 @@ impl Scope {
             } else {
                 0.0
             };
-            let amp_target =
-                if trace.alive && trace.status == AgentStatus::Active { 1.0 } else { 0.0 };
+            let amp_target = match trace.status {
+                AgentStatus::Active if trace.alive => 1.0,
+                AgentStatus::Subagents if trace.alive => WAITING_AMP,
+                _ => 0.0,
+            };
             if self.reduced_motion {
                 trace.colour = colour_target;
                 trace.amp = amp_target;
@@ -558,8 +563,8 @@ mod tests {
     fn a_waiting_agent_s_trace_is_a_dim_flat_cyan_line() {
         let (wait_px, wait_rows) = rows(1.0, 0.0, Some(0.0));
         let (wait_px2, _) = rows(1.0, 0.0, Some(0.5));
-        assert_eq!(wait_rows.len(), DOT as usize, "waiting is a flat line");
-        assert_ne!(wait_px, wait_px2, "waiting line pulses");
+        assert!(wait_rows.len() <= DOT as usize * 3, "waiting has only a slight wave");
+        assert_ne!(wait_px, wait_px2, "waiting line moves");
         // Dimmer than the stopped amber line even at the pulse's peak.
         let stop_alpha = rows(0.0, 0.0, Some(0.0)).0.chunks_exact(4)
             .find(|p| p[3] > 0).unwrap()[3];
