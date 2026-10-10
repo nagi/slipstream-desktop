@@ -347,6 +347,7 @@ impl Centre {
 
     /// The panel for a screen `size` logical pixels big at `scale`, repainted when what it shows
     /// changes.
+    #[allow(clippy::too_many_arguments)]
     pub fn element<R>(
         &mut self,
         renderer: &mut R,

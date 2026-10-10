@@ -68,8 +68,10 @@ const SETTLE: f32 = 3.0;
 /// The readouts come in once the desktop has gone, and leave ahead of it coming back.
 const APPEAR: f64 = 0.6;
 const LEAVE: f64 = 0.15;
-/// Traces are redrawn 30 times a second.
+/// Traces are redrawn 30 times a second when a wave is moving.
 const STEP: f64 = 1.0 / 30.0;
+/// Waiting traces (pulse only, no wave) redraw at 10fps — enough for a 1Hz pulse.
+const WAITING_STEP: f64 = 1.0 / 10.0;
 /// How many times a second the bright spot crosses a trace.
 const SWEEP: f64 = 0.6;
 /// How bright a flat line is, a wave where the spot passed longest ago, and a waiting flat line.
@@ -352,11 +354,19 @@ impl Scope {
             .iter()
             .map(|t| ((t.colour.to_bits() as u64) << 32) | t.amp.to_bits() as u64)
             .collect();
-        let moving = !self.reduced_motion
+        // Wave animation (active trace or colour transition): needs 30fps.
+        let waving = !self.reduced_motion
             && traces
                 .iter()
-                .any(|trace| trace.amp > 0.0 || trace.colour > 0.01);
-        if levels != canvas.painted || (moving && now - canvas.painted_at >= STEP) {
+                .any(|trace| trace.amp > WAITING_AMP + 0.01 || trace.colour > 0.01);
+        // Pulse animation only (waiting trace, no wave): 10fps is enough for a 1Hz pulse.
+        let pulsing = !self.reduced_motion
+            && !waving
+            && traces.iter().any(|trace| trace.amp > 0.0);
+        if levels != canvas.painted
+            || (waving && now - canvas.painted_at >= STEP)
+            || (pulsing && now - canvas.painted_at >= WAITING_STEP)
+        {
             let Canvas { buffer, base, .. } = canvas;
             let size = (device.0 as usize, device.1 as usize);
             let t = (!self.reduced_motion).then_some(now);
