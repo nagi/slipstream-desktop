@@ -137,7 +137,7 @@ impl Slipstream {
             Action::CycleWindows { forward } => self.cycle_windows(forward),
             Action::Explorer => self.toggle_explorer(),
             Action::ToggleGravity => self.toggle_gravity(),
-            Action::Minimise => self.minimise_focused(),
+            Action::Minimise => self.minimise_key(),
             Action::Restore => self.restore_latest(),
             Action::HideAll => self.hide_all(),
             Action::Dock => self.dock_focused(),
