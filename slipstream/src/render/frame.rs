@@ -900,9 +900,19 @@ fn windows_in_view(
     if v.ui <= 0.0 {
         windows.clear();
     }
+    // How far along its workspace each window is drawn. A popped window is already on the
+    // workspace its screen is sliding to, and holds still on the glass while the rest go by.
     let mut windows: Vec<(Window, f64)> = windows
         .into_iter()
-        .map(|(window, index)| (window, index.map_or(v.active_dx, offset)))
+        .map(|(window, index)| {
+            let held = v.zoomed_out <= 0.0 && index == Some(v.active) && state.is_popped(&window);
+            let dx = if held {
+                0.0
+            } else {
+                index.map_or(v.active_dx, offset)
+            };
+            (window, dx)
+        })
         .collect();
     if v.rain
         && v.ui > 0.0

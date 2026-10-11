@@ -102,6 +102,9 @@ pub enum Action {
     ClipboardHistory,
     /// Float the focused window, or put it back into the tiling.
     ToggleFloating,
+    /// Pop the focused window out to float on whichever workspace its screen shows, or put it
+    /// back into the tiling.
+    Pop,
     /// Move the keyboard between the floating windows and the tiles.
     SwitchFloatingFocus,
     /// Run or raise the `[[run-or-raise.app]]` at this index: go to its workspace and bring its
@@ -200,6 +203,7 @@ impl Action {
             Action::Zoom(Step::Off) => "stop zooming",
             Action::ClipboardHistory => "clipboard history",
             Action::ToggleFloating => "float the window, or tile it",
+            Action::Pop => "pop the window out, to follow you",
             Action::SwitchFloatingFocus => "keyboard between floating and tiled",
             Action::RunOrRaise(_) => "go to an app, or start it",
             Action::SendTo(_) => "send window to an app's workspace",
@@ -224,6 +228,7 @@ impl Action {
             | Action::Undock
             | Action::Maximise
             | Action::ToggleFloating
+            | Action::Pop
             | Action::SwitchFloatingFocus
             | Action::RunOrRaise(_) => Group::AppsAndWindows,
             Action::Resize(_)
@@ -755,9 +760,11 @@ fn omarchy() -> Vec<Binding> {
         bind(MOD, Keysym::l, Action::ToggleGravity),
         bind(MOD, Keysym::j, Action::Rotate { clockwise: true }),
         bind(MOD_SHIFT, Keysym::j, Action::Rotate { clockwise: false }),
-        // Its pop-out key floats a window and pins it over every workspace: here, the dock.
-        bind(MOD, Keysym::o, Action::Dock),
-        bind(MOD_SHIFT, Keysym::o, Action::Undock),
+        // Its pop-out key: the window floats, and goes wherever its screen goes. The dock, which
+        // hangs a window from the bar, takes U beside it.
+        bind(MOD, Keysym::o, Action::Pop),
+        bind(MOD, Keysym::u, Action::Dock),
+        bind(MOD_SHIFT, Keysym::u, Action::Undock),
         bind(MOD, Keysym::Tab, Action::WorkspaceBy(1)),
         bind(MOD_SHIFT, Keysym::Tab, Action::WorkspaceBy(-1)),
         bind(MOD_SHIFT, Keysym::ISO_Left_Tab, Action::WorkspaceBy(-1)),
@@ -1730,6 +1737,9 @@ mod tests {
             (with(false, false, true), Keysym::Tab, Action::BulletTime),
             (SUPER, Keysym::a, Action::QuickSettings),
             (SUPER, Keysym::n, Action::NotificationCentre),
+            (SUPER, Keysym::o, Action::Pop),
+            (SUPER, Keysym::u, Action::Dock),
+            (with(true, false, false), Keysym::u, Action::Undock),
         ] {
             assert_eq!(
                 action_for(&bindings, mods, key),

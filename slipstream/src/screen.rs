@@ -318,6 +318,16 @@ impl<O: Clone + PartialEq + Named> Screens<O> {
             .unwrap_or(self.focused)
     }
 
+    /// Where a window that follows its screen goes from workspace `index`: nowhere while a
+    /// screen is showing it, and otherwise to what the screen it was last on shows now.
+    pub fn following(&self, index: usize) -> Option<usize> {
+        if self.showing(index).is_some() {
+            return None;
+        }
+        let screen = self.list.get(self.screen_for_workspace(index))?;
+        Some(screen.workspace)
+    }
+
     /// Points the keyboard at `index`. Returns whether it moved.
     pub fn focus(&mut self, index: usize) -> bool {
         if index >= self.list.len() || index == self.focused {
@@ -580,6 +590,22 @@ mod tests {
         // HDMI-A-1 goes out: its workspaces have nowhere else to be, so DP-1 has them all.
         screens.remove(&"HDMI-A-1");
         assert_eq!(of(&screens, 0), vec![0, 1, 2, 3, 4, 5]);
+    }
+
+    #[test]
+    fn a_window_that_follows_its_screen_goes_where_that_screen_goes() {
+        let mut screens = two();
+        assert_eq!(shown(&screens), vec![0, 1]);
+        assert_eq!(screens.following(0), None, "its workspace is on screen");
+        // The first screen goes to workspace 3: what was on 0 follows it there.
+        screens.show(3, 5);
+        assert_eq!(screens.following(0), Some(3));
+        assert_eq!(screens.following(1), None, "the other screen hasn't moved");
+        // The second screen moves on, and its own follow it, not the first screen's.
+        screens.focus(1);
+        screens.show(4, 5);
+        assert_eq!(screens.following(1), Some(4));
+        assert_eq!(screens.following(0), Some(3));
     }
 
     #[test]

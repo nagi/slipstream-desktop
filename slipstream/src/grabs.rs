@@ -113,8 +113,10 @@ impl Slipstream {
     }
 
     /// A left press at `pos`: on a gap it starts a resize, and with Super held on a tiled window
-    /// it starts a swap. Whether the press was taken, in which case a grab now has the pointer
-    /// (or, under gravity, a toast said why not) and no client is to get it.
+    /// it starts a swap, or on a floating one moves it. A right press with Super held on a
+    /// floating window resizes it by its nearest corner. Whether the press was taken, in which
+    /// case a grab now has the pointer (or, under gravity, a toast said why not) and no client is
+    /// to get it.
     pub fn start_drag(
         &mut self,
         pos: Point<f64, Logical>,
@@ -122,7 +124,14 @@ impl Slipstream {
         serial: Serial,
         super_held: bool,
     ) -> bool {
-        if button != BTN_LEFT || self.lock.is_some() {
+        const BTN_RIGHT: u32 = 0x111;
+        if self.lock.is_some() {
+            return false;
+        }
+        if button == BTN_RIGHT {
+            return super_held && self.start_corner_resize(pos, button, serial);
+        }
+        if button != BTN_LEFT {
             return false;
         }
         let pointer = self.seat.get_pointer().unwrap();
@@ -177,6 +186,43 @@ impl Slipstream {
         });
         self.set_cursor_override(Some(CursorIcon::Grabbing));
         pointer.set_grab(self, SwapGrab { start }, serial, Focus::Clear);
+        true
+    }
+
+    /// Super and a right press at `pos`: the floating window there is resized by the corner
+    /// nearest the pointer, wherever on the window the press lands. Whether it was.
+    fn start_corner_resize(
+        &mut self,
+        pos: Point<f64, Logical>,
+        button: u32,
+        serial: Serial,
+    ) -> bool {
+        use xdg_toplevel::ResizeEdge as Edge;
+        if self.pointer_blocked() || self.seat.get_pointer().unwrap().is_grabbed() {
+            return false;
+        }
+        let Some((window, _)) = self.window_under(pos) else {
+            return false;
+        };
+        if !self.workspaces.is_floating(&window) || self.is_fullscreen(&window) {
+            return false;
+        }
+        let Some(geo) = self.space.element_geometry(&window) else {
+            return false;
+        };
+        let left = pos.x < geo.loc.x as f64 + geo.size.w as f64 / 2.0;
+        let top = pos.y < geo.loc.y as f64 + geo.size.h as f64 / 2.0;
+        let (edges, cursor) = match (left, top) {
+            (true, true) => (Edge::TopLeft, CursorIcon::NwResize),
+            (false, true) => (Edge::TopRight, CursorIcon::NeResize),
+            (true, false) => (Edge::BottomLeft, CursorIcon::SwResize),
+            (false, false) => (Edge::BottomRight, CursorIcon::SeResize),
+        };
+        self.focus_window(&window);
+        if !self.start_floating_resize(window, edges, pos, button, serial) {
+            return false;
+        }
+        self.set_cursor_override(Some(cursor));
         true
     }
 
