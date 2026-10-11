@@ -32,6 +32,7 @@ use smithay::{
 
 use crate::{
     paint::Painter,
+    palette,
     text::{self, Face, Style},
     working::{Agent, AgentStatus},
 };
@@ -56,12 +57,20 @@ const DOT: f64 = 2.0;
 const PITCH: f64 = 3.0;
 
 /// The backing behind a readout: the desktop's backdrop colour, letting some wallpaper through.
-const BACKING: u32 = 0x0b0e13b8;
+fn backing() -> u32 {
+    palette::tone(0x0b0e13b8)
+}
 const BACKING_RADIUS: f32 = 7.0;
-const NAME: u32 = 0xaab2c0ff;
+fn name() -> u32 {
+    palette::tone(0xaab2c0ff)
+}
 /// At work, waiting, and stopped.
-const CYAN: [f32; 3] = [51.0, 204.0, 255.0];
-const AMBER: [f32; 3] = [255.0, 181.0, 71.0];
+fn cyan() -> [f32; 3] {
+    palette::rgb(palette::accent(0x33ccffff)).map(|channel| channel * 255.0)
+}
+fn amber() -> [f32; 3] {
+    palette::rgb(palette::warm(0xffb547ff)).map(|channel| channel * 255.0)
+}
 
 /// How fast a wave settles flat or rises again, as a rate a second.
 const SETTLE: f32 = 3.0;
@@ -182,6 +191,11 @@ pub struct Scope {
 }
 
 impl Scope {
+    /// Paints the readouts again next frame: the colours they were painted in have changed.
+    pub fn forget_painted(&mut self) {
+        self.canvases.clear();
+    }
+
     pub fn new(reduced_motion: bool) -> Self {
         Self {
             traces: Vec::new(),
@@ -398,11 +412,11 @@ impl Scope {
 /// The readouts' backings and names, as premultiplied pixels `device` big.
 fn base(traces: &[Trace], fit: Fit, device: (i32, i32), scale: f64) -> Option<Vec<u8>> {
     let mut painter = Painter::new(device.0 as u32, device.1 as u32, scale as f32)?;
-    let style = Style::new(Face::Mono, 11.0, NAME);
+    let style = Style::new(Face::Mono, 11.0, name());
     let (width, height) = (fit.width as f32, (fit.pitch() - GAP) as f32);
     for (i, trace) in traces.iter().enumerate() {
         let top = (i as i32 * fit.pitch()) as f32;
-        painter.fill(0.0, top, width, height, BACKING_RADIUS, BACKING);
+        painter.fill(0.0, top, width, height, BACKING_RADIUS, backing());
         let name = text::ellipsize(&trace.name, &style, width - 2.0 * PAD as f32);
         painter.text(
             &name,
@@ -429,11 +443,12 @@ fn plot(
     let dot = (DOT * scale).round().max(1.0) as i32;
     let (left, right) = (px(PAD), width as i32 - px(PAD) - dot);
     let span = (right - left).max(1) as f32;
+    let (amber, cyan) = (amber(), cyan());
     for (i, trace) in traces.iter().enumerate() {
         let top = px(i as i32 * fit.pitch() + PAD + LABEL);
         let middle = top + px(fit.trace) / 2;
         let swing = (px(fit.trace) / 2 - pitch).max(0) as f32;
-        let rgb: [f32; 3] = std::array::from_fn(|c| AMBER[c] + (CYAN[c] - AMBER[c]) * trace.colour);
+        let rgb: [f32; 3] = std::array::from_fn(|c| amber[c] + (cyan[c] - amber[c]) * trace.colour);
         let time = t.unwrap_or(0.0);
         let spot = (time * SWEEP + trace.pid as f64 * 0.37).fract() as f32;
         // Pulse: a slow brightness breath on the waiting flat line. Fades in as the wave

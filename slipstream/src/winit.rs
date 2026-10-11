@@ -100,7 +100,7 @@ pub fn init_winit(
                                 &mut framebuffer,
                                 0,
                                 &elements,
-                                render::BACKGROUND,
+                                render::background(),
                             )
                             .unwrap()
                             .states;

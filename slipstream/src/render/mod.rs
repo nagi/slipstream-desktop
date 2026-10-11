@@ -42,6 +42,7 @@ use crate::{
     motion,
     overview::{self, Overview},
     paint::{self, Painter},
+    palette,
     panel::{self, DESIGN_PX},
     rain::Rain,
     text::{self, Face, Style},
@@ -61,7 +62,9 @@ use lock::*;
 pub use png_file::{copy_frame, encode_png, save_png};
 
 /// The desktop's backdrop colour, behind every window.
-pub const BACKGROUND: Color32F = Color32F::new(0.043, 0.055, 0.075, 1.0);
+pub fn background() -> Color32F {
+    palette::colour32(palette::tone(0x0b0e13ff))
+}
 /// The focused window's ring, until the settings are read: `borders.selected-tile` chooses it,
 /// and the buffers take the chosen colour on the first frame they are drawn.
 const FOCUS: Color32F = Color32F::new(0.259, 0.827, 1.0, 1.0);
@@ -71,7 +74,13 @@ const RING_ALPHA: f32 = 0.8;
 /// How strong the fine light edge round the docked pane's glass is.
 const DOCK_RIM: f32 = 0.16;
 /// The inside of a bay in the bar's material before its pane has landed in it: dark glass.
-const DOCK_BAY: Color32F = Color32F::new(0.02, 0.03, 0.05, 0.55);
+fn dock_bay() -> Color32F {
+    palette::colour32(palette::tone(0x090e178c))
+}
+/// The light along the docked pane's edges.
+fn rim() -> Color32F {
+    palette::colour32(palette::tone(0xffffffff))
+}
 /// Focus ring width in logical pixels. It sits in the gap, outside the window.
 const RING: i32 = 2;
 /// Over distant windows: dims them to 70% brightness.
@@ -216,7 +225,7 @@ pub fn output_elements(
     let first_output = state.screens.focused_output().as_ref() == Some(output);
     chrome.overview.begin();
     chrome.panes.begin();
-    chrome.overview.set_accent(state.bullet_rgb);
+    chrome.overview.set_accent(state.ring_rgb);
     if first_output && state.bullet.is_some() {
         state.overview_hits.clear();
         state.frame_hits.clear();
@@ -456,14 +465,7 @@ pub fn output_elements(
         elements.extend(
             chrome
                 .overview
-                .outline(
-                    edge,
-                    0.0,
-                    2,
-                    overview::border(state.bullet_rgb),
-                    scale,
-                    fade,
-                )
+                .outline(edge, 0.0, 2, overview::border(state.ring_rgb), scale, fade)
                 .into_iter()
                 .map(OutputElement::Solid),
         );
@@ -624,14 +626,7 @@ pub fn output_elements(
                     elements.extend(
                         chrome
                             .overview
-                            .outline(
-                                around,
-                                3.0,
-                                3,
-                                overview::ring(state.bullet_rgb),
-                                scale,
-                                fade,
-                            )
+                            .outline(around, 3.0, 3, overview::ring(state.ring_rgb), scale, fade)
                             .into_iter()
                             .map(OutputElement::Solid),
                     );
@@ -824,9 +819,12 @@ pub fn output_elements(
             (at.x as i32, at.y as i32).into(),
             (pane.w, pane.h).into(),
         );
-        world.push(OutputElement::Solid(
-            chrome.overview.solid(inside, DOCK_BAY, scale, ui_alpha),
-        ));
+        world.push(OutputElement::Solid(chrome.overview.solid(
+            inside,
+            dock_bay(),
+            scale,
+            ui_alpha,
+        )));
     }
     // How much of the front of `world` is the docked pane's, bay and flight included: whatever
     // else is put in front of the windows goes in behind that.
@@ -1006,7 +1004,7 @@ pub fn output_elements(
                 if matches!(&selected, Some(Target::Window(chosen)) if *chosen == window) {
                     // Heavier than the viewed frame's 3 px, with a faint second line further out
                     // for a glow, so the two never read as one double line.
-                    let ring = overview::ring(state.bullet_rgb);
+                    let ring = overview::ring(state.ring_rgb);
                     world.extend(
                         chrome
                             .overview
@@ -1085,7 +1083,7 @@ pub fn output_elements(
                 );
             }
             if matches!(&selected, Some(Target::Window(chosen)) if *chosen == window) {
-                let ring = overview::ring(state.bullet_rgb);
+                let ring = overview::ring(state.ring_rgb);
                 world.extend(
                     chrome
                         .overview
@@ -1113,14 +1111,14 @@ pub fn output_elements(
                 );
                 world.push(OutputElement::Solid(chrome.overview.solid(
                     line,
-                    WHITE,
+                    rim(),
                     world_scale,
                     alpha * seam,
                 )));
                 world.extend(
                     chrome
                         .overview
-                        .outline(shown, 0.0, 2, WHITE, world_scale, alpha * seam * 0.8)
+                        .outline(shown, 0.0, 2, rim(), world_scale, alpha * seam * 0.8)
                         .into_iter()
                         .map(OutputElement::Solid),
                 );
@@ -1128,7 +1126,7 @@ pub fn output_elements(
             world.extend(
                 chrome
                     .overview
-                    .outline(shown, 0.0, 1, WHITE, world_scale, alpha * DOCK_RIM)
+                    .outline(shown, 0.0, 1, rim(), world_scale, alpha * DOCK_RIM)
                     .into_iter()
                     .map(OutputElement::Solid),
             );
@@ -1304,7 +1302,7 @@ pub fn output_elements(
             let ring = if focused.as_ref() == Some(&window) {
                 (state.ring_rgb, RING_ALPHA)
             } else {
-                ([1.0; 3], DOCK_RIM)
+                (palette::tone_rgb([1.0; 3]), DOCK_RIM)
             };
             let (band_at, band_half, band_light) = lit.band;
             let look = crate::pane::Look {
@@ -1349,9 +1347,12 @@ pub fn output_elements(
                     (at.x.round() as i32, at.y.round() as i32).into(),
                     size.into(),
                 );
-                pieces.push(OutputElement::Solid(
-                    chrome.overview.solid(inside, DOCK_BAY, scale, alpha),
-                ));
+                pieces.push(OutputElement::Solid(chrome.overview.solid(
+                    inside,
+                    dock_bay(),
+                    scale,
+                    alpha,
+                )));
             }
         }
         pane_front += pieces.len();
@@ -1419,9 +1420,9 @@ pub fn output_elements(
                 .and_then(|mode| mode.pointer.drag.as_ref())
                 .is_some_and(|drag| drag.over == Some(index));
             let (colour, thickness) = if viewed || drop_target {
-                (overview::frame_viewed(state.bullet_rgb), 3)
+                (overview::frame_viewed(state.ring_rgb), 3)
             } else {
-                (overview::FRAME, 2)
+                (overview::frame(), 2)
             };
             world.extend(
                 chrome
@@ -1525,7 +1526,7 @@ pub fn output_elements(
             ghost,
             0.0,
             2,
-            overview::ring(state.bullet_rgb),
+            overview::ring(state.ring_rgb),
             world_scale,
             alpha,
         );
@@ -1718,7 +1719,7 @@ pub fn output_elements(
                         scale.x,
                         (1.0 - ui, 0.0),
                         None,
-                        BACKGROUND,
+                        background(),
                     )
                 });
             if let Some(through) = through {
@@ -1742,7 +1743,7 @@ pub fn output_elements(
                             scale.x,
                             (bar_gone, crate::glass::NEARER),
                             windows,
-                            BACKGROUND,
+                            background(),
                         )
                     });
                 if let Some(through) = through {
@@ -1845,7 +1846,7 @@ fn bar_content(
         title,
         mode: state.bullet.as_ref().map(|_| {
             let channel = |value: f32| (value.clamp(0.0, 1.0) * 255.0).round() as u32;
-            let [r, g, b] = state.bullet_rgb;
+            let [r, g, b] = state.ring_rgb;
             (
                 "BULLET TIME",
                 (channel(r) << 24) | (channel(g) << 16) | (channel(b) << 8) | 0xff,

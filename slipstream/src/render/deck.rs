@@ -209,7 +209,7 @@ pub(super) fn deck_elements_for(
 pub(super) fn paint_deck_label(label: &str, scale: f64) -> Option<paint::Painted> {
     let style = Style {
         tracking: 0.02,
-        ..Style::new(Face::Display, 27.0, panel::BRIGHT)
+        ..Style::new(Face::Display, 27.0, panel::bright())
     };
     let width = text::width(label, &style) + 2.0 * DECK_LABEL_PAD;
     let m = panel::MARGIN;

@@ -43,7 +43,9 @@ const SHOWN_LOCK_KEY: f64 = 1.7;
 /// A charger's card isn't the answer to a key, so it may not be looked at straight away.
 const SHOWN_POWER: f64 = 2.5;
 /// Charging's colour, as on the bar's battery.
-const MINT: u32 = panel::MINT;
+fn mint() -> u32 {
+    panel::mint()
+}
 
 /// What Awake's card says under its title: on, what ends it besides another hold.
 pub fn awake_note(on: bool) -> &'static str {
@@ -173,6 +175,11 @@ pub struct Osd {
 }
 
 impl Osd {
+    /// Paints it again next frame: the colours it was painted in have changed.
+    pub fn forget_painted(&mut self) {
+        self.painted = None;
+    }
+
     pub fn new(reduced_motion: bool) -> Self {
         Self {
             reduced_motion,
@@ -295,7 +302,7 @@ impl Osd {
 }
 
 fn paint(kind: Kind, level: u8, detail: Option<&str>, ink: u32, scale: f64) -> Option<Painted> {
-    const DIM: u32 = panel::HINT;
+    let dim = panel::hint();
     // Room for the shadow all round.
     let m = panel::NOTICE_MARGIN;
     let logical = Size::<i32, Logical>::from((
@@ -315,11 +322,11 @@ fn paint(kind: Kind, level: u8, detail: Option<&str>, ink: u32, scale: f64) -> O
         kind,
         Kind::Volume { muted: true } | Kind::Microphone { muted: true }
     );
-    let ink = if muted { DIM } else { ink };
+    let ink = if muted { dim } else { ink };
     p.icon(&kind.icon(level), dx + 22.0, dy + 24.0, 24.0, Some(ink));
     let label = Style {
         tabular: true,
-        ..Style::new(Face::Mono, 15.0, panel::PROSE)
+        ..Style::new(Face::Mono, 15.0, panel::prose())
     };
     if kind.has_bar() {
         // The bar runs from the icon to the number, which keeps its own room whatever it says.
@@ -327,14 +334,14 @@ fn paint(kind: Kind, level: u8, detail: Option<&str>, ink: u32, scale: f64) -> O
         const BAR_W: f32 = 236.0;
         const BAR_H: f32 = 6.0;
         let (bar_x, y) = (dx + BAR_X, dy + HEIGHT / 2.0 - BAR_H / 2.0);
-        p.fill(bar_x, y, BAR_W, BAR_H, BAR_H / 2.0, panel::TRACK);
+        p.fill(bar_x, y, BAR_W, BAR_H, BAR_H / 2.0, panel::track());
         // Below about a percent there's nothing to draw, and a stub would read as more than none.
         let filled = BAR_W * level.min(100) as f32 / 100.0;
         if filled >= BAR_H {
             let bar = match kind {
-                _ if muted => DIM,
-                Kind::Power { plugged: true } => MINT,
-                _ => panel::AMBER,
+                _ if muted => dim,
+                Kind::Power { plugged: true } => mint(),
+                _ => panel::amber(),
             };
             p.fill(bar_x, y, filled, BAR_H, BAR_H / 2.0, bar);
         }
@@ -353,24 +360,24 @@ fn paint(kind: Kind, level: u8, detail: Option<&str>, ink: u32, scale: f64) -> O
         if let Kind::Power { plugged } = kind {
             // What happened, under the bar, as muted is said.
             let (word, colour) = if plugged {
-                ("CHARGING", MINT)
+                ("CHARGING", mint())
             } else {
-                ("ON BATTERY", DIM)
+                ("ON BATTERY", dim)
             };
             p.text(word, bar_x, dy + HEIGHT / 2.0 + 16.0, &tag(colour));
         }
         if muted {
             // Muted keeps the level visible — it's what comes back — and says so in the icon's
             // place, under the bar, rather than taking the number's room.
-            p.text("MUTED", bar_x, dy + HEIGHT / 2.0 + 16.0, &tag(DIM));
+            p.text("MUTED", bar_x, dy + HEIGHT / 2.0 + 16.0, &tag(dim));
         }
     } else if let Some(detail) = detail {
         // A track: what the player is doing, and what it's playing under it.
         let state = Style {
             tracking: 0.12,
-            ..Style::new(Face::BodyBold, 10.0, DIM)
+            ..Style::new(Face::BodyBold, 10.0, dim)
         };
-        let title = Style::new(Face::Body, 15.0, panel::PROSE);
+        let title = Style::new(Face::Body, 15.0, panel::prose());
         p.text(
             &kind.label(level).to_uppercase(),
             dx + 60.0,
@@ -478,7 +485,7 @@ mod tests {
 
     #[test]
     fn every_lock_key_note_fits_the_card() {
-        let title = Style::new(Face::Body, 15.0, panel::PROSE);
+        let title = Style::new(Face::Body, 15.0, panel::prose());
         let bools = [true, false];
         for on in bools {
             for note in [num_lock_note(on), awake_note(on)] {

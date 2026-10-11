@@ -58,6 +58,32 @@ The report has sections, each with meters:
 
 The bar shows a small gauge for each section: its first meter as the thick bar, with the percentage beside it, and its second as the thin bar underneath. The gauge turns amber at 75% and orange at 90%. Quick settings lists every meter, with the time left until each starts over (`resets` is in seconds since the Unix epoch). `detail`, `note`, `stale` and `resets` are optional. A section marked `stale` is dimmed, and so is everything if the command fails, times out after 30 seconds, or prints something unreadable. The last good report stays on show in the meantime.
 
+## Following an Omarchy theme
+
+On [Omarchy](https://omarchy.org), Slipstream is drawn in the theme Omarchy is showing, and changes the moment you change it: with `omarchy theme set`, Omarchy's own theme menu, or **Settings → Appearance → Omarchy theme**, which sets it through Omarchy so your terminal and editor change too. Nothing needs setting up, and on any other distribution nothing changes: Slipstream is drawn in its own colours.
+
+What the theme colours:
+
+- **The whole desktop,** from the theme's background and foreground: the bar, quick settings, the notification centre, the explorer, toasts and cards, the lock screen, the backdrop behind your windows, the logo, and the Settings app.
+- **The focus ring,** which is the theme's accent. Bullet time's rings and frames, the keyboard's ring in the panels and the bar's marks are the same colour.
+- **The highlight,** which is the theme's yellow: quick settings' lit tiles, today in the calendar, the buttons that say yes.
+- **The streams and the living wallpapers.** Busy streams pour the theme's green, and each wallpaper is drawn in the theme's colours over its background.
+- **Your apps.** A light theme asks apps to be light, and a dark one dark. Apps that take an accent colour from the desktop get the ring's, and GTK apps get the theme's icons.
+
+**Settings → Appearance** chooses the ring and the highlight from the theme's own colours: its accent, foreground, red, orange, yellow, green, cyan, blue and magenta. The choice is kept by name, so a ring set to green is the next theme's green too. In `~/.config/slipstream/settings.toml`:
+
+```toml
+[borders]
+selected-tile = "accent"   # or any of the names above, or "#rrggbb"
+highlight = "yellow"
+```
+
+A light theme makes Slipstream light too: dark writing on a pale bar and panels. The streams at the edge keep a dark card of their own, since falling light only shows on dark.
+
+Slipstream reads the theme's `colors.toml`, the same file Omarchy builds its own colours from, so a theme installed with `omarchy theme install` works like the ones that come with it. A theme's background pictures aren't used: the wallpaper is still a living one.
+
+To go back to Slipstream's own colours without changing Omarchy's theme, turn off **Settings → Appearance → Follow Omarchy's theme**, or set `follow-omarchy-theme = false` under `[appearance]`.
+
 ## Bringing an AI agent's session back
 
 Slipstream has no AI in it. This is for people who run an AI coding agent of their own in a terminal: when your layout is reopened at login (**Settings → Session → Remember the layout**), a terminal that had an agent's session in it can come back in the same place, in the same folder, with that session open again.

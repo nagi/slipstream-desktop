@@ -15,6 +15,8 @@
 
 use std::collections::HashMap;
 
+use crate::palette;
+
 /// Columns of glyphs across a band, each a third of its width. GLMatrix sizes glyphs by the
 /// window's height and scatters strips at every depth, which in a narrow, screen-tall stream gives
 /// a few huge glyphs. Depth still sets each strip's fog, drift and splash, but not its size or
@@ -55,9 +57,13 @@ const KANA: [char; 16] = [
 /// The light a glyph adds where it's fully covered: green, a little towards cyan. The focus
 /// ring and the panels' keyboard ring take their colour from here, so the desktop's green is
 /// the rain's green.
-pub const TINT: [f32; 3] = [0.35, 1.0, 0.55];
+pub fn tint() -> [f32; 3] {
+    palette::green_rgb([0.35, 1.0, 0.55])
+}
 /// The other end of the scale: the light grey of an idle app, #9aa3ad.
-pub const QUIET: [f32; 3] = [0.60, 0.64, 0.68];
+pub fn quiet() -> [f32; 3] {
+    palette::night_rgb([0.60, 0.64, 0.68])
+}
 /// How much brighter font glyphs are drawn than GLMatrix's atlas glyphs would be.
 const GAIN: f32 = 2.5;
 /// A held band's light at no load and at full load: with nothing falling, how bright the still
@@ -107,7 +113,7 @@ pub fn still_brightness_for(demand: f32) -> f32 {
 pub fn colour_for(demand: f32) -> [f32; 3] {
     let share = clamp01(demand);
     let mut colour = [0.0; 3];
-    for (channel, (quiet, busy)) in colour.iter_mut().zip(QUIET.into_iter().zip(TINT)) {
+    for (channel, (quiet, busy)) in colour.iter_mut().zip(quiet().into_iter().zip(tint())) {
         *channel = quiet + (busy - quiet) * share;
     }
     colour
@@ -723,7 +729,7 @@ mod tests {
 
     const LOOK: Look = Look {
         speed: 1.0,
-        colour: TINT,
+        colour: [0.35, 1.0, 0.55],
     };
 
     #[test]
@@ -738,16 +744,16 @@ mod tests {
         assert!((speed_for(1.0) - 2.5).abs() < 1e-4);
         // Halfway along is halfway between, for both readings.
         assert!((speed_for(0.5) - 1.36).abs() < 1e-4);
-        assert_eq!(colour_for(0.0), QUIET);
-        assert_eq!(colour_for(1.0), TINT);
+        assert_eq!(colour_for(0.0), quiet());
+        assert_eq!(colour_for(1.0), tint());
         for (channel, (quiet, busy)) in colour_for(0.25)
             .into_iter()
-            .zip(QUIET.into_iter().zip(TINT))
+            .zip(quiet().into_iter().zip(tint()))
         {
             assert!((channel - (quiet + (busy - quiet) * 0.25)).abs() < 1e-6);
         }
         // Out of range readings clamp rather than running off either end.
-        assert_eq!(colour_for(-1.0), QUIET);
+        assert_eq!(colour_for(-1.0), quiet());
         assert_eq!(speed_for(9.0), speed_for(1.0));
     }
 
@@ -860,7 +866,8 @@ mod tests {
             .count();
         assert_eq!(moved, 0, "the same glyphs, in the same places");
         assert_eq!(
-            band.colour, TINT,
+            band.colour,
+            tint(),
             "the colour is there at once, not eased into"
         );
         band.step(1.0);

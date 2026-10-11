@@ -12,7 +12,7 @@
 use resvg::tiny_skia::Pixmap;
 
 use crate::{
-    glmatrix::{QUIET, colour_for, speed_for},
+    glmatrix::{colour_for, quiet, speed_for},
     text::{self, Face, Style},
 };
 
@@ -160,7 +160,7 @@ impl Streaks {
             spawn: 0.0,
             pending: 0.0,
             rng: seed | 1,
-            name_rgb: QUIET,
+            name_rgb: quiet(),
             along,
             still: false,
         };

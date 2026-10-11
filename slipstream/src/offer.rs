@@ -142,7 +142,7 @@ impl Offer {
                 .map(|app| Row {
                     name: app.clone(),
                     title: String::new(),
-                    note: Some(("no app found".to_string(), panel::HINT)),
+                    note: Some(("no app found".to_string(), panel::hint())),
                 })
                 .collect(),
             more: None,

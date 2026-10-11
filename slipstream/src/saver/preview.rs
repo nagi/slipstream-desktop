@@ -8,8 +8,8 @@
 use std::path::{Path, PathBuf};
 
 use super::{
-    BACKGROUND, BLANK, Frame, GlyphCache, Grid, Layout, Readings, TWEEN_LEVELS, epoch_now, layout,
-    make, paint_cell, step_hz,
+    BLANK, Frame, GlyphCache, Grid, Inks, Layout, Readings, TWEEN_LEVELS, epoch_now, layout, make,
+    paint_cell, step_hz,
 };
 
 /// The width a preview is drawn at before it is shrunk: about a laptop screen's worth of cells,
@@ -212,8 +212,10 @@ impl Canvas {
 
     fn save(&mut self, layout: &Layout, grid: &Grid, path: &Path) -> Result<(), String> {
         let (width, _) = self.device;
+        let inks = Inks::now();
+        let [r, g, b] = inks.ground();
         for pixel in self.pixels.chunks_exact_mut(4) {
-            pixel.copy_from_slice(&[BACKGROUND[0], BACKGROUND[1], BACKGROUND[2], 255]);
+            pixel.copy_from_slice(&[r, g, b, 255]);
         }
         for row in 0..layout.rows.min(grid.rows) {
             for col in 0..layout.cols.min(grid.cols) {
@@ -224,6 +226,7 @@ impl Canvas {
                         width,
                         layout,
                         &mut self.glyphs,
+                        &inks,
                         col,
                         row,
                         (cell, cell, TWEEN_LEVELS),

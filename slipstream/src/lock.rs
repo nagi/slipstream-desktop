@@ -39,7 +39,8 @@ use crate::{
     keys::Action,
     motion::HYPR,
     paint::{self, Painter},
-    panel::{self, AMBER, DESIGN_PX},
+    palette,
+    panel::{self, DESIGN_PX},
     text::{self, Face, Style},
 };
 
@@ -60,7 +61,10 @@ const DESKTOP_IN: f64 = 0.46;
 /// CSS `ease-in`.
 const EASE_IN: Easing = Easing::Bezier(0.42, 0.0, 1.0, 1.0);
 /// The veil over the wallpaper: `#05070b70`.
-pub const VEIL: [f32; 4] = [0.02, 0.027, 0.043, 0x70 as f32 / 255.0];
+pub fn veil() -> [f32; 4] {
+    let [r, g, b] = palette::rgb(palette::tone(0x05070b70));
+    [r, g, b, 0x70 as f32 / 255.0]
+}
 /// The wallpaper's brightness behind the lock.
 pub const WALLPAPER_GLOW: f32 = 0.62;
 
@@ -246,6 +250,11 @@ pub struct Lock<W> {
 }
 
 impl<W> Lock<W> {
+    /// Paints the card again next frame: the colours it was painted in have changed.
+    pub fn forget_painted(&mut self) {
+        self.card = Card::default();
+    }
+
     pub fn new(remembered: Option<W>, now: f64, reduced_motion: bool) -> Self {
         Self {
             password: Password::default(),
@@ -703,9 +712,9 @@ fn paint_top(key: String, time: &str, date: &str, scale: f64) -> Option<Piece> {
     let clock = Style {
         tracking: 0.01,
         tabular: true,
-        ..Style::new(Face::Display, CLOCK_PX, panel::BRIGHT)
+        ..Style::new(Face::Display, CLOCK_PX, panel::bright())
     };
-    let day = Style::new(Face::Body, DATE_PX, 0xd3d9e4ff);
+    let day = Style::new(Face::Body, DATE_PX, palette::tone(0xd3d9e4ff));
     let (clock_w, day_w) = (text::width(time, &clock), text::width(date, &day));
     let w = clock_w.max(day_w).max(1.0) + 8.0;
     Piece::paint(key, w, TOP_H, scale, |p| {
@@ -720,7 +729,7 @@ fn paint_top(key: String, time: &str, date: &str, scale: f64) -> Option<Piece> {
 }
 
 fn paint_user(key: String, user: &str, scale: f64) -> Option<Piece> {
-    let name = Style::new(Face::Body, NAME_PX, 0xb3bbc8ff);
+    let name = Style::new(Face::Body, NAME_PX, palette::tone(0xb3bbc8ff));
     let w = text::width(user, &name).max(1.0) + 8.0;
     Piece::paint(key, w, USER_H, scale, |p| {
         p.text(user, 4.0, USER_H / 2.0, &name);
@@ -735,14 +744,14 @@ fn paint_pill(key: String, dots: usize, caret: bool, caps_lock: bool, scale: f64
     let (label, style) = if dots == 0 {
         (
             "Password".to_string(),
-            Style::new(Face::Body, 22.0, panel::SECONDARY),
+            Style::new(Face::Body, 22.0, panel::secondary()),
         )
     } else {
         (
             "•".repeat(dots),
             Style {
                 tracking: 0.3,
-                ..Style::new(Face::Body, 22.0, panel::BRIGHT)
+                ..Style::new(Face::Body, 22.0, panel::bright())
             },
         )
     };
@@ -756,24 +765,39 @@ fn paint_pill(key: String, dots: usize, caret: bool, caps_lock: bool, scale: f64
     };
     let w = PILL_MIN.max(label_w + caret_w + 48.0 + caps_room);
     Piece::paint(key, w, PILL_H, scale, |p| {
-        p.fill(0.0, 0.0, w, PILL_H, 30.0, 0xffffff1f);
-        p.border(0.0, 0.0, w, PILL_H, 30.0, 1.0, 0xffffff30);
+        p.fill(0.0, 0.0, w, PILL_H, 30.0, palette::tone(0xffffff1f));
+        p.border(0.0, 0.0, w, PILL_H, 30.0, 1.0, palette::tone(0xffffff30));
         if caps_lock {
             let (x, y) = (w - CAPS_INSET - CAPS_ICON, (PILL_H - CAPS_ICON) / 2.0);
-            p.icon(icons::CAPS_LOCK, x, y, CAPS_ICON, Some(AMBER));
+            p.icon(icons::CAPS_LOCK, x, y, CAPS_ICON, Some(panel::amber()));
         }
         let x = (w - label_w - caret_w) / 2.0;
         p.text(&label, x, PILL_H / 2.0, &style);
         if caret {
             // CSS draws the caret after the text, 2 px on, 1.1 em tall.
             let h = 22.0 * 1.1;
-            p.fill(x + label_w + 2.0, (PILL_H - h) / 2.0, 3.0, h, 0.0, AMBER);
+            p.fill(
+                x + label_w + 2.0,
+                (PILL_H - h) / 2.0,
+                3.0,
+                h,
+                0.0,
+                panel::amber(),
+            );
         }
     })
 }
 
 fn paint_hint(key: String, hint: &str, amber: bool, scale: f64) -> Option<Piece> {
-    let style = Style::new(Face::Body, HINT_PX, if amber { AMBER } else { 0xb3bbc8ff });
+    let style = Style::new(
+        Face::Body,
+        HINT_PX,
+        if amber {
+            panel::amber()
+        } else {
+            palette::tone(0xb3bbc8ff)
+        },
+    );
     let hint_w = text::width(hint, &style);
     let w = hint_w.max(1.0) + 8.0;
     Piece::paint(key, w, HINT_H, scale, |p| {
@@ -787,25 +811,25 @@ fn paint_status(
     battery: Option<(u8, bool)>,
     scale: f64,
 ) -> Option<Piece> {
-    const INK: u32 = 0xcfd6e2ff;
+    let ink = palette::tone(0xcfd6e2ff);
     const ICON: f32 = 18.0;
-    let words = Style::new(Face::Body, 16.0, INK);
-    let dot = Style::new(Face::Body, 16.0, 0x6f7888ff);
+    let words = Style::new(Face::Body, 16.0, ink);
+    let dot = Style::new(Face::Body, 16.0, palette::tone(0x6f7888ff));
     // Each part is an icon and its words; the parts are joined by a dot with room either side.
     let mut parts: Vec<(String, String, Option<u32>)> = Vec::new();
     parts.push((
         icons::WIFI.to_string(),
         network.unwrap_or("Not connected").to_string(),
-        Some(INK),
+        Some(ink),
     ));
     if let Some((percent, charging)) = battery {
         parts.push((
             icons::battery(percent, charging),
             format!("{percent}%"),
-            Some(INK),
+            Some(ink),
         ));
     }
-    parts.push((icons::LOGO.to_string(), "Slipstream".to_string(), None));
+    parts.push((icons::logo(), "Slipstream".to_string(), None));
     let part_w = |words_text: &str| ICON + 10.0 + text::width(words_text, &words);
     let joint = 16.0 + text::width("·", &dot) + 16.0;
     let w = parts.iter().map(|(_, t, _)| part_w(t)).sum::<f32>()

@@ -455,11 +455,12 @@ pub struct Slipstream {
     pub debug: debug::Script,
     /// The settings as applied: the file's, with any environment overrides.
     pub settings: slipstream_config::Settings,
+    /// The Omarchy theme the desktop is drawn from, when one is followed (`palette.rs`).
+    pub theme: Option<slipstream_config::theme::Theme>,
     /// The focused window's ring colour, parsed from the settings once rather than every frame.
-    /// The panels' keyboard ring takes it too: one colour for where the keys are aimed.
+    /// The panels' keyboard ring takes it too, and bullet time's rings and frames: one colour for
+    /// where the keys are aimed.
     pub ring_rgb: [f32; 3],
-    /// Bullet time's rings and frames, from the settings in the same way.
-    pub bullet_rgb: [f32; 3],
     /// Where logind's refusals, and a nested run's stand-in answers, come back to the event loop
     /// (`power.rs`).
     power_answers: channel::Sender<crate::power::Answer>,
@@ -641,8 +642,11 @@ impl Slipstream {
 
         let settings = crate::settings::startup();
         meter::configure(&settings.meter);
-        let ring_rgb = settings.borders.selected_tile_rgb();
-        let bullet_rgb = settings.borders.bullet_time_rgb();
+        // The colours are in place before anything is painted. `apply_theme` follows them from
+        // here on.
+        let theme = settings.appearance.theme();
+        let ring_rgb = settings.borders.ring_rgb(theme.as_ref());
+        crate::palette::set(settings.palette(theme.as_ref()));
 
         let reduced_motion = settings.motion.reduced;
         let mut state = Self {
@@ -793,8 +797,8 @@ impl Slipstream {
             meter: meter::start(),
             debug: debug::Script::default(),
             settings,
+            theme,
             ring_rgb,
-            bullet_rgb,
             power_answers,
             lock: None,
             unlocking: None,

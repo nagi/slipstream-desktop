@@ -149,7 +149,7 @@ pub fn one_line_centre(height: f64) -> f64 {
 
 /// The toast's words.
 fn prose() -> Style {
-    Style::new(Face::Body, 16.0, panel::PROSE)
+    Style::new(Face::Body, 16.0, panel::prose())
 }
 
 /// The room the words' lines have in a card `width` wide.
@@ -180,15 +180,22 @@ pub fn paint_card(
 ) {
     let heading = Style {
         tracking: 0.1,
-        ..Style::new(Face::BodyBold, 13.0, panel::AMBER)
+        ..Style::new(Face::BodyBold, 13.0, panel::amber())
     };
     let prose = prose();
     let radius = panel::NOTICE_RADIUS;
     let (dy, blur, shadow) = panel::NOTICE_SHADOW;
     p.shadow(x, y, width, height, radius, dy, blur, shadow);
-    p.fill(x, y, width, height, radius, panel::AMBER);
-    p.fill(x + 4.0, y, width - 4.0, height, radius - 3.0, panel::NOTICE);
-    p.border(x, y, width, height, radius, 1.0, panel::NOTICE_EDGE);
+    p.fill(x, y, width, height, radius, panel::amber());
+    p.fill(
+        x + 4.0,
+        y,
+        width - 4.0,
+        height,
+        radius - 3.0,
+        panel::notice_fill(),
+    );
+    p.border(x, y, width, height, radius, 1.0, panel::notice_edge());
     p.text(&title.to_uppercase(), x + PAD, y + 16.0 + 10.0, &heading);
     let top = y + 16.0 + 20.0 + 4.0;
     for (i, line) in lines.iter().enumerate() {

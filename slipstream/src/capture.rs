@@ -771,7 +771,7 @@ where
         &mut target,
         0,
         elements,
-        crate::render::BACKGROUND,
+        crate::render::background(),
     )?;
     let mapping =
         renderer.copy_framebuffer(&target, Rectangle::from_size(buffer_size), Fourcc::Argb8888)?;
