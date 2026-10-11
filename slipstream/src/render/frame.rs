@@ -43,6 +43,11 @@ pub(super) struct View {
     /// Workspaces sit side by side, a screen and a gap apart, and the view slides between them.
     pub step: f64,
     pub camera: f64,
+    /// In bullet time only the workspaces with something on them are laid out, closed up side by
+    /// side: each has a place along the strip (`places`), and the view a place among them.
+    pub view: f64,
+    pub places: Vec<f64>,
+    pub shown: Vec<bool>,
     /// How far along the slide the workspace on screen is drawn.
     pub active_dx: f64,
     /// The tiling area, in this screen's own coordinates.
@@ -67,6 +72,16 @@ pub(super) struct View {
 }
 
 impl View {
+    /// Where workspace `index` sits along the strip: its own number, except in bullet time.
+    pub fn place(&self, index: usize) -> f64 {
+        self.places.get(index).copied().unwrap_or(index as f64)
+    }
+
+    /// Whether bullet time lays workspace `index` out.
+    pub fn is_shown(&self, index: usize) -> bool {
+        self.shown.get(index).copied().unwrap_or(true)
+    }
+
     fn new(
         state: &mut Slipstream,
         renderer: &mut GlesRenderer,
@@ -100,6 +115,10 @@ impl View {
             .unwrap_or_else(|| state.active_workspace());
         let step = (geo.size.w + motion::WORKSPACE_GAP) as f64;
         let camera = state.motion.camera(&name, wall);
+        let shown = state.bullet_shown_now();
+        let places = bullet::places(&shown, if first { zoomed_out } else { 0.0 });
+        let view = bullet::place_between(&places, camera);
+        let active_place = places.get(active).copied().unwrap_or(active as f64);
         let tiling = screen_index.is_some();
         let rain = screen_index == Some(0);
         let glass = tiling
@@ -166,7 +185,10 @@ impl View {
             viewed,
             step,
             camera,
-            active_dx: (active as f64 - camera) * step,
+            view,
+            places,
+            shown,
+            active_dx: (active_place - view) * step,
             area,
             tilting,
             dense,
@@ -852,7 +874,7 @@ fn windows_in_view(
         let origin = state
             .screen_rect_for_workspace(index)
             .map_or(v.geo.loc.x, |rect| rect.x);
-        shift_for_workspace(index, v.camera, v.step, v.geo.loc.x, origin)
+        shift_for_workspace(v.place(index), v.view, v.step, v.geo.loc.x, origin)
     };
     let mut windows: Vec<(Window, Option<usize>)> = state
         .space
@@ -877,7 +899,7 @@ fn windows_in_view(
         (0..state.workspaces.count()).filter(|index| state.screens.showing(*index).is_none())
     {
         // Zoomed out, neighbouring workspaces come into view.
-        if ((index as f64 - v.camera) * v.step).abs() * v.zoom < v.step {
+        if ((v.place(index) - v.view) * v.step).abs() * v.zoom < v.step {
             // Front to back: the floating windows, front-most first, then the tiles.
             let ws = state.workspaces.get(index);
             let floating = ws.floating.windows().into_iter().rev();
@@ -1650,8 +1672,8 @@ fn workspace_frame_elements(
     };
     let fade = v.bullet_fade();
     let home = state.bullet.as_ref().map(|mode| mode.home);
-    for index in 0..state.workspaces.count() {
-        let dx = (index as f64 - v.camera) * v.step;
+    for index in (0..state.workspaces.count()).filter(|index| v.is_shown(*index)) {
+        let dx = (v.place(index) - v.view) * v.step;
         if dx.abs() * v.zoom > v.geo.size.w as f64 {
             continue;
         }

@@ -514,14 +514,15 @@ mod tests {
         // The laptop (1536 wide, at 0) and a monitor (1920 wide, at 1536).
         let step = (1536 + motion::WORKSPACE_GAP) as f64;
         // A window at the monitor's left edge, drawn on the laptop.
-        let drawn_at =
-            |index: usize, camera: f64| 1536.0 + shift_for_workspace(index, camera, step, 0, 1536);
+        let drawn_at = |index: usize, camera: f64| {
+            1536.0 + shift_for_workspace(index as f64, camera, step, 0, 1536)
+        };
         // The laptop on workspace 2, the monitor on workspace 1: a lower workspace, so to the left.
         assert!(drawn_at(0, 1.0) < 0.0, "{}", drawn_at(0, 1.0));
         // The laptop on workspace 1, the monitor on workspace 3: off the right.
         assert!(drawn_at(2, 0.0) >= 1536.0, "{}", drawn_at(2, 0.0));
         // Its own workspace sits where the layout put it, on its own screen's edge.
-        assert_eq!(0.0 + shift_for_workspace(1, 1.0, step, 0, 0), 0.0);
+        assert_eq!(0.0 + shift_for_workspace(1.0, 1.0, step, 0, 0), 0.0);
     }
 
     #[test]
