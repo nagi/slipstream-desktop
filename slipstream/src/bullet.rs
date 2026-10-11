@@ -274,6 +274,55 @@ pub fn bar_workspaces<T>(showing: usize, mode: Option<&Mode<T>>) -> (usize, Opti
     }
 }
 
+/// Where each workspace sits in bullet time, in workspace widths along the strip, when only the
+/// `shown` ones are laid out. A shown workspace's place is its number among the shown ones, so
+/// they sit side by side with nothing between them. The others are not drawn, and their places
+/// are spread evenly through the gap they left, so a view sliding past them moves steadily.
+///
+/// `zoomed_out` runs from 0, where every workspace is where its own number puts it, to 1, where
+/// the shown ones have closed up: the strip closes as the desktop tips back and opens as it
+/// comes forward again.
+pub fn places(shown: &[bool], zoomed_out: f64) -> Vec<f64> {
+    let kept: Vec<usize> = (0..shown.len()).filter(|index| shown[*index]).collect();
+    let (Some(&first), Some(&last)) = (kept.first(), kept.last()) else {
+        return (0..shown.len()).map(|index| index as f64).collect();
+    };
+    (0..shown.len())
+        .map(|index| {
+            let closed = if index <= first {
+                index as f64 - first as f64
+            } else if index >= last {
+                (kept.len() - 1) as f64 + (index - last) as f64
+            } else {
+                // Between the shown workspace before it and the one after.
+                let after = kept.partition_point(|kept| *kept <= index);
+                let (from, to) = (kept[after - 1], kept[after]);
+                (after - 1) as f64 + (index - from) as f64 / (to - from) as f64
+            };
+            index as f64 + (closed - index as f64) * zoomed_out.clamp(0.0, 1.0)
+        })
+        .collect()
+}
+
+/// Where a view at `camera`, in workspaces and part way between two while it slides, sits among
+/// `places`.
+pub fn place_between(places: &[f64], camera: f64) -> f64 {
+    let place = |index: usize| places.get(index).copied().unwrap_or(index as f64);
+    let below = camera.floor().max(0.0);
+    let (from, to) = (place(below as usize), place(below as usize + 1));
+    from + (to - from) * (camera - below)
+}
+
+/// The next shown workspace to the right of `from`, or to the left.
+pub fn neighbour(shown: &[bool], from: usize, right: bool) -> Option<usize> {
+    let is_shown = |index: &usize| shown.get(*index).copied().unwrap_or(false);
+    if right {
+        (from + 1..shown.len()).find(is_shown)
+    } else {
+        (0..from.min(shown.len())).rev().find(is_shown)
+    }
+}
+
 /// "empty", "1 window" or "3 windows": how full a workspace is, as bullet time says it.
 pub fn window_count(count: usize) -> String {
     match count {
@@ -536,6 +585,48 @@ pub fn legend() -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn only_the_shown_workspaces_are_laid_out_side_by_side() {
+        // Workspaces 1, 4 and 5 hold windows; 2 and 3 are empty.
+        let shown = [true, false, false, true, true];
+        let closed = places(&shown, 1.0);
+        assert_eq!(closed[0], 0.0);
+        assert_eq!(closed[3], 1.0, "the fourth is beside the first");
+        assert_eq!(closed[4], 2.0);
+        // The empty ones are spread through the gap, so a view sliding across moves steadily.
+        assert!((closed[1] - 1.0 / 3.0).abs() < 1e-9 && (closed[2] - 2.0 / 3.0).abs() < 1e-9);
+        // Not zoomed out, every workspace is where its number puts it, and half way it's between.
+        assert_eq!(places(&shown, 0.0), [0.0, 1.0, 2.0, 3.0, 4.0]);
+        assert_eq!(places(&shown, 0.5)[3], 2.0);
+        // Empty workspaces at either end keep their distance beyond the shown ones.
+        let ends = places(&[false, true, false, true, false, false], 1.0);
+        assert_eq!(ends, [-1.0, 0.0, 0.5, 1.0, 2.0, 3.0]);
+        // With none shown there is nothing to close up.
+        assert_eq!(places(&[false, false], 1.0), [0.0, 1.0]);
+    }
+
+    #[test]
+    fn a_sliding_view_sits_between_the_places_of_the_workspaces_either_side() {
+        let closed = places(&[true, false, false, true], 1.0);
+        assert_eq!(place_between(&closed, 0.0), 0.0);
+        assert_eq!(place_between(&closed, 3.0), 1.0);
+        assert!((place_between(&closed, 1.5) - 0.5).abs() < 1e-9);
+        // Past the last workspace, or with no places at all, it's the workspace's own number.
+        assert_eq!(place_between(&[], 2.5), 2.5);
+    }
+
+    #[test]
+    fn the_arrows_step_over_workspaces_that_arent_shown() {
+        let shown = [true, false, false, true, false];
+        assert_eq!(neighbour(&shown, 0, true), Some(3));
+        assert_eq!(neighbour(&shown, 3, false), Some(0));
+        assert_eq!(neighbour(&shown, 3, true), None);
+        assert_eq!(neighbour(&shown, 0, false), None);
+        // From a workspace that isn't shown itself, the nearest shown one either way.
+        assert_eq!(neighbour(&shown, 2, true), Some(3));
+        assert_eq!(neighbour(&shown, 2, false), Some(0));
+    }
+
     #[test]
     fn the_legend_and_the_keys_agree() {
         assert_eq!(

@@ -299,7 +299,14 @@ pub fn output_elements(
     // Workspaces sit side by side, a screen and a gap apart, and the view slides between them.
     let step = (output_geo.size.w + motion::WORKSPACE_GAP) as f64;
     let camera = state.motion.camera(&name, wall);
-    let active_dx = (active as f64 - camera) * step;
+    // In bullet time only the workspaces with something on them are laid out, closed up side by
+    // side: each has a place along the strip, and the view a place among them.
+    let shown = state.bullet_shown_now();
+    let places = bullet::places(&shown, if first_output { zoomed_out } else { 0.0 });
+    let place = |index: usize| places.get(index).copied().unwrap_or(index as f64);
+    let is_shown = |index: usize| shown.get(index).copied().unwrap_or(true);
+    let view = bullet::place_between(&places, camera);
+    let active_dx = (place(active) - view) * step;
     let focused = state.focused_window();
     let used: Vec<bool> = (0..state.workspaces.count())
         .map(|i| !state.workspaces.get(i).is_empty())
@@ -678,7 +685,7 @@ pub fn output_elements(
         let origin = state
             .screen_rect_for_workspace(index)
             .map_or(output_geo.loc.x, |rect| rect.x);
-        shift_for_workspace(index, camera, step, output_geo.loc.x, origin)
+        shift_for_workspace(place(index), view, step, output_geo.loc.x, origin)
     };
     // The pane docked to the bar is no workspace's: it is drawn on the screen the streams are on
     // wherever the workspaces slide to, in front of every window. While it flies up from its
@@ -714,7 +721,7 @@ pub fn output_elements(
         (0..state.workspaces.count()).filter(|index| state.screens.showing(*index).is_none())
     {
         // Zoomed out, neighbouring workspaces come into view.
-        if ((index as f64 - camera) * step).abs() * zoom < step {
+        if ((place(index) - view) * step).abs() * zoom < step {
             // Front to back: the floating windows, front-most first, then the tiles.
             let ws = state.workspaces.get(index);
             let floating = ws.floating.windows().into_iter().rev();
@@ -1403,8 +1410,8 @@ pub fn output_elements(
     if let (true, true, Some(area)) = (first_output && ui > 0.0, zoomed_out > 0.0, area_local) {
         let fade = zoomed_out.min(1.0) as f32 * ui_alpha;
         let home = state.bullet.as_ref().map(|mode| mode.home);
-        for index in 0..state.workspaces.count() {
-            let dx = (index as f64 - camera) * step;
+        for index in (0..state.workspaces.count()).filter(|index| is_shown(*index)) {
+            let dx = (place(index) - view) * step;
             if dx.abs() * zoom > output_geo.size.w as f64 {
                 continue;
             }
@@ -2093,14 +2100,15 @@ mod tests {
         // The laptop (1536 wide, at 0) and a monitor (1920 wide, at 1536).
         let step = (1536 + motion::WORKSPACE_GAP) as f64;
         // A window at the monitor's left edge, drawn on the laptop.
-        let drawn_at =
-            |index: usize, camera: f64| 1536.0 + shift_for_workspace(index, camera, step, 0, 1536);
+        let drawn_at = |index: usize, camera: f64| {
+            1536.0 + shift_for_workspace(index as f64, camera, step, 0, 1536)
+        };
         // The laptop on workspace 2, the monitor on workspace 1: a lower workspace, so to the left.
         assert!(drawn_at(0, 1.0) < 0.0, "{}", drawn_at(0, 1.0));
         // The laptop on workspace 1, the monitor on workspace 3: off the right.
         assert!(drawn_at(2, 0.0) >= 1536.0, "{}", drawn_at(2, 0.0));
         // Its own workspace sits where the layout put it, on its own screen's edge.
-        assert_eq!(0.0 + shift_for_workspace(1, 1.0, step, 0, 0), 0.0);
+        assert_eq!(0.0 + shift_for_workspace(1.0, 1.0, step, 0, 0), 0.0);
     }
 
     #[test]

@@ -315,18 +315,19 @@ pub(super) fn paint_tag(rung: Rung, scale: f64) -> Option<(Pixmap, Size<i32, Log
     Some((p.pixmap, size))
 }
 
-/// How far a window on workspace `index` is shifted from where it sits in the layout of screens,
-/// on a screen at `here` whose view is at `camera` with workspaces `step` apart. `origin` is the
+/// How far a window on the workspace at `place` along the strip is shifted from where it sits in
+/// the layout of screens, on a screen at `here` whose view is at `camera` with workspaces `step`
+/// apart. A workspace's place is its own number, except in bullet time (`bullet::places`). `origin` is the
 /// left edge of the screen the workspace is laid out for: its windows sit that far along, and are
 /// drawn from this screen's edge instead, a workspace's distance from the view to the side.
 pub(super) fn shift_for_workspace(
-    index: usize,
+    place: f64,
     camera: f64,
     step: f64,
     here: i32,
     origin: i32,
 ) -> f64 {
-    (index as f64 - camera) * step + (here - origin) as f64
+    (place - camera) * step + (here - origin) as f64
 }
 
 /// The prompt on an empty workspace: where to find every key, and nothing else, so the wallpaper

@@ -46,6 +46,26 @@ impl Slipstream {
         bullet::targets(here, streams, others)
     }
 
+    /// Adds to the workspaces bullet time lays out any that hold a window now, and `looked_at`.
+    /// One that has emptied since stays where it is until bullet time is opened again, so
+    /// nothing shifts under the pointer when a window closes.
+    pub(super) fn show_occupied_workspaces(&mut self, looked_at: usize) {
+        let count = self.workspaces.count();
+        self.bullet_shown.resize(count, false);
+        for index in 0..count {
+            self.bullet_shown[index] |=
+                index == looked_at || !self.workspaces.get(index).is_empty();
+        }
+    }
+
+    /// The workspaces bullet time lays out, brought up to date, for a frame about to be drawn.
+    pub fn bullet_shown_now(&mut self) -> Vec<bool> {
+        if let Some(view) = self.bullet.as_ref().map(|mode| mode.view) {
+            self.show_occupied_workspaces(view);
+        }
+        self.bullet_shown.clone()
+    }
+
     pub fn enter_bullet_time(&mut self) {
         self.close_panels();
         // Workspaces off screen can hold sizes from before the code rain took or gave back space.
@@ -53,6 +73,8 @@ impl Slipstream {
             self.place_workspace(index);
         }
         let home = self.active_workspace();
+        self.bullet_shown.clear();
+        self.show_occupied_workspaces(home);
         let targets = self.bullet_targets(home);
         let labels = bullet::labels(&self.bullet_labels, &targets);
         self.bullet_labels = labels.clone();
@@ -181,7 +203,7 @@ impl Slipstream {
     }
 
     /// Arrows choose the nearest window that way. Past the last one, ←/→ glide on to the
-    /// neighbouring workspace.
+    /// neighbouring workspace, which is the next one with anything on it.
     pub(super) fn bullet_arrow(&mut self, direction: Direction) {
         let Some(mode) = self.bullet.clone() else {
             return;
@@ -231,11 +253,9 @@ impl Slipstream {
             Direction::Left => false,
             _ => return,
         };
-        let Some(index) = (if going_right {
-            Some(from + 1).filter(|&index| index < self.workspaces.count())
-        } else {
-            from.checked_sub(1)
-        }) else {
+        // Empty workspaces aren't laid out, so the next one along is the next that is.
+        let shown = self.bullet_shown_now();
+        let Some(index) = bullet::neighbour(&shown, from, going_right) else {
             return;
         };
         self.bullet_pan(index, false);

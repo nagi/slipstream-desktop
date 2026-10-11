@@ -71,7 +71,7 @@ pub(super) fn deck_elements_for(
             let origin = state
                 .screen_rect_for_workspace(index)
                 .map_or(output_geo.loc.x, |rect| rect.x);
-            let dx = shift_for_workspace(index, camera, step, output_geo.loc.x, origin);
+            let dx = shift_for_workspace(index as f64, camera, step, output_geo.loc.x, origin);
             let own = window.geometry().size;
             let [x, y, w, h] = frame.rect;
             let (w, h) = if frame.moving {
