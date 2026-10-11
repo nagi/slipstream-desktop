@@ -407,6 +407,10 @@ pub struct Slipstream {
     pub overview: Tween<1>,
     /// The last labels bullet time used, kept while the same windows are open.
     bullet_labels: Vec<(Target<Window>, String)>,
+    /// The workspaces bullet time lays out: the ones holding windows, the one it was opened on
+    /// and any looked at since. An empty one is left out, and the rest close up over its place.
+    /// Kept after bullet time ends, while the desktop is still coming forward.
+    pub bullet_shown: Vec<bool>,
     /// Where windows and workspace frames were drawn in the overview, for clicks.
     pub overview_hits: Vec<(Window, Rectangle<f64, Logical>)>,
     /// Where notification pop-ups, the toast and the volume display were drawn last frame, from
@@ -757,6 +761,7 @@ impl Slipstream {
             swipe: None,
             overview: Tween::at_rest([0.0]),
             bullet_labels: Vec::new(),
+            bullet_shown: Vec::new(),
             overview_hits: Vec::new(),
             chrome_areas: Vec::new(),
             pointer_was_blocked: false,
