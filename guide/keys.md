@@ -79,7 +79,8 @@ Super is not tapped for the explorer, and Ctrl+Space stays with input methods. T
 | Super+F | Fill the tiling area, and back |
 | Super+L | Tiling or gravity; keep Super held to choose the arrangement |
 | Super+J, Super+Shift+J | Turn the whole layout a quarter, clockwise or back |
-| Super+O, Super+Shift+O | Dock the window to the bar; bring it back down |
+| Super+O | Pop the window out: it floats, and follows its screen to every workspace; again, back into the tiling |
+| Super+U, Super+Shift+U | Dock the window to the bar; bring it back down |
 | Super+Tab, Super+Shift+Tab | Next, previous workspace |
 | Super+0, Super+Shift+0 | Go to the tenth workspace; send the window there |
 | Super+Ctrl+← →, with Shift | Previous, next workspace; take the window along |

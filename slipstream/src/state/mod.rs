@@ -112,6 +112,7 @@ mod debug_steps;
 mod docked;
 mod keyboard_focus;
 mod lifecycle;
+mod popped;
 mod raise;
 mod screens;
 mod streams;
@@ -459,6 +460,9 @@ pub struct Slipstream {
     pub deck: Option<crate::deck::Deck<Window>>,
     /// Two tiles passing through each other as they trade places (`pane.rs`).
     pub pass: Option<crate::pane::Pass<Window>>,
+    /// The floating windows that follow their screen from workspace to workspace
+    /// (`state/popped.rs`).
+    pub popped: Vec<Window>,
     /// The window docked to the bar as a pane of glass, if one is (`dock.rs`).
     pub dock: Option<crate::dock::Docked<Window>>,
     /// A window just undocked, whose pane is still on its way down to its place.
@@ -772,6 +776,7 @@ impl Slipstream {
             unlocking: None,
             deck: None,
             pass: None,
+            popped: Vec::new(),
             dock: None,
             dock_leaving: None,
             dock_size: Default::default(),
