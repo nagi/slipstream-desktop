@@ -110,6 +110,7 @@ mod bullet_time;
 mod debug_steps;
 mod docked;
 mod lifecycle;
+mod minimise_one;
 mod popped;
 mod raise;
 mod screens;
