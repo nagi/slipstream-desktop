@@ -735,7 +735,7 @@ impl Slipstream {
         match screen.drm_output.render_frame(
             &mut gpu.renderer,
             &elements,
-            render::BACKGROUND,
+            render::background(),
             flags,
         ) {
             Ok(frame) => {

@@ -276,6 +276,8 @@ pub struct Saver {
     /// Composed into and swapped with `to`, so a step allocates nothing.
     scratch: Grid,
     glyphs: GlyphCache,
+    /// The colours it is painted in.
+    inks: Inks,
     /// The variations to cycle through, in the settings file's order.
     chosen: Vec<&'static str>,
     /// Which of them is showing.
@@ -339,6 +341,7 @@ impl Saver {
             shown: Vec::new(),
             scratch: Grid::new(0, 0),
             glyphs: GlyphCache::default(),
+            inks: Inks::now(),
             chosen,
             index,
             upcoming: Vec::new(),
@@ -575,6 +578,10 @@ impl Saver {
             self.stepped_to.to_bits(),
             (along * TWEEN_LEVELS as f64).round() as u8,
         );
+        // A change of colours leaves nothing on show as it should be.
+        if self.inks.follow() {
+            self.shown.clear();
+        }
         if self.shown.is_empty() || self.painted != Some(key) {
             let started = thread_cpu();
             self.paint(along);
@@ -655,6 +662,7 @@ impl Saver {
             to,
             shown,
             glyphs,
+            inks,
             cost,
             ..
         } = self;
@@ -687,8 +695,9 @@ impl Saver {
         let _ = context.draw(|pixels| {
             let mut damage: Vec<Rectangle<i32, Buffer>> = Vec::new();
             if full {
+                let [r, g, b] = inks.ground();
                 for pixel in pixels.chunks_exact_mut(4) {
-                    pixel.copy_from_slice(&[BACKGROUND[0], BACKGROUND[1], BACKGROUND[2], 255]);
+                    pixel.copy_from_slice(&[r, g, b, 255]);
                 }
             }
             for row in 0..layout.rows {
@@ -703,7 +712,7 @@ impl Saver {
                     };
                     if changed {
                         repainted += 1;
-                        paint_cell(pixels, width, layout, glyphs, col, row, look);
+                        paint_cell(pixels, width, layout, glyphs, inks, col, row, look);
                         span = Some(span.map_or((col, col), |(first, _)| (first, col)));
                     }
                 }
@@ -1091,6 +1100,44 @@ mod tests {
             9,
             "with the cells round it, sampled between cells"
         );
+    }
+
+    #[test]
+    fn a_followed_theme_paints_each_cell_in_its_colours_over_its_ground() {
+        let text = "background = \"#1a1b26\"\nforeground = \"#c0caf5\"\naccent = \"#7aa2f7\"\n";
+        let theme = slipstream_config::theme::parse(text, false).unwrap();
+        let themed = Inks {
+            palette: Some(slipstream_config::theme::Palette::of(&theme)),
+            seen: None,
+        };
+        let own = Inks::default();
+        let layout = layout(320, 200).unwrap();
+        let cyan = Cell {
+            ch: '█',
+            rgb: [51, 204, 255],
+        };
+        let paint = |inks: &Inks| {
+            let mut pixels = vec![0u8; 320 * 200 * 4];
+            let mut glyphs = GlyphCache::default();
+            let look = (cyan, cyan, TWEEN_LEVELS);
+            paint_cell(&mut pixels, 320, &layout, &mut glyphs, inks, 0, 0, look);
+            paint_cell(&mut pixels, 320, &layout, &mut glyphs, inks, 1, 0, blank());
+            let at = |col: usize| {
+                let x = layout.origin.0 + col * layout.cell_w + layout.cell_w / 2;
+                let y = layout.origin.1 + layout.cell_h / 2;
+                let i = (y * 320 + x) * 4;
+                [pixels[i], pixels[i + 1], pixels[i + 2]]
+            };
+            (at(0), at(1))
+        };
+        // Without one, the cell is Slipstream's cyan on its backdrop, as it was composed.
+        assert_eq!(paint(&own), ([51, 204, 255], BACKGROUND));
+        assert_eq!(paint(&themed), (theme.accent, theme.background));
+        assert_eq!(themed.ground(), theme.background);
+    }
+
+    fn blank() -> Look {
+        (BLANK, BLANK, TWEEN_LEVELS)
     }
 
     #[test]

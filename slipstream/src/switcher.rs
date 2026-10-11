@@ -16,6 +16,7 @@ use smithay::{
 use crate::{
     Slipstream,
     paint::{self, Painted, Painter},
+    palette,
     panel::{self, DESIGN_PX},
     state::{window_app_id, window_title},
     text::{self, Face, Style},
@@ -38,7 +39,9 @@ const MARGIN: f32 = 64.0;
 const ICON: f32 = 48.0;
 const INSET: f32 = 14.0;
 /// The code rain's green, for the glyph that marks a minimised window.
-const RAIN: u32 = panel::MINT;
+fn rain() -> u32 {
+    panel::mint()
+}
 
 /// What letting go of Alt does.
 #[derive(Debug, PartialEq)]
@@ -216,6 +219,11 @@ fn scroll_to_show(scroll: usize, selected: usize, count: usize, across: usize) -
 }
 
 impl<W> Switcher<W> {
+    /// Paints it again next frame: the colours it was painted in have changed.
+    pub fn forget_painted(&mut self) {
+        self.shown = None;
+    }
+
     /// The card, centred on a screen `screen` big, with `tiles` for the windows in order. `icon`
     /// finds an app's icon at a size in device pixels, and is asked only when the card repaints.
     #[allow(clippy::too_many_arguments)]
@@ -291,9 +299,9 @@ fn paint(look: &Look, icon: &mut dyn FnMut(&str, u32) -> Option<Pixmap>) -> Opti
     let mut p = Painter::new(device.0 as u32, device.1 as u32, f)?;
     panel::glass(&mut p, MARGIN, MARGIN, card_w, card_h);
 
-    let name_style = Style::new(Face::Body, 14.0, panel::INK);
-    let title_style = Style::new(Face::Body, 12.0, panel::HINT);
-    let chip_style = Style::new(Face::Mono, 11.0, 0xc4cad6ff);
+    let name_style = Style::new(Face::Body, 14.0, panel::ink());
+    let title_style = Style::new(Face::Body, 12.0, panel::hint());
+    let chip_style = Style::new(Face::Mono, 11.0, palette::tone(0xc4cad6ff));
     let icon_px = (ICON * f).round() as u32;
     let visible = look
         .tiles
@@ -315,7 +323,7 @@ fn paint(look: &Look, icon: &mut dyn FnMut(&str, u32) -> Option<Pixmap>) -> Opti
             );
             panel::focus_ring(&mut p, x, y, TILE_W, TILE_H, panel::TILE_RADIUS, look.ring);
         } else {
-            p.fill(x, y, TILE_W, TILE_H, panel::TILE_RADIUS, panel::TILE);
+            p.fill(x, y, TILE_W, TILE_H, panel::TILE_RADIUS, panel::tile());
         }
         match tile.app_id.as_deref().and_then(|id| icon(id, icon_px)) {
             Some(pixmap) => p.image(&pixmap, x + INSET, y + INSET),
@@ -327,7 +335,7 @@ fn paint(look: &Look, icon: &mut dyn FnMut(&str, u32) -> Option<Pixmap>) -> Opti
             Some(label) => {
                 let label = text::ellipsize(label, &chip_style, 80.0);
                 let w = text::width(&label, &chip_style) + 14.0;
-                p.fill(right - w, y + INSET, w, 20.0, 5.0, panel::QUIET);
+                p.fill(right - w, y + INSET, w, 20.0, 5.0, panel::quiet());
                 p.text(&label, right - w + 7.0, y + INSET + 10.0, &chip_style);
             }
             None => {
@@ -341,7 +349,7 @@ fn paint(look: &Look, icon: &mut dyn FnMut(&str, u32) -> Option<Pixmap>) -> Opti
                         2.5,
                         h,
                         1.2,
-                        RAIN,
+                        rain(),
                     );
                 }
             }

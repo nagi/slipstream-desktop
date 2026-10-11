@@ -31,6 +31,7 @@ use crate::{
     glmatrix::{Band, Glyphs, Look},
     layout::{INNER_GAP, OUTER_GAP, Rect},
     paint::{self, Painter},
+    palette,
     panel::DESIGN_PX,
     streaks::Streaks,
     text::{self, Face, Style},
@@ -49,7 +50,9 @@ const BUTTON_W: f32 = 58.0;
 const BUTTON_H: f32 = 67.0;
 const RADIUS: f32 = 12.0;
 /// The button's colour: a shade lighter than the card hanging from it.
-const BUTTON: u32 = 0x151a23ff;
+fn button() -> u32 {
+    palette::night(0x151a23ff)
+}
 /// The icon's size, and how far down the button its middle is: as far in from the top as from the
 /// sides, with the meter under it and the same again below that.
 const ICON: f32 = 34.0;
@@ -59,7 +62,9 @@ const CARD_GAP: f64 = 2.0;
 /// How far inside the card's edge the rain stops, in logical pixels.
 const CARD_INSET: f64 = 2.0;
 /// The cards' colour, the same as the headers'.
-const CARD: u32 = 0x0b0d12ff;
+fn card() -> u32 {
+    palette::night(0x0b0d12ff)
+}
 /// The headers' scale: three quarters of full size, to suit the narrow streams.
 const HEADER: f32 = 0.75;
 /// The app's own meter under its icon, in design pixels: a thin bar, read as how full it is,
@@ -68,8 +73,12 @@ const METER_W: f32 = ICON;
 const METER_H: f32 = 4.0;
 const METER_TOP: f32 = 51.0;
 /// The meter's empty part, a faint white over the button, and its filled part, the rain's green.
-const METER_TRACK: u32 = 0xffffff1f;
-const METER_FILL: u32 = 0x59ff8cff;
+fn meter_track() -> u32 {
+    palette::night(0xffffff1f)
+}
+fn meter_fill() -> u32 {
+    palette::green(0x59ff8cff)
+}
 /// How finely the meter is quantised. A header is a painted buffer, so it is repainted only when
 /// the meter moves by a step of this; a step is under a pixel.
 const METER_STEPS: f32 = 40.0;
@@ -131,7 +140,7 @@ impl Card {
         let (w, h) = (device.0.max(1) as u32, device.1.max(1) as u32);
         let radius = RADIUS * DESIGN_PX * HEADER * scale as f32;
         let mut base = Painter::new(w, h, 1.0)?;
-        base.fill(0.0, 0.0, w as f32, h as f32, radius, CARD);
+        base.fill(0.0, 0.0, w as f32, h as f32, radius, card());
         let inset = (CARD_INSET * scale).floor().max(1.0) as u32;
         let inner = (
             w.saturating_sub(2 * inset).max(1),
@@ -227,6 +236,18 @@ pub struct Rain {
 }
 
 impl Rain {
+    /// Paints every stream again next frame, its card and its light with it: the colours they
+    /// were painted in have changed.
+    pub fn forget_painted(&mut self) {
+        for stream in &mut self.streams {
+            stream.header = None;
+            stream.card = None;
+            stream.painted = None;
+            stream.painted_load = None;
+            stream.look_load = None;
+        }
+    }
+
     /// Paints its text again next frame: a face for characters it lacked has landed.
     pub fn forget_painted_text(&mut self) {
         for stream in &mut self.streams {
@@ -627,7 +648,7 @@ fn paint_header(
     let mut p = Painter::new(device.0 as u32, device.1 as u32, f)?;
     // Opaque: the card hangs just under it, and a button you could see through would read as a
     // hole rather than the thing to press.
-    p.fill(0.0, 0.0, w, h, RADIUS, BUTTON);
+    p.fill(0.0, 0.0, w, h, RADIUS, button());
     if let Some(icon) = icon {
         let (iw, ih) = (icon.width() as f32 / f, icon.height() as f32 / f);
         p.image(icon, (w - iw) / 2.0, ICON_MIDDLE - ih / 2.0);
@@ -641,11 +662,11 @@ fn paint_header(
     // the load, so even a quiet app's bar reads as colour; its length is what says the load. Never
     // shorter than it is tall, so a little load still shows as a mark rather than a speck.
     let meter_x = (w - METER_W) / 2.0;
-    p.fill(meter_x, METER_TOP, METER_W, METER_H, 0.0, METER_TRACK);
+    p.fill(meter_x, METER_TOP, METER_W, METER_H, 0.0, meter_track());
     let load = load.clamp(0.0, 1.0);
     if load > 0.0 {
         let filled = (METER_W * load).max(METER_H);
-        p.fill(meter_x, METER_TOP, filled, METER_H, 0.0, METER_FILL);
+        p.fill(meter_x, METER_TOP, filled, METER_H, 0.0, meter_fill());
     }
     Some(Painted {
         buffer: paint::buffer(&p.pixmap),

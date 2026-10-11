@@ -29,7 +29,7 @@ pub fn copy_frame<E: smithay::backend::renderer::element::RenderElement<GlesRend
     let mut texture: GlesTexture = renderer.create_buffer(Fourcc::Abgr8888, buffer_size)?;
     let mut target = renderer.bind(&mut texture)?;
     let mut damage = OutputDamageTracker::new(size, scale, Transform::Normal);
-    damage.render_output(renderer, &mut target, 0, elements, BACKGROUND)?;
+    damage.render_output(renderer, &mut target, 0, elements, background())?;
     let mapping =
         renderer.copy_framebuffer(&target, Rectangle::from_size(buffer_size), Fourcc::Abgr8888)?;
     let mut pixels = renderer.map_texture(&mapping)?.to_vec();

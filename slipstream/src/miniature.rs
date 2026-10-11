@@ -11,7 +11,7 @@ use crate::{
     icons,
     keynames::KeyNames,
     paint::Painter,
-    panel,
+    palette, panel,
     text::{self, Face, Style},
     tour::{self, Choosing, Kind, Rect, Scene, Stream, Typed},
 };
@@ -42,7 +42,9 @@ const WORKSPACE_GAP: f32 = 28.0;
 const OVERVIEW: f32 = 0.56;
 
 // Colours. The wallpaper's and the bar's are the real ones; the apps' are their own.
-const WALL: u32 = 0x0b0d12ff;
+fn wall() -> u32 {
+    palette::tone(0x0b0d12ff)
+}
 const CYAN: u32 = 0x56c7d9ff;
 const GREEN: u32 = 0x7fd962ff;
 const RED: u32 = 0xe8607aff;
@@ -50,9 +52,15 @@ const ORANGE: u32 = 0xe5a05bff;
 const STRING: u32 = 0x98c379ff;
 const DIM: u32 = 0x6b7383ff;
 const TERMINAL_INK: u32 = 0xd7dce4ff;
-const RAIN_BUSY: u32 = 0x3cf07aff;
-const RAIN_HEAD: u32 = 0xd8ffe4ff;
-const RAIN_IDLE: u32 = 0x7d8594ff;
+fn rain_busy() -> u32 {
+    palette::green(0x3cf07aff)
+}
+fn rain_head() -> u32 {
+    palette::green_lit(0xd8ffe4ff, 0.8)
+}
+fn rain_idle() -> u32 {
+    palette::night(0x7d8594ff)
+}
 
 /// `rgba` with its opacity multiplied by `alpha`.
 fn fade(rgba: u32, alpha: f32) -> u32 {
@@ -191,11 +199,18 @@ pub fn paint(p: &mut Painter, scene: &Scene, look: &Look) {
             .unwrap_or(0);
         for workspace in 0..=last {
             let (x, y, sw, sh) = frame.screen(workspace);
-            p.fill(x, y, sw, sh, 4.0, fade(0x11151cff, scene.zoom));
+            p.fill(
+                x,
+                y,
+                sw,
+                sh,
+                4.0,
+                fade(palette::tone(0x11151cff), scene.zoom),
+            );
             let edge = if workspace == scene.bar_workspace {
                 fade(look.ring, scene.zoom)
             } else {
-                fade(0xffffff22, scene.zoom)
+                fade(palette::tone(0xffffff22), scene.zoom)
             };
             p.border(x, y, sw, sh, 4.0, 1.0, edge);
         }
@@ -233,7 +248,7 @@ pub fn paint(p: &mut Painter, scene: &Scene, look: &Look) {
                     ww + 2.0 * rim,
                     wh + rim,
                     3.0,
-                    fade(WALL, win.dock),
+                    fade(wall(), win.dock),
                 );
                 p.border(
                     x - rim,
@@ -242,7 +257,7 @@ pub fn paint(p: &mut Painter, scene: &Scene, look: &Look) {
                     wh + rim,
                     3.0,
                     0.6,
-                    fade(0xffffff18, win.dock),
+                    fade(palette::tone(0xffffff18), win.dock),
                 );
             }
             window(p, win.kind, x, y, ww, wh, frame.scale, win.alpha, scene);
@@ -282,28 +297,28 @@ pub fn paint(p: &mut Painter, scene: &Scene, look: &Look) {
 /// The desktop behind everything: the wallpaper's own background with a few faint lines of air
 /// drifting across it.
 fn wallpaper(p: &mut Painter, w: f32, h: f32, secs: f32) {
-    p.fill(0.0, 0.0, w, h, 0.0, WALL);
+    p.fill(0.0, 0.0, w, h, 0.0, wall());
     for n in 0..9 {
         let n = n as f32;
         let y = BAR_H + 18.0 + (n * 37.0) % (h - BAR_H - 24.0);
         let length = 40.0 + (n * 53.0) % 90.0;
         let x = ((n * 131.0) + secs * (6.0 + n)) % (w + length) - length;
-        p.fill(x, y, length, 0.8, 0.0, 0xffffff0c);
+        p.fill(x, y, length, 0.8, 0.0, palette::tone(0xffffff0c));
     }
 }
 
 /// The bar across the top: logo, workspaces, what has the keyboard, the clock and the tray.
 fn bar(p: &mut Painter, scene: &Scene, w: f32, look: &Look) {
-    p.fill(0.0, 0.0, w, BAR_H, 0.0, WALL);
-    p.fill(0.0, BAR_H - 0.6, w, 0.6, 0.0, 0xffffff10);
+    p.fill(0.0, 0.0, w, BAR_H, 0.0, wall());
+    p.fill(0.0, BAR_H - 0.6, w, 0.6, 0.0, palette::tone(0xffffff10));
     let centre = BAR_H / 2.0;
-    p.icon(icons::LOGO, 4.0, 2.5, 10.0, None);
-    let digits = Style::new(Face::Mono, 6.5, panel::TERTIARY);
-    let lit = Style::new(Face::Mono, 6.5, panel::INK);
+    p.icon(&icons::logo(), 4.0, 2.5, 10.0, None);
+    let digits = Style::new(Face::Mono, 6.5, panel::tertiary());
+    let lit = Style::new(Face::Mono, 6.5, panel::ink());
     for n in 0..5u8 {
         let x = 20.0 + n as f32 * 10.0;
         if n == scene.bar_workspace {
-            p.fill(x - 2.6, 2.5, 8.8, 10.0, 2.0, 0xffffff14);
+            p.fill(x - 2.6, 2.5, 8.8, 10.0, 2.0, palette::tone(0xffffff14));
             p.fill(x - 1.4, 12.0, 6.4, 0.9, 0.4, look.ring | 0xff);
         }
         let label = (n + 1).to_string();
@@ -319,33 +334,33 @@ fn bar(p: &mut Painter, scene: &Scene, w: f32, look: &Look) {
         );
     }
     if let Some(win) = scene.focus.and_then(|index| scene.windows.get(index)) {
-        let title = Style::new(Face::Body, 6.0, panel::SECONDARY);
+        let title = Style::new(Face::Body, 6.0, panel::secondary());
         clipped(p, win.kind.title(), 74.0, centre, w * 0.4, &title);
     }
-    let clock = Style::new(Face::Mono, 6.5, panel::INK);
-    let date = Style::new(Face::Body, 6.0, panel::SECONDARY);
+    let clock = Style::new(Face::Mono, 6.5, panel::ink());
+    let date = Style::new(Face::Body, 6.0, panel::secondary());
     let width = text::width("09:41", &clock) + 4.0 + text::width("Tue 29 Sep", &date);
     let x = w / 2.0 - width / 2.0;
     let x = x + p.text("09:41", x, centre, &clock) + 4.0;
     p.text("Tue 29 Sep", x, centre, &date);
-    let ink = Some(panel::PROSE);
+    let ink = Some(panel::prose());
     if let Some(strip) = &scene.slot {
         slot(p, strip, scene, w - 106.0, look);
     }
     p.icon(icons::WIFI, w - 64.0, 3.5, 8.0, ink);
     p.icon(icons::VOLUME, w - 54.0, 3.5, 8.0, ink);
-    p.border(w - 43.0, 5.2, 8.0, 4.6, 1.0, 0.7, panel::PROSE);
-    p.fill(w - 41.8, 6.4, 4.4, 2.2, 0.4, panel::PROSE);
+    p.border(w - 43.0, 5.2, 8.0, 4.6, 1.0, 0.7, panel::prose());
+    p.fill(w - 41.8, 6.4, 4.4, 2.2, 0.4, panel::prose());
     p.text(
         "88%",
         w - 33.0,
         centre,
-        &Style::new(Face::Mono, 5.5, panel::INK),
+        &Style::new(Face::Mono, 5.5, panel::ink()),
     );
     p.icon(icons::BELL, w - 13.0, 3.5, 8.0, ink);
     if scene.bell > 0 {
-        p.fill(w - 8.5, 1.8, 6.0, 6.0, 3.0, panel::AMBER);
-        let count = Style::new(Face::MonoBold, 4.5, panel::DARK);
+        p.fill(w - 8.5, 1.8, 6.0, 6.0, 3.0, panel::amber());
+        let count = Style::new(Face::MonoBold, 4.5, panel::dark());
         let label = scene.bell.to_string();
         let lw = text::width(&label, &count);
         p.text(&label, w - 5.5 - lw / 2.0, 4.8, &count);
@@ -363,9 +378,9 @@ fn slot(p: &mut Painter, strip: &Stream, scene: &Scene, x: f32, look: &Look) {
     if w < 2.0 {
         return;
     }
-    p.fill(x, y, w, H, 2.0, fade(0x151a23ff, open));
+    p.fill(x, y, w, H, 2.0, fade(palette::night(0x151a23ff), open));
     let busy = strip.busy > 0.5;
-    let colour = if busy { RAIN_BUSY } else { RAIN_IDLE };
+    let colour = if busy { rain_busy() } else { rain_idle() };
     for n in 0..4 {
         let depth = 0.55 + 0.45 * ((n * 7) % 4) as f32 / 3.0;
         let length = 5.0 + 6.0 * depth;
@@ -391,7 +406,7 @@ fn slot(p: &mut Painter, strip: &Stream, scene: &Scene, x: f32, look: &Look) {
                 1.3,
                 1.3,
                 0.6,
-                fade(if busy { RAIN_HEAD } else { colour }, open * depth),
+                fade(if busy { rain_head() } else { colour }, open * depth),
             );
         }
     }
@@ -402,7 +417,7 @@ fn slot(p: &mut Painter, strip: &Stream, scene: &Scene, x: f32, look: &Look) {
     let edge = if keyboard_in_it {
         fade(look.ring | 0xff, open)
     } else {
-        fade(0xffffff24, open)
+        fade(palette::night(0xffffff24), open)
     };
     p.border(x, y, w, H, 2.0, 0.7, edge);
 }
@@ -410,7 +425,7 @@ fn slot(p: &mut Painter, strip: &Stream, scene: &Scene, x: f32, look: &Look) {
 /// Bullet time's letters, one on each window.
 fn labels(p: &mut Painter, scene: &Scene, frame: &Frame) {
     let alpha = ((scene.zoom - 0.5) / 0.5).clamp(0.0, 1.0);
-    let letter = Style::new(Face::MonoBold, 7.5, fade(panel::DARK, alpha));
+    let letter = Style::new(Face::MonoBold, 7.5, fade(panel::dark(), alpha));
     for win in &scene.windows {
         let Some(label) = win.label else { continue };
         let (x, y, w, h) = frame.place(win.at, win.workspace);
@@ -421,7 +436,7 @@ fn labels(p: &mut Painter, scene: &Scene, frame: &Frame) {
             12.0,
             12.0,
             3.0,
-            fade(panel::AMBER, alpha),
+            fade(panel::amber(), alpha),
         );
         let s = label.to_ascii_uppercase().to_string();
         let lw = text::width(&s, &letter);
@@ -441,14 +456,21 @@ fn streams(p: &mut Painter, streams: &[Stream], frame: &Frame, look: &Look) {
         }
         let sw = STREAM_W * open;
         let button = STREAM_W * 1.2;
-        p.fill(x, ay, sw, button, 3.0, fade(0x151a23ff, open));
+        p.fill(
+            x,
+            ay,
+            sw,
+            button,
+            3.0,
+            fade(palette::night(0x151a23ff), open),
+        );
         let icon = 7.0 * open;
         app_icon(p, stream.kind, x + (sw - icon) / 2.0, ay + 2.5, icon, open);
         let meter = sw * 0.6;
         let colour = if stream.busy > 0.5 {
-            RAIN_BUSY
+            rain_busy()
         } else {
-            0x5ad78eff
+            palette::green(0x5ad78eff)
         };
         p.fill(
             x + (sw - meter) / 2.0,
@@ -460,7 +482,14 @@ fn streams(p: &mut Painter, streams: &[Stream], frame: &Frame, look: &Look) {
         );
         let top = ay + button + 2.0;
         let bottom = ay + ah;
-        p.fill(x, top, sw, bottom - top, 3.0, fade(0x0f131aff, open));
+        p.fill(
+            x,
+            top,
+            sw,
+            bottom - top,
+            3.0,
+            fade(palette::night(0x0f131aff), open),
+        );
         match look.effects {
             Effects::Matrix => glyphs(p, stream, index, x, sw, top, bottom, look.secs, open),
             Effects::Slipstream => streaks(p, stream, index, x, sw, top, bottom, look.secs, open),
@@ -503,9 +532,9 @@ fn glyphs(
             }
             let fall = 1.0 - n as f32 / TAIL as f32;
             let colour = match (n, busy) {
-                (0, true) => RAIN_HEAD,
-                (_, true) => RAIN_BUSY,
-                _ => RAIN_IDLE,
+                (0, true) => rain_head(),
+                (_, true) => rain_busy(),
+                _ => rain_idle(),
             };
             let which = (n + column * 5 + (head / PITCH) as usize) % CHARS.len();
             let ch = (CHARS[which] as char).to_string();
@@ -533,7 +562,7 @@ fn streaks(
     alpha: f32,
 ) {
     let busy = stream.busy > 0.5;
-    let colour = if busy { RAIN_BUSY } else { RAIN_IDLE };
+    let colour = if busy { rain_busy() } else { rain_idle() };
     for n in 0..5 {
         let depth = 0.55 + 0.45 * ((n * 7 + index * 3) % 5) as f32 / 4.0;
         let length = 10.0 + 16.0 * depth;
@@ -562,7 +591,7 @@ fn streaks(
                 width * 1.8,
                 width * 1.8,
                 width,
-                fade(if busy { RAIN_HEAD } else { colour }, alpha * depth),
+                fade(if busy { rain_head() } else { colour }, alpha * depth),
             );
         }
     }
@@ -747,7 +776,7 @@ fn browser(p: &mut Painter, x: f32, y: f32, w: f32, h: f32, k: f32, alpha: f32) 
         bar_x + 4.0 * k,
         y + 6.5 * k,
         bar_x + bar_w - 2.0 * k,
-        &style(Face::Mono, 5.0 * k, panel::TERTIARY, alpha),
+        &style(Face::Mono, 5.0 * k, panel::tertiary(), alpha),
     );
     let pad = 9.0 * k;
     let (px, pw) = (x + pad, w - 2.0 * pad);
@@ -854,7 +883,7 @@ fn editor(p: &mut Painter, x: f32, y: f32, w: f32, h: f32, k: f32, alpha: f32) {
         x + 4.0 * k,
         y + tabs / 2.0,
         x + tab_w - 2.0 * k,
-        &style(Face::Mono, 5.0 * k, panel::PROSE, alpha),
+        &style(Face::Mono, 5.0 * k, panel::prose(), alpha),
     );
     let gutter = style(Face::Mono, 4.6 * k, 0x4b5263ff, alpha);
     let mut line_y = y + tabs + 6.0 * k;
@@ -903,7 +932,7 @@ fn files(p: &mut Painter, x: f32, y: f32, w: f32, h: f32, k: f32, alpha: f32) {
         x + side + 6.0 * k,
         y + head / 2.0,
         x + w - 4.0 * k,
-        &style(Face::BodyBold, 6.0 * k, panel::INK, alpha),
+        &style(Face::BodyBold, 6.0 * k, panel::ink(), alpha),
     );
     p.fill(x, y + head, side, h - head, 0.0, fade(0x1a1c22ff, alpha));
     let mut sy = y + head + 6.0 * k;
@@ -1018,7 +1047,7 @@ fn music(p: &mut Painter, x: f32, y: f32, w: f32, h: f32, k: f32, alpha: f32) {
             tx,
             ty,
             right,
-            &style(Face::BodyBold, 8.0 * k, panel::BRIGHT, alpha),
+            &style(Face::BodyBold, 8.0 * k, panel::bright(), alpha),
         );
         clipped(
             p,
@@ -1026,7 +1055,7 @@ fn music(p: &mut Painter, x: f32, y: f32, w: f32, h: f32, k: f32, alpha: f32) {
             tx,
             ty + 10.0 * k,
             right,
-            &style(Face::Body, 6.0 * k, panel::SECONDARY, alpha),
+            &style(Face::Body, 6.0 * k, panel::secondary(), alpha),
         );
         let bar_y = ty + 24.0 * k;
         p.fill(
@@ -1149,7 +1178,7 @@ fn chat(p: &mut Painter, x: f32, y: f32, w: f32, h: f32, k: f32, alpha: f32) {
         mx + 6.0 * k,
         y + 7.0 * k,
         x + w,
-        &style(Face::BodyBold, 6.5 * k, panel::INK, alpha),
+        &style(Face::BodyBold, 6.5 * k, panel::ink(), alpha),
     );
     p.fill(mx, y + 13.0 * k, mw, 0.6 * k, 0.0, fade(0xffffff12, alpha));
     let bubbles: [(bool, f32, u8); 6] = [
@@ -1231,23 +1260,23 @@ fn explorer(p: &mut Painter, typed: Typed, w: f32, look: &Look) {
     };
     let ch = 20.0 + rows.len() as f32 * 15.0 + 6.0;
     p.shadow(x, y, cw, ch, 6.0, 8.0, 18.0, fade(0x000000aa, a));
-    p.fill(x, y, cw, ch, 6.0, fade(panel::GLASS, a));
-    p.border(x, y, cw, ch, 6.0, 0.8, fade(panel::GLASS_EDGE, a));
+    p.fill(x, y, cw, ch, 6.0, fade(panel::glass_fill(), a));
+    p.border(x, y, cw, ch, 6.0, 0.8, fade(panel::glass_edge(), a));
     p.icon(
         icons::SEARCH,
         x + 7.0,
         y + 5.5,
         9.0,
-        Some(fade(panel::SECONDARY, a)),
+        Some(fade(panel::secondary(), a)),
     );
     let field = y + 10.0;
-    let words = style(Face::Body, 8.0, panel::INK, a);
+    let words = style(Face::Body, 8.0, panel::ink(), a);
     let caret_x = if typed.chars == 0 {
         p.text(
             "Search apps and files",
             x + 20.0,
             field,
-            &style(Face::Body, 8.0, panel::PLACEHOLDER, a),
+            &style(Face::Body, 8.0, panel::placeholder(), a),
         );
         x + 20.0
     } else {
@@ -1262,7 +1291,7 @@ fn explorer(p: &mut Painter, typed: Typed, w: f32, look: &Look) {
         0.0,
         fade(look.ring | 0xff, a),
     );
-    p.fill(x, y + 20.0, cw, 0.6, 0.0, fade(panel::DIVIDER, a));
+    p.fill(x, y + 20.0, cw, 0.6, 0.0, fade(panel::divider(), a));
     for (n, (kind, name, what)) in rows.iter().enumerate() {
         let ry = y + 23.0 + n as f32 * 15.0;
         if n == 0 && typed.chars > 0 {
@@ -1280,9 +1309,9 @@ fn explorer(p: &mut Painter, typed: Typed, w: f32, look: &Look) {
             name,
             x + 22.0,
             ry + 7.0,
-            &style(Face::Body, 7.0, panel::INK, a),
+            &style(Face::Body, 7.0, panel::ink(), a),
         );
-        let hint = style(Face::Body, 6.0, panel::TERTIARY, a);
+        let hint = style(Face::Body, 6.0, panel::tertiary(), a);
         let hw = text::width(what, &hint);
         p.text(what, x + cw - 9.0 - hw, ry + 7.0, &hint);
     }
@@ -1316,8 +1345,8 @@ fn sheet(p: &mut Painter, typed: Typed, w: f32, h: f32, names: &KeyNames) {
     let (cw, ch) = (w * 0.74, (h - BAR_H) * 0.74);
     let (x, y) = ((w - cw) / 2.0, BAR_H + (h - BAR_H - ch) / 2.0);
     p.shadow(x, y, cw, ch, 6.0, 8.0, 18.0, fade(0x000000aa, a));
-    p.fill(x, y, cw, ch, 6.0, fade(panel::GLASS, a));
-    p.border(x, y, cw, ch, 6.0, 0.8, fade(panel::GLASS_EDGE, a));
+    p.fill(x, y, cw, ch, 6.0, fade(panel::glass_fill(), a));
+    p.border(x, y, cw, ch, 6.0, 0.8, fade(panel::glass_edge(), a));
     let head = y + 12.0;
     let tx = x
         + 10.0
@@ -1325,7 +1354,7 @@ fn sheet(p: &mut Painter, typed: Typed, w: f32, h: f32, names: &KeyNames) {
             "Keyboard shortcuts",
             x + 10.0,
             head,
-            &style(Face::Body, 9.0, panel::INK, a),
+            &style(Face::Body, 9.0, panel::ink(), a),
         );
     let query: String = QUERY.chars().take(typed.chars).collect();
     if query.is_empty() {
@@ -1333,7 +1362,7 @@ fn sheet(p: &mut Painter, typed: Typed, w: f32, h: f32, names: &KeyNames) {
             "type to filter",
             tx + 8.0,
             head,
-            &style(Face::Body, 7.0, panel::PLACEHOLDER, a),
+            &style(Face::Body, 7.0, panel::placeholder(), a),
         );
     } else {
         let end = tx
@@ -1342,11 +1371,18 @@ fn sheet(p: &mut Painter, typed: Typed, w: f32, h: f32, names: &KeyNames) {
                 &query,
                 tx + 8.0,
                 head,
-                &style(Face::Body, 7.0, panel::INK, a),
+                &style(Face::Body, 7.0, panel::ink(), a),
             );
-        p.fill(end + 0.8, head - 4.0, 0.9, 8.0, 0.0, fade(panel::PROSE, a));
+        p.fill(
+            end + 0.8,
+            head - 4.0,
+            0.9,
+            8.0,
+            0.0,
+            fade(panel::prose(), a),
+        );
     }
-    p.fill(x, y + 23.0, cw, 0.6, 0.0, fade(panel::DIVIDER, a));
+    p.fill(x, y + 23.0, cw, 0.6, 0.0, fade(panel::divider(), a));
     let shown: Vec<&(&str, &str)> = ROWS
         .iter()
         .filter(|(_, does)| does.contains(query.as_str()))
@@ -1354,8 +1390,8 @@ fn sheet(p: &mut Painter, typed: Typed, w: f32, h: f32, names: &KeyNames) {
     let columns = if query.is_empty() { 2 } else { 1 };
     let per_column = shown.len().div_ceil(columns);
     let column_w = (cw - 20.0) / columns as f32;
-    let cap = style(Face::Mono, 5.2, panel::PROSE, a);
-    let does = style(Face::Body, 6.4, panel::SECONDARY, a);
+    let cap = style(Face::Mono, 5.2, panel::prose(), a);
+    let does = style(Face::Body, 6.4, panel::secondary(), a);
     for (n, (keys, what)) in shown.iter().enumerate() {
         let (column, row) = (n / per_column, n % per_column);
         let rx = x + 10.0 + column as f32 * column_w;
@@ -1365,8 +1401,8 @@ fn sheet(p: &mut Painter, typed: Typed, w: f32, h: f32, names: &KeyNames) {
         }
         let label = names.cap(keys).to_uppercase();
         let kw = text::width(&label, &cap) + 6.0;
-        p.fill(rx, ry - 4.5, kw, 9.0, 2.0, fade(panel::QUIET, a));
-        p.border(rx, ry - 4.5, kw, 9.0, 2.0, 0.6, fade(panel::EDGE, a));
+        p.fill(rx, ry - 4.5, kw, 9.0, 2.0, fade(panel::quiet(), a));
+        p.border(rx, ry - 4.5, kw, 9.0, 2.0, 0.6, fade(panel::edge(), a));
         p.text(&label, rx + 3.0, ry, &cap);
         clipped(
             p,
@@ -1390,20 +1426,20 @@ fn digest(p: &mut Painter, alpha: f32, w: f32, h: f32) {
     let x = w - cw - EDGE - 4.0;
     let y = h - ch - EDGE - 4.0 + (1.0 - alpha) * 8.0;
     p.shadow(x, y, cw, ch, 5.0, 6.0, 14.0, fade(0x000000aa, alpha));
-    p.fill(x, y, cw, ch, 5.0, fade(panel::NOTICE, alpha));
-    p.border(x, y, cw, ch, 5.0, 0.8, fade(panel::NOTICE_EDGE, alpha));
+    p.fill(x, y, cw, ch, 5.0, fade(panel::notice_fill(), alpha));
+    p.border(x, y, cw, ch, 5.0, 0.8, fade(panel::notice_edge(), alpha));
     p.icon(
         icons::BELL,
         x + 7.0,
         y + 5.0,
         8.0,
-        Some(fade(panel::AMBER, alpha)),
+        Some(fade(panel::amber(), alpha)),
     );
     p.text(
         "3 while you were typing",
         x + 19.0,
         y + 9.0,
-        &style(Face::BodyBold, 7.0, panel::INK, alpha),
+        &style(Face::BodyBold, 7.0, panel::ink(), alpha),
     );
     for (n, (colour, app, what)) in rows.iter().enumerate() {
         let ry = y + 24.0 + n as f32 * 13.0;
@@ -1414,7 +1450,7 @@ fn digest(p: &mut Painter, alpha: f32, w: f32, h: f32) {
                 app,
                 x + 19.0,
                 ry,
-                &style(Face::BodyBold, 6.0, panel::PROSE, alpha),
+                &style(Face::BodyBold, 6.0, panel::prose(), alpha),
             );
         clipped(
             p,
@@ -1422,7 +1458,7 @@ fn digest(p: &mut Painter, alpha: f32, w: f32, h: f32) {
             end + 4.0,
             ry,
             x + cw - 6.0,
-            &style(Face::Body, 6.0, panel::SECONDARY, alpha),
+            &style(Face::Body, 6.0, panel::secondary(), alpha),
         );
     }
 }
@@ -1448,14 +1484,14 @@ fn arrangements(p: &mut Painter, choosing: Choosing, w: f32, h: f32, look: &Look
     // Above the key going down, as the real one sits above the foot of the screen.
     let (x, y) = ((w - cw) / 2.0, h - 42.0 - ch + (1.0 - a) * 4.0);
     p.shadow(x, y, cw, ch, 6.0, 8.0, 18.0, fade(0x000000aa, a));
-    p.fill(x, y, cw, ch, 6.0, fade(panel::GLASS, a));
-    p.border(x, y, cw, ch, 6.0, 0.8, fade(panel::GLASS_EDGE, a));
+    p.fill(x, y, cw, ch, 6.0, fade(panel::glass_fill(), a));
+    p.border(x, y, cw, ch, 6.0, 0.8, fade(panel::glass_edge(), a));
     let tile_x = |index: usize| {
         let gap = if index > 0 { GROUP_GAP - TILE_GAP } else { 0.0 };
         x + PADDING + index as f32 * (TILE_W + TILE_GAP) + gap
     };
-    let heading = style(Face::BodyBold, 4.4, panel::SECONDARY, a);
-    let note = style(Face::Body, 4.2, panel::HINT, a);
+    let heading = style(Face::BodyBold, 4.4, panel::secondary(), a);
+    let note = style(Face::Body, 4.2, panel::hint(), a);
     let top = y + PADDING + 2.0;
     for (index, title, says) in [
         (0, "TILING", "you place the windows"),
@@ -1470,9 +1506,9 @@ fn arrangements(p: &mut Painter, choosing: Choosing, w: f32, h: f32, look: &Look
         0.5,
         HEAD_H + TILE_H,
         0.0,
-        fade(panel::DIVIDER, a),
+        fade(panel::divider(), a),
     );
-    let label = style(Face::Body, 4.8, panel::INK, a);
+    let label = style(Face::Body, 4.8, panel::ink(), a);
     let (pw, ph) = (TILE_W - 2.0 * INSET, (TILE_W - 2.0 * INSET) * 0.6);
     for (index, places) in tour::arrangements().iter().enumerate() {
         let (tx, ty) = (tile_x(index), y + PADDING + HEAD_H);
@@ -1481,14 +1517,14 @@ fn arrangements(p: &mut Painter, choosing: Choosing, w: f32, h: f32, look: &Look
             p.fill(tx, ty, TILE_W, TILE_H, 3.0, fade(fill, a));
             p.border(tx, ty, TILE_W, TILE_H, 3.0, 0.8, fade(look.ring | 0xff, a));
         } else {
-            p.fill(tx, ty, TILE_W, TILE_H, 3.0, fade(panel::TILE, a));
+            p.fill(tx, ty, TILE_W, TILE_H, 3.0, fade(panel::tile(), a));
         }
         for (n, at) in places.iter().enumerate() {
             // The editor, the third of the four, is the one gravity arranges the rest round.
             let fill = if n == 2 {
                 (look.ring & 0xffff_ff00) | 0x99
             } else {
-                panel::QUIET_LIT
+                panel::quiet_lit()
             };
             p.fill(
                 tx + INSET + at.x * pw + 0.3,
@@ -1513,8 +1549,8 @@ fn arrangements(p: &mut Painter, choosing: Choosing, w: f32, h: f32, look: &Look
 /// The key going down, drawn as keycaps under the miniature, lit in the ring's colour as it's
 /// pressed; or, when what's happening isn't a key, a word or two in its place.
 fn keys(p: &mut Painter, scene: &Scene, w: f32, h: f32, look: &Look) {
-    let cap = Style::new(Face::Mono, 8.0, panel::BRIGHT);
-    let plus = Style::new(Face::Body, 8.0, panel::TERTIARY);
+    let cap = Style::new(Face::Mono, 8.0, panel::bright());
+    let plus = Style::new(Face::Body, 8.0, panel::tertiary());
     let (pill_h, y) = (20.0, h - EDGE - 24.0);
     if let Some(press) = scene.key {
         let named = look.keys.cap(press.keys);
@@ -1528,7 +1564,7 @@ fn keys(p: &mut Painter, scene: &Scene, w: f32, h: f32, look: &Look) {
         let mut x = (w - total) / 2.0;
         let glow = press.glow;
         p.shadow(x, y, total, pill_h, 6.0, 4.0, 10.0, 0x00000088);
-        p.fill(x, y, total, pill_h, 6.0, 0x0b0d12e8);
+        p.fill(x, y, total, pill_h, 6.0, palette::tone(0x0b0d12e8));
         p.border(
             x,
             y,
@@ -1554,12 +1590,20 @@ fn keys(p: &mut Painter, scene: &Scene, w: f32, h: f32, look: &Look) {
                 3.0,
                 fade(look.ring | 0xff, 0.12 + 0.35 * glow),
             );
-            p.border(x, y + 3.5 + sink, *width, 13.0 - sink, 3.0, 0.8, 0xffffff30);
+            p.border(
+                x,
+                y + 3.5 + sink,
+                *width,
+                13.0 - sink,
+                3.0,
+                0.8,
+                palette::tone(0xffffff30),
+            );
             p.text(part, x + 5.0, y + 10.0 + sink / 2.0, &cap);
             x += width;
         }
     } else if let Some(words) = scene.caption {
-        let style = Style::new(Face::Body, 8.0, panel::SECONDARY);
+        let style = Style::new(Face::Body, 8.0, panel::secondary());
         let dots = match (look.secs * 3.0) as usize % 3 {
             0 => ".",
             1 => "..",
@@ -1572,8 +1616,8 @@ fn keys(p: &mut Painter, scene: &Scene, w: f32, h: f32, look: &Look) {
         };
         let total = text::width("typing...", &style).max(text::width(&label, &style)) + 20.0;
         let x = (w - total) / 2.0;
-        p.fill(x, y, total, pill_h, 6.0, 0x0b0d12d0);
-        p.border(x, y, total, pill_h, 6.0, 0.8, 0xffffff1c);
+        p.fill(x, y, total, pill_h, 6.0, palette::tone(0x0b0d12d0));
+        p.border(x, y, total, pill_h, 6.0, 0.8, palette::tone(0xffffff1c));
         p.text(&label, x + 10.0, y + pill_h / 2.0, &style);
     }
 }

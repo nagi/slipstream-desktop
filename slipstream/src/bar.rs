@@ -20,7 +20,8 @@ use smithay::{
 use crate::{
     icons, meter,
     paint::{self, Painter},
-    panel::{self, AMBER, ink_on},
+    palette,
+    panel::{self, amber, ink_on},
     status::Reading,
     text::{self, Face, Style},
 };
@@ -203,13 +204,21 @@ impl Bar {
     }
 }
 
-const INK: u32 = panel::PROSE;
+fn ink() -> u32 {
+    panel::prose()
+}
 /// The 1 px ring inside the button of the workspace bullet time started on.
-const HOME_RING: u32 = 0x33ccff99;
+fn home_ring() -> u32 {
+    palette::accent(0x33ccff99)
+}
 /// Awake's chip: the cyan of the rest of the bar's accents.
-const AWAKE: u32 = 0x33ccffff;
+fn awake() -> u32 {
+    palette::accent(0x33ccffff)
+}
 /// The dot that says the screen is being shared. Red, and nothing else on the bar is.
-const LIVE: u32 = 0xff5a5aff;
+fn live() -> u32 {
+    palette::red(0xff5a5aff)
+}
 /// The alpha of the faint pills that say a state is on: Caps Lock, Awake, sharing.
 const PILL: u32 = 0x24;
 
@@ -235,29 +244,29 @@ fn paint(content: &Content, width: i32, scale: f64) -> Option<(Pixmap, Targets)>
         ));
     };
 
-    p.fill(0.0, 0.0, wide, TALL, 0.0, panel::CHIP | 0xe6);
+    p.fill(0.0, 0.0, wide, TALL, 0.0, panel::chip() | 0xe6);
     // The line along the foot, broken where a docked pane's frame carries the bar on downwards.
     let span = content
         .dock
         .map(|(left, right)| ((left as f64 / unit) as f32, (right as f64 / unit) as f32));
     match span {
         Some((left, right)) => {
-            p.fill(0.0, TALL - 1.0, left.max(0.0), 1.0, 0.0, panel::DIVIDER);
+            p.fill(0.0, TALL - 1.0, left.max(0.0), 1.0, 0.0, panel::divider());
             p.fill(
                 right,
                 TALL - 1.0,
                 (wide - right).max(0.0),
                 1.0,
                 0.0,
-                panel::DIVIDER,
+                panel::divider(),
             );
         }
-        None => p.fill(0.0, TALL - 1.0, wide, 1.0, 0.0, panel::DIVIDER),
+        None => p.fill(0.0, TALL - 1.0, wide, 1.0, 0.0, panel::divider()),
     }
 
     // Left: the apps button, then the workspaces.
     let mut x = 8.0;
-    p.icon(icons::LOGO, x + 6.5, 9.5, 21.0, None);
+    p.icon(&icons::logo(), x + 6.5, 9.5, 21.0, None);
     // The buttons in the corners reach out to the screen's side edges as well.
     target(Target::Apps, 0.0, x + 34.0);
     x += 34.0 + 8.0;
@@ -279,32 +288,32 @@ fn paint(content: &Content, width: i32, scale: f64) -> Option<(Pixmap, Targets)>
             (index + 1).to_string()
         };
         let color = if on {
-            0x7fe3ffff
+            palette::accent_shade(0x7fe3ffff, 0.4)
         } else if content.occupied.get(index).copied().unwrap_or(false) {
-            0xcdd6f4ff
+            palette::tone(0xcdd6f4ff)
         } else {
-            panel::PLACEHOLDER
+            panel::placeholder()
         };
         let style = Style::new(Face::Mono, 15.0, color);
         let label_w = text::width(&label, &style);
         let w = (label_w + 16.0).max(30.0);
         if on && content.keyboard_here {
-            p.fill(x, 7.0, w, 26.0, 6.0, 0x33ccff26);
-            p.inset_bottom(x, 7.0, w, 26.0, 6.0, 0x33ccffff);
+            p.fill(x, 7.0, w, 26.0, 6.0, palette::accent(0x33ccff26));
+            p.inset_bottom(x, 7.0, w, 26.0, 6.0, palette::accent(0x33ccffff));
         } else if on {
-            p.fill(x, 7.0, w, 26.0, 6.0, 0x33ccff14);
+            p.fill(x, 7.0, w, 26.0, 6.0, palette::accent(0x33ccff14));
         } else if content.elsewhere.get(index).copied().unwrap_or(false) {
-            p.inset_bottom(x, 7.0, w, 26.0, 6.0, (panel::HINT & 0xffffff00) | 0xb0);
+            p.inset_bottom(x, 7.0, w, 26.0, 6.0, (panel::hint() & 0xffffff00) | 0xb0);
         }
         if content.home == Some(index) {
-            p.border(x, 7.0, w, 26.0, 6.0, 1.0, HOME_RING);
+            p.border(x, 7.0, w, 26.0, 6.0, 1.0, home_ring());
         }
         p.text(&label, x + (w - label_w) / 2.0, 20.0, &style);
         target(Target::Workspace(index), x, w);
         x += w + 6.0;
     }
     x += OVERVIEW_GAP;
-    p.icon(icons::OVERVIEW, x + 4.0, 9.0, 22.0, Some(panel::TERTIARY));
+    p.icon(icons::OVERVIEW, x + 4.0, 9.0, 22.0, Some(panel::tertiary()));
     target(Target::Overview, x, OVERVIEW_W);
     x += OVERVIEW_W + 8.0;
 
@@ -323,9 +332,9 @@ fn paint(content: &Content, width: i32, scale: f64) -> Option<(Pixmap, Targets)>
     let status = &content.status;
     let clock = Style {
         tabular: true,
-        ..Style::new(Face::Body, 16.0, panel::BRIGHT)
+        ..Style::new(Face::Body, 16.0, panel::bright())
     };
-    let date = Style::new(Face::Body, 14.0, panel::TERTIARY);
+    let date = Style::new(Face::Body, 14.0, panel::tertiary());
     let time_w = text::width(&status.time, &clock);
     let centre_w = 14.0 + time_w + 10.0 + text::width(&status.date, &date) + 14.0;
     let centre_x = ((wide - centre_w) / 2.0).round();
@@ -342,9 +351,9 @@ fn paint(content: &Content, width: i32, scale: f64) -> Option<(Pixmap, Targets)>
     // The title of this screen's window fills what's left of the left column, dimmed where the
     // keyboard isn't.
     let title_ink = if content.keyboard_here {
-        panel::TERTIARY
+        panel::tertiary()
     } else {
-        0x626b7cff
+        palette::tone(0x626b7cff)
     };
     let title = Style::new(Face::Body, 14.0, title_ink);
     let room = centre_x - 16.0 - x;
@@ -364,7 +373,7 @@ fn paint(content: &Content, width: i32, scale: f64) -> Option<(Pixmap, Targets)>
     } else {
         icons::BELL
     };
-    p.icon(bell, right + 9.0, 11.0, 18.0, Some(INK));
+    p.icon(bell, right + 9.0, 11.0, 18.0, Some(ink()));
     target(Target::Bell, right, wide - right);
     // The unread badge, over the bell's top right corner.
     if content.unread > 0 {
@@ -373,19 +382,19 @@ fn paint(content: &Content, width: i32, scale: f64) -> Option<(Pixmap, Targets)>
         } else {
             content.unread.to_string()
         };
-        let style = Style::new(Face::MonoBold, 10.0, panel::DARK);
+        let style = Style::new(Face::MonoBold, 10.0, panel::dark());
         let count_w = text::width(&count, &style);
         let badge_w = (count_w + 8.0).max(16.0);
         let badge_x = right + 36.0 - 2.0 - badge_w;
-        p.fill(badge_x, 6.0, badge_w, 16.0, 8.0, AMBER);
+        p.fill(badge_x, 6.0, badge_w, 16.0, 8.0, amber());
         p.text(&count, badge_x + (badge_w - count_w) / 2.0, 14.0, &style);
     }
 
     let battery = status.battery.map(|(percent, charging)| {
         let ink = match (percent, charging) {
-            (_, true) => panel::MINT,
-            (..=15, false) => AMBER,
-            _ => INK,
+            (_, true) => panel::mint(),
+            (..=15, false) => amber(),
+            _ => ink(),
         };
         (
             icons::battery(percent, charging),
@@ -400,17 +409,17 @@ fn paint(content: &Content, width: i32, scale: f64) -> Option<(Pixmap, Targets)>
             icons::WIFI_OFF
         }
         .to_string(),
-        INK,
+        ink(),
     )];
     if status.bluetooth {
-        tray.push((icons::BLUETOOTH.to_string(), INK));
+        tray.push((icons::BLUETOOTH.to_string(), ink()));
     }
     let volume = if status.muted {
         icons::VOLUME_MUTED
     } else {
         icons::VOLUME
     };
-    tray.push((volume.to_string(), INK));
+    tray.push((volume.to_string(), ink()));
     let mut percent_w = 0.0;
     if let Some((icon, percent, style)) = &battery {
         tray.push((icon.clone(), u32::from_be_bytes(style.color)));
@@ -443,7 +452,7 @@ fn paint(content: &Content, width: i32, scale: f64) -> Option<(Pixmap, Targets)>
                 }
             };
             let mut bar = |y: f32, h: f32, percent: u8| {
-                p.fill(x, y, GAUGE_W, h, h / 2.0, shade(0xffffff26));
+                p.fill(x, y, GAUGE_W, h, h / 2.0, shade(palette::tone(0xffffff26)));
                 let filled = GAUGE_W * percent as f32 / 100.0;
                 if filled > 0.0 {
                     p.fill(x, y, filled.max(h), h, h / 2.0, shade(meter::ink(percent)));
@@ -466,14 +475,22 @@ fn paint(content: &Content, width: i32, scale: f64) -> Option<(Pixmap, Targets)>
     if content.caps_lock {
         let style = Style {
             tracking: 0.06,
-            ..Style::new(Face::MonoBold, 12.0, AMBER)
+            ..Style::new(Face::MonoBold, 12.0, amber())
         };
         let word = "CAPS";
         let w = 10.0 + 14.0 + 6.0 + text::width(word, &style) + 12.0;
         right -= 8.0 + w;
-        p.fill(right, 8.0, w, 24.0, 12.0, (AMBER & 0xffffff00) | PILL);
-        p.border(right, 8.0, w, 24.0, 12.0, 1.0, (AMBER & 0xffffff00) | 0x70);
-        p.icon(icons::CAPS_LOCK, right + 10.0, 13.0, 14.0, Some(AMBER));
+        p.fill(right, 8.0, w, 24.0, 12.0, (amber() & 0xffffff00) | PILL);
+        p.border(
+            right,
+            8.0,
+            w,
+            24.0,
+            12.0,
+            1.0,
+            (amber() & 0xffffff00) | 0x70,
+        );
+        p.icon(icons::CAPS_LOCK, right + 10.0, 13.0, 14.0, Some(amber()));
         p.text(word, right + 10.0 + 14.0 + 6.0, 20.0, &style);
     }
 
@@ -482,14 +499,22 @@ fn paint(content: &Content, width: i32, scale: f64) -> Option<(Pixmap, Targets)>
     if content.awake {
         let style = Style {
             tracking: 0.06,
-            ..Style::new(Face::MonoBold, 12.0, AWAKE)
+            ..Style::new(Face::MonoBold, 12.0, awake())
         };
         let word = "AWAKE";
         let w = 10.0 + 14.0 + 6.0 + text::width(word, &style) + 12.0;
         right -= 8.0 + w;
-        p.fill(right, 8.0, w, 24.0, 12.0, (AWAKE & 0xffffff00) | PILL);
-        p.border(right, 8.0, w, 24.0, 12.0, 1.0, (AWAKE & 0xffffff00) | 0x70);
-        p.icon(icons::EYE, right + 10.0, 13.0, 14.0, Some(AWAKE));
+        p.fill(right, 8.0, w, 24.0, 12.0, (awake() & 0xffffff00) | PILL);
+        p.border(
+            right,
+            8.0,
+            w,
+            24.0,
+            12.0,
+            1.0,
+            (awake() & 0xffffff00) | 0x70,
+        );
+        p.icon(icons::EYE, right + 10.0, 13.0, 14.0, Some(awake()));
         p.text(word, right + 10.0 + 14.0 + 6.0, 20.0, &style);
         target(Target::Awake, right, w);
     }
@@ -499,14 +524,14 @@ fn paint(content: &Content, width: i32, scale: f64) -> Option<(Pixmap, Targets)>
     if content.sharing {
         let style = Style {
             tracking: 0.06,
-            ..Style::new(Face::MonoBold, 12.0, LIVE)
+            ..Style::new(Face::MonoBold, 12.0, live())
         };
         let word = "SHARING";
         let w = 12.0 + 8.0 + 8.0 + text::width(word, &style) + 12.0;
         right -= 8.0 + w;
-        p.fill(right, 8.0, w, 24.0, 12.0, (LIVE & 0xffffff00) | PILL);
-        p.border(right, 8.0, w, 24.0, 12.0, 1.0, (LIVE & 0xffffff00) | 0x80);
-        p.fill(right + 12.0, 16.0, 8.0, 8.0, 4.0, LIVE);
+        p.fill(right, 8.0, w, 24.0, 12.0, (live() & 0xffffff00) | PILL);
+        p.border(right, 8.0, w, 24.0, 12.0, 1.0, (live() & 0xffffff00) | 0x80);
+        p.fill(right + 12.0, 16.0, 8.0, 8.0, 4.0, live());
         p.text(word, right + 12.0 + 8.0 + 8.0, 20.0, &style);
         target(Target::Sharing, right, w);
     }
@@ -543,7 +568,7 @@ fn bar_sections(content: &Content) -> impl Iterator<Item = &meter::Section> {
 fn meter_style(section: &meter::Section) -> Style {
     let ink = match section.gauges[0].percent {
         75.. => meter::ink(section.gauges[0].percent),
-        _ => INK,
+        _ => ink(),
     };
     let ink = if section.stale { meter::dim(ink) } else { ink };
     Style {
@@ -577,7 +602,7 @@ mod tests {
             labels: (1..=5).map(|n| n.to_string()).collect(),
             hidden: Vec::new(),
             title: "Firefox".into(),
-            mode: Some(("BULLET TIME", AMBER)),
+            mode: Some(("BULLET TIME", amber())),
             status: Shown {
                 time: "17:24".into(),
                 date: "Fri 11 Sep".into(),

@@ -32,6 +32,7 @@ use crate::{
     auth::Verdict,
     keys::Action,
     motion::{HYPR, REDUCED_FADE},
+    palette,
     panel::DESIGN_PX,
 };
 use card::{Card, View};
@@ -53,7 +54,10 @@ const DESKTOP_IN: f64 = 0.46;
 /// CSS `ease-in`.
 const EASE_IN: Easing = Easing::Bezier(0.42, 0.0, 1.0, 1.0);
 /// The veil over the wallpaper: `#05070b70`.
-pub const VEIL: [f32; 4] = [0.02, 0.027, 0.043, 0x70 as f32 / 255.0];
+pub fn veil() -> [f32; 4] {
+    let [r, g, b] = palette::rgb(palette::tone(0x05070b70));
+    [r, g, b, 0x70 as f32 / 255.0]
+}
 /// The wallpaper's brightness behind the lock.
 pub const WALLPAPER_GLOW: f32 = 0.62;
 
@@ -239,6 +243,11 @@ pub struct Lock<W> {
 }
 
 impl<W> Lock<W> {
+    /// Paints the card again next frame: the colours it was painted in have changed.
+    pub fn forget_painted(&mut self) {
+        self.card = Card::default();
+    }
+
     pub fn new(remembered: Option<W>, now: f64, reduced_motion: bool) -> Self {
         Self {
             password: Password::default(),

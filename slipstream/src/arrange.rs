@@ -76,6 +76,11 @@ pub struct Arrange<W> {
 }
 
 impl<W> Arrange<W> {
+    /// Paints it again next frame: the colours it was painted in have changed.
+    pub fn forget_painted(&mut self) {
+        self.shown = None;
+    }
+
     /// Super+G, with `selected` already in force.
     pub fn start(
         selected: Rung,
@@ -244,7 +249,7 @@ fn paint(look: &Look) -> Option<Painted> {
 
     // The headings, each with a line on what it means, and the divider between them.
     let heading = panel::section_style();
-    let note = Style::new(Face::Body, 12.5, panel::HINT);
+    let note = Style::new(Face::Body, 12.5, panel::hint());
     let top = MARGIN + PADDING + 6.0;
     p.text("TILING", tile_x(0), top, &heading);
     p.text("you place the windows", tile_x(0), top + 17.0, &note);
@@ -257,10 +262,10 @@ fn paint(look: &Look) -> Option<Painted> {
         1.0,
         HEAD_H + tile_h,
         0.0,
-        panel::DIVIDER,
+        panel::divider(),
     );
 
-    let label = Style::new(Face::Body, 14.0, panel::INK);
+    let label = Style::new(Face::Body, 14.0, panel::ink());
     let (pw, ph) = (TILE_W - 2.0 * INSET, picture_h(look));
     for (index, rung) in CHOICES.iter().enumerate() {
         let x = tile_x(index);
@@ -270,7 +275,7 @@ fn paint(look: &Look) -> Option<Painted> {
             p.fill(x, y, TILE_W, tile_h, panel::TILE_RADIUS, fill);
             panel::focus_ring(&mut p, x, y, TILE_W, tile_h, panel::TILE_RADIUS, look.ring);
         } else {
-            p.fill(x, y, TILE_W, tile_h, panel::TILE_RADIUS, panel::TILE);
+            p.fill(x, y, TILE_W, tile_h, panel::TILE_RADIUS, panel::tile());
         }
         let (px, py) = (x + INSET, y + INSET);
         for &([nx, ny, nw, nh], centre) in look.pictures.get(index).into_iter().flatten() {
@@ -280,7 +285,7 @@ fn paint(look: &Look) -> Option<Painted> {
             let fill = if centre {
                 (look.ring & 0xffffff00) | 0x99
             } else {
-                panel::QUIET_LIT
+                panel::quiet_lit()
             };
             p.fill(wx, wy, ww, wh, 3.0, fill);
         }

@@ -19,7 +19,8 @@ use crate::{
     keys::App,
     launch, meter,
     paint::{Painted, Painter},
-    panel::{self, DARK, DESIGN_PX, GAP, INK, PADDING},
+    palette,
+    panel::{self, DESIGN_PX, GAP, PADDING, dark, ink},
     status::{self, Reading},
     text::{self, Face, Style},
 };
@@ -181,7 +182,7 @@ impl Default for Facts {
             user: String::new(),
             meter: None,
             meter_hidden: Vec::new(),
-            ring: crate::panel::FOCUS,
+            ring: crate::panel::focus(),
             key: String::new(),
         }
     }
@@ -613,7 +614,7 @@ impl QuickSettings {
                 let power_x = x0 + inner - 40.0;
                 let lock_x = power_x - 8.0 - 40.0;
                 let room = lock_x - 12.0 - x0;
-                let battery = Style::new(Face::Body, 16.0, INK);
+                let battery = Style::new(Face::Body, 16.0, ink());
                 let mut text_x = x0;
                 if let Some((percent, plugged)) = status.battery {
                     p.icon(
@@ -621,7 +622,7 @@ impl QuickSettings {
                         x0,
                         y + 3.0,
                         18.0,
-                        Some(INK),
+                        Some(ink()),
                     );
                     text_x += 26.0;
                 }
@@ -631,7 +632,7 @@ impl QuickSettings {
                     y + 12.0,
                     &battery,
                 );
-                let small = Style::new(Face::Body, 13.0, panel::HINT);
+                let small = Style::new(Face::Body, 13.0, panel::hint());
                 let name_w = p.text(
                     &text::ellipsize(&facts.user, &small, room - (text_x - x0)),
                     text_x,
@@ -644,15 +645,15 @@ impl QuickSettings {
                     [x0 - 6.0, y + 1.0, header_w + 12.0, 40.0, 8.0],
                 ));
                 panel::quiet_button(p, lock_x, y + 1.0, 40.0, 40.0, 20.0, false);
-                p.icon(icons::LOCK, lock_x + 11.0, y + 12.0, 18.0, Some(INK));
+                p.icon(icons::LOCK, lock_x + 11.0, y + 12.0, 18.0, Some(ink()));
                 shapes.push((Control::Lock, [lock_x, y + 1.0, 40.0, 40.0, 20.0]));
                 panel::quiet_button(p, power_x, y + 1.0, 40.0, 40.0, 20.0, look.power_menu);
-                p.icon(icons::POWER, power_x + 11.0, y + 12.0, 18.0, Some(INK));
+                p.icon(icons::POWER, power_x + 11.0, y + 12.0, 18.0, Some(ink()));
                 shapes.push((Control::Power, [power_x, y + 1.0, 40.0, 40.0, 20.0]));
                 y += HEAD_H + GAP;
 
                 if look.power_menu {
-                    let label = Style::new(Face::Body, 14.0, INK);
+                    let label = Style::new(Face::Body, 14.0, ink());
                     let w = (inner - 3.0 * 8.0) / 4.0;
                     for (i, control) in POWER_MENU.into_iter().enumerate() {
                         let x = x0 + i as f32 * (w + 8.0);
@@ -675,9 +676,9 @@ impl QuickSettings {
                     let x = x0 + (i % 2) as f32 * (tile_w + TILE_GAP);
                     let top = y + (i / 2) as f32 * (TILE_H + TILE_GAP);
                     let (on, detail) = tile(control, facts);
-                    let fill = if on { panel::AMBER } else { panel::TILE };
+                    let fill = if on { panel::amber() } else { panel::tile() };
                     p.fill(x, top, tile_w, TILE_H, panel::TILE_RADIUS, fill);
-                    let ink = if on { DARK } else { INK };
+                    let ink = if on { dark() } else { ink() };
                     let icon = match control {
                         Control::WiFi if !status.wifi => icons::WIFI_OFF,
                         Control::WiFi => icons::WIFI,
@@ -697,7 +698,11 @@ impl QuickSettings {
                         top + 22.0,
                         &title,
                     );
-                    let detail_ink = if on { 0x5a3f10ff } else { panel::TERTIARY };
+                    let detail_ink = if on {
+                        palette::on_warm(0x5a3f10ff, 0.65)
+                    } else {
+                        panel::tertiary()
+                    };
                     let detail_style = Style::new(Face::Body, 12.5, detail_ink);
                     p.text(
                         &text::ellipsize(&detail, &detail_style, room),
@@ -708,7 +713,7 @@ impl QuickSettings {
                     // The chevron's zone, listed before its tile so a click there finds it first.
                     if let Some(page) = page {
                         let zone = x + tile_w - CHEVRON_W;
-                        p.fill(zone, top + 14.0, 1.0, TILE_H - 28.0, 0.0, panel::DIVIDER);
+                        p.fill(zone, top + 14.0, 1.0, TILE_H - 28.0, 0.0, panel::divider());
                         p.icon(
                             icons::CHEVRON,
                             zone + (CHEVRON_W - 16.0) / 2.0,
@@ -725,13 +730,20 @@ impl QuickSettings {
                 // The sliders: an icon, the track with its knob, and the level.
                 for &(control, icon, level) in &sliders {
                     let centre = y + SLIDER_H / 2.0;
-                    p.icon(icon, x0 + 6.0, centre - 9.0, 18.0, Some(INK));
+                    p.icon(icon, x0 + 6.0, centre - 9.0, 18.0, Some(ink()));
                     let track_x = x0 + 38.0;
                     let track_w = x0 + inner - 6.0 - 46.0 - 14.0 - track_x;
                     let filled = track_w * level.min(100) as f32 / 100.0;
-                    p.fill(track_x, centre - 3.0, track_w, 6.0, 3.0, 0x3a3f4bff);
+                    p.fill(
+                        track_x,
+                        centre - 3.0,
+                        track_w,
+                        6.0,
+                        3.0,
+                        palette::tone(0x3a3f4bff),
+                    );
                     let muted = control == Control::Volume && status.muted;
-                    let bar_ink = if muted { panel::HINT } else { panel::AMBER };
+                    let bar_ink = if muted { panel::hint() } else { panel::amber() };
                     p.fill(track_x, centre - 3.0, filled, 6.0, 3.0, bar_ink);
                     let knob = track_x + filled;
                     p.shadow(
@@ -744,13 +756,20 @@ impl QuickSettings {
                         3.0,
                         0x00000088,
                     );
-                    p.fill(knob - 8.0, centre - 8.0, 16.0, 16.0, 8.0, 0xffffffff);
+                    p.fill(
+                        knob - 8.0,
+                        centre - 8.0,
+                        16.0,
+                        16.0,
+                        8.0,
+                        palette::tone(0xffffffff),
+                    );
                     let value = if muted {
                         "Muted".to_string()
                     } else {
                         format!("{level}%")
                     };
-                    let value_style = Style::new(Face::Mono, 13.0, panel::SECONDARY);
+                    let value_style = Style::new(Face::Mono, 13.0, panel::secondary());
                     let value_w = text::width(&value, &value_style);
                     p.text(&value, x0 + inner - 6.0 - value_w, centre, &value_style);
                     targets.push((control, on_screen(x0, y, 36.0, SLIDER_H)));
@@ -768,7 +787,7 @@ impl QuickSettings {
                 // The meter's report, and its list of sections beside it: drawn on a strip of their
                 // own so that sliding from one to the other is cut off at the card's padding.
                 if let Some(strip) = strip.as_mut() {
-                    p.fill(x0, y, inner, 1.0, 0.0, panel::DIVIDER);
+                    p.fill(x0, y, inner, 1.0, 0.0, panel::divider());
                     y += METER_TOP;
                     let travel = inner + PADDING;
                     let mut meter_shapes = Vec::new();
@@ -802,9 +821,9 @@ impl QuickSettings {
                 }
 
                 // The footer: the way into the Settings app, and the keys.
-                p.fill(x0, y, inner, 1.0, 0.0, panel::DIVIDER);
+                p.fill(x0, y, inner, 1.0, 0.0, panel::divider());
                 let centre = y + FOOT_H - 9.0;
-                let link = Style::new(Face::Body, 14.0, 0xffd08aff);
+                let link = Style::new(Face::Body, 14.0, palette::warm_shade(0xffd08aff, 0.35));
                 let link_w = p.text("All settings", x0, centre, &link);
                 shapes.push((
                     Control::AllSettings,
@@ -877,13 +896,13 @@ fn paint_gauges(
         METER_BUTTON / 2.0,
         false,
     );
-    p.icon(icons::COG, cog_x + 3.0, 3.0, 18.0, Some(panel::SECONDARY));
+    p.icon(icons::COG, cog_x + 3.0, 3.0, 18.0, Some(panel::secondary()));
     shapes.push((
         Control::MeterChoose,
         [cog_x, 0.0, METER_BUTTON, METER_BUTTON, METER_BUTTON / 2.0],
     ));
     if sections.is_empty() {
-        let quiet = Style::new(Face::Body, 13.0, panel::HINT);
+        let quiet = Style::new(Face::Body, 13.0, panel::hint());
         p.text("Every meter is hidden", x0, METER_HEAD_H / 2.0, &quiet);
         return;
     }
@@ -903,14 +922,14 @@ fn paint_gauges(
             }
         };
         let centre = y + METER_HEAD_H / 2.0;
-        let name = Style::new(Face::BodyBold, 14.0, shade(INK));
+        let name = Style::new(Face::BodyBold, 14.0, shade(ink()));
         let name_w = p.text(
             &text::ellipsize(&section.name, &name, inner / 2.0),
             x0,
             centre,
             &name,
         );
-        let quiet = Style::new(Face::Body, 12.5, shade(panel::HINT));
+        let quiet = Style::new(Face::Body, 12.5, shade(panel::hint()));
         if let Some(detail) = &section.detail {
             p.text(
                 &text::ellipsize(detail, &quiet, inner / 2.0 - 10.0),
@@ -920,14 +939,14 @@ fn paint_gauges(
             );
         }
         if section.stale && section.note.is_none() {
-            let old = Style::new(Face::Body, 12.5, panel::HINT);
+            let old = Style::new(Face::Body, 12.5, panel::hint());
             let word = "Not up to date";
             p.text(word, x0 + right - text::width(word, &old), centre, &old);
         }
         y += METER_HEAD_H;
         for gauge in &section.gauges {
             let centre = y + METER_ROW_H / 2.0;
-            let label = Style::new(Face::Body, 13.0, shade(panel::SECONDARY));
+            let label = Style::new(Face::Body, 13.0, shade(panel::secondary()));
             p.text(
                 &text::ellipsize(&gauge.label, &label, 124.0),
                 x0,
@@ -937,7 +956,7 @@ fn paint_gauges(
             let percent = format!("{}%", gauge.percent);
             let number = Style {
                 tabular: true,
-                ..Style::new(Face::Mono, 13.0, shade(panel::SECONDARY))
+                ..Style::new(Face::Mono, 13.0, shade(panel::secondary()))
             };
             p.text(
                 &percent,
@@ -948,7 +967,14 @@ fn paint_gauges(
             let resets_right = x0 + inner - 46.0;
             let track_x = x0 + 132.0;
             let track_w = resets_right - 104.0 - track_x;
-            p.fill(track_x, centre - 3.0, track_w, 6.0, 3.0, shade(0x3a3f4bff));
+            p.fill(
+                track_x,
+                centre - 3.0,
+                track_w,
+                6.0,
+                3.0,
+                shade(palette::tone(0x3a3f4bff)),
+            );
             let filled = track_w * gauge.percent as f32 / 100.0;
             if filled > 0.0 {
                 p.fill(
@@ -961,7 +987,7 @@ fn paint_gauges(
                 );
             }
             if let Some(left) = &gauge.resets_in {
-                let small = Style::new(Face::Body, 12.0, shade(panel::HINT));
+                let small = Style::new(Face::Body, 12.0, shade(panel::hint()));
                 let left = text::ellipsize(left, &small, 96.0);
                 p.text(
                     &left,
@@ -973,7 +999,7 @@ fn paint_gauges(
             y += METER_ROW_H;
         }
         if let Some(note) = &section.note {
-            let style = Style::new(Face::Body, 12.5, 0xd9b27aff);
+            let style = Style::new(Face::Body, 12.5, palette::warm_shade(0xd9b27aff, -0.2));
             p.text(
                 &text::ellipsize(note, &style, inner),
                 x0,
@@ -1005,12 +1031,12 @@ fn paint_choice(
         METER_BUTTON / 2.0,
         false,
     );
-    p.icon(icons::BACK, x0 + 4.0, 4.0, 16.0, Some(INK));
+    p.icon(icons::BACK, x0 + 4.0, 4.0, 16.0, Some(ink()));
     shapes.push((
         Control::MeterBack,
         [x0, 0.0, METER_BUTTON, METER_BUTTON, METER_BUTTON / 2.0],
     ));
-    let heading = Style::new(Face::BodyBold, 14.0, INK);
+    let heading = Style::new(Face::BodyBold, 14.0, ink());
     p.text(
         "Meters to show",
         x0 + METER_BUTTON + 10.0,
@@ -1023,7 +1049,7 @@ fn paint_choice(
         let centre = y + CHOICE_ROW_H / 2.0;
         let (switch_w, switch_h) = (34.0, 18.0);
         let switch_x = x0 + inner - switch_w;
-        let name = Style::new(Face::Body, 14.0, if on { INK } else { panel::HINT });
+        let name = Style::new(Face::Body, 14.0, if on { ink() } else { panel::hint() });
         let name_w = p.text(
             &text::ellipsize(&section.name, &name, inner / 2.0),
             x0,
@@ -1031,7 +1057,7 @@ fn paint_choice(
             &name,
         );
         if let Some(detail) = &section.detail {
-            let quiet = Style::new(Face::Body, 12.5, panel::HINT);
+            let quiet = Style::new(Face::Body, 12.5, panel::hint());
             let room = switch_x - 12.0 - (x0 + name_w + 10.0);
             p.text(
                 &text::ellipsize(detail, &quiet, room),
@@ -1040,7 +1066,11 @@ fn paint_choice(
                 &quiet,
             );
         }
-        let track = if on { panel::AMBER } else { 0x3a3f4bff };
+        let track = if on {
+            panel::amber()
+        } else {
+            palette::tone(0x3a3f4bff)
+        };
         p.fill(
             switch_x,
             centre - switch_h / 2.0,
@@ -1060,7 +1090,7 @@ fn paint_choice(
             switch_h - 4.0,
             switch_h - 4.0,
             (switch_h - 4.0) / 2.0,
-            if on { DARK } else { panel::SECONDARY },
+            if on { dark() } else { panel::secondary() },
         );
         shapes.push((
             Control::MeterShow(i),

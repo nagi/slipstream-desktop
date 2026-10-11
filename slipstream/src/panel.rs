@@ -3,7 +3,12 @@
 //! explorer, is open at a time.
 
 use crate::motion::REDUCED_FADE;
-use crate::{Slipstream, motion::HYPR, paint::Painter};
+use crate::{
+    Slipstream,
+    motion::HYPR,
+    paint::Painter,
+    palette::{self, tone},
+};
 
 /// Logical pixels per design pixel. Every surface is laid out in design pixels, sized for a 1.25×
 /// screen: each is 0.8 logical pixels, which there is exactly one physical pixel.
@@ -20,39 +25,71 @@ pub const PADDING: f32 = 18.0;
 pub const GAP: f32 = 14.0;
 
 /// Text, from the brightest down: what's typed or chosen, headings and names, prose, then two
-/// steps of secondary text above `HINT` and `PLACEHOLDER`.
-pub const BRIGHT: u32 = 0xf2f4f8ff;
-pub const INK: u32 = 0xe7ebf1ff;
-pub const PROSE: u32 = 0xdfe5eeff;
-pub const SECONDARY: u32 = 0xaab2c0ff;
-pub const TERTIARY: u32 = 0x9aa4b6ff;
-pub const AMBER: u32 = 0xffb547ff;
+/// steps of secondary text above `hint` and `placeholder`.
+pub fn bright() -> u32 {
+    tone(0xf2f4f8ff)
+}
+pub fn ink() -> u32 {
+    tone(0xe7ebf1ff)
+}
+pub fn prose() -> u32 {
+    tone(0xdfe5eeff)
+}
+pub fn secondary() -> u32 {
+    tone(0xaab2c0ff)
+}
+pub fn tertiary() -> u32 {
+    tone(0x9aa4b6ff)
+}
+pub fn amber() -> u32 {
+    palette::warm(0xffb547ff)
+}
 /// Text on amber.
-pub const DARK: u32 = 0x1a1206ff;
+pub fn dark() -> u32 {
+    palette::on(amber(), 0x1a1206ff)
+}
 /// The code rain's mint, and the charging battery's.
-pub const MINT: u32 = 0x3cf0c0ff;
+pub fn mint() -> u32 {
+    palette::green(0x3cf0c0ff)
+}
 /// A hairline between a panel's parts.
-pub const DIVIDER: u32 = 0xffffff12;
+pub fn divider() -> u32 {
+    tone(0xffffff12)
+}
 /// A quiet button or keycap, the same under the pointer, and its 1 px edge.
-pub const QUIET: u32 = 0xffffff12;
-pub const QUIET_LIT: u32 = 0xffffff26;
-pub const EDGE: u32 = 0xffffff24;
+pub fn quiet() -> u32 {
+    tone(0xffffff12)
+}
+pub fn quiet_lit() -> u32 {
+    tone(0xffffff26)
+}
+pub fn edge() -> u32 {
+    tone(0xffffff24)
+}
 /// A tile that isn't lit: a switcher window, a notification, a quick settings toggle.
-pub const TILE: u32 = 0xffffff0a;
+pub fn tile() -> u32 {
+    tone(0xffffff0a)
+}
 /// Corner radii: tiles, and selectable rows and rectangular buttons.
 pub const TILE_RADIUS: f32 = 12.0;
 pub const ROW_RADIUS: f32 = 9.0;
 /// The near-black of dark chips, the bar and wells, without its alpha: each surface picks its
 /// own. The same as the code rain's cards, so they sit on the default wallpaper as one.
-pub const CHIP: u32 = 0x0b0d1200;
+pub fn chip() -> u32 {
+    tone(0x0b0d1200)
+}
 /// A level's empty track on a notice.
-pub const TRACK: u32 = 0xffffff1a;
+pub fn track() -> u32 {
+    tone(0xffffff1a)
+}
 /// How far in from the frame's left and right edges a panel's head row sits.
 pub const HEAD_INSET: f32 = 26.0;
 /// Where the keyboard is, until the settings are read: the focused window's ring colour at the
 /// same four fifths' opacity the window ring is drawn with. `Slipstream::panel_ring` hands the
 /// chosen one to each panel.
-pub const FOCUS: u32 = 0x42d3ffcc;
+pub fn focus() -> u32 {
+    palette::accent(0x42d3ffcc)
+}
 
 /// Opening: 200 ms from 10 px higher and transparent. Closing is instant.
 const OPEN: f64 = 0.2;
@@ -67,19 +104,27 @@ pub fn glass(p: &mut Painter, x: f32, y: f32, w: f32, h: f32) {
         h,
         18.0,
         (16.0, 64.0, 0x00000048),
-        GLASS,
-        GLASS_EDGE,
+        glass_fill(),
+        glass_edge(),
     );
 }
 
 /// Large panels' glass: the explorer, quick settings, the centre, the cards and the sheet.
-pub const GLASS: u32 = 0x10131af8;
-pub const GLASS_EDGE: u32 = 0xffffff1c;
+pub fn glass_fill() -> u32 {
+    tone(0x10131af8)
+}
+pub fn glass_edge() -> u32 {
+    tone(0xffffff1c)
+}
 
 /// The small surfaces that come and go by themselves: the toast, the slim card, notification
 /// pop-ups and the volume display. Solid, so nothing behind shows through.
-pub const NOTICE: u32 = 0x141925ff;
-pub const NOTICE_EDGE: u32 = 0xffffff18;
+pub fn notice_fill() -> u32 {
+    tone(0x141925ff)
+}
+pub fn notice_edge() -> u32 {
+    tone(0xffffff18)
+}
 pub const NOTICE_RADIUS: f32 = 12.0;
 /// How far a notice's shadow reaches past its card: down by its offset and out by half its blur.
 /// Soft and faint, as current desktops' popups are: the card's edge does the separating.
@@ -88,18 +133,23 @@ pub const NOTICE_MARGIN: f32 = 48.0;
 
 /// Text that teaches a key or says something quietly: 6.4:1 on the glass, 5.4:1 in a quiet
 /// button.
-pub const HINT: u32 = 0x8f98a8ff;
+pub fn hint() -> u32 {
+    tone(0x8f98a8ff)
+}
 /// What an empty search box says.
-pub const PLACEHOLDER: u32 = 0x7d8697ff;
+pub fn placeholder() -> u32 {
+    tone(0x7d8697ff)
+}
 
 /// Dark ink on a light colour, light ink on a dark one.
 pub fn ink_on(rgba: u32) -> u32 {
     let [r, g, b, _] = rgba.to_be_bytes().map(|c| c as f32 / 255.0);
-    if 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.45 {
-        DARK
+    let own = if 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.45 {
+        0x1a1206ff
     } else {
-        BRIGHT
-    }
+        0xf2f4f8ff
+    };
+    palette::on(rgba, own)
 }
 
 /// A selection's fill: the ring colour, faint.
@@ -115,15 +165,15 @@ pub fn selected_row(p: &mut Painter, x: f32, y: f32, w: f32, h: f32, ring: u32) 
 
 /// A quiet button's box: faint, lighter under the pointer (`lit`), with a 1 px edge.
 pub fn quiet_button(p: &mut Painter, x: f32, y: f32, w: f32, h: f32, radius: f32, lit: bool) {
-    p.fill(x, y, w, h, radius, if lit { QUIET_LIT } else { QUIET });
-    p.border(x, y, w, h, radius, 1.0, EDGE);
+    p.fill(x, y, w, h, radius, if lit { quiet_lit() } else { quiet() });
+    p.border(x, y, w, h, radius, 1.0, edge());
 }
 
 /// A section's title in small capitals.
 pub fn section_style() -> crate::text::Style {
     crate::text::Style {
         tracking: 0.12,
-        ..crate::text::Style::new(crate::text::Face::Body, 12.0, PLACEHOLDER)
+        ..crate::text::Style::new(crate::text::Face::Body, 12.0, placeholder())
     }
 }
 
@@ -138,24 +188,29 @@ pub fn app_placeholder(
     radius: f32,
     px: f32,
 ) {
-    const COLOURS: [u32; 6] = [MINT, 0x33ccffff, AMBER, 0xff7a93ff, 0xa78bfaff, 0x7fe3ffff];
+    let colours = [
+        mint(),
+        palette::accent(0x33ccffff),
+        amber(),
+        palette::red(0xff7a93ff),
+        palette::magenta(0xa78bfaff),
+        palette::cyan(0x7fe3ffff),
+    ];
     let hash = name.bytes().fold(0u32, |hash, byte| {
         hash.wrapping_mul(31).wrapping_add(byte as u32)
     });
-    p.fill(
-        x,
-        y,
-        side,
-        side,
-        radius,
-        COLOURS[hash as usize % COLOURS.len()],
-    );
+    let fill = colours[hash as usize % colours.len()];
+    p.fill(x, y, side, side, radius, fill);
     let initial: String = name
         .chars()
         .next()
         .map(|ch| ch.to_uppercase().collect())
         .unwrap_or_default();
-    let style = crate::text::Style::new(crate::text::Face::MonoBold, px, 0x10131aff);
+    let style = crate::text::Style::new(
+        crate::text::Face::MonoBold,
+        px,
+        palette::on(fill, 0x10131aff),
+    );
     let w = crate::text::width(&initial, &style);
     p.text(&initial, x + (side - w) / 2.0, y + side / 2.0, &style);
 }
@@ -164,8 +219,8 @@ pub fn app_placeholder(
 pub fn notice(p: &mut Painter, x: f32, y: f32, w: f32, h: f32) {
     let (dy, blur, shadow) = NOTICE_SHADOW;
     p.shadow(x, y, w, h, NOTICE_RADIUS, dy, blur, shadow);
-    p.fill(x, y, w, h, NOTICE_RADIUS, NOTICE);
-    p.border(x, y, w, h, NOTICE_RADIUS, 1.0, NOTICE_EDGE);
+    p.fill(x, y, w, h, NOTICE_RADIUS, notice_fill());
+    p.border(x, y, w, h, NOTICE_RADIUS, 1.0, notice_edge());
 }
 
 /// Between a footer's hints.
@@ -174,7 +229,7 @@ pub const HINT_GAP: f32 = 20.0;
 const KEY_GAP: f32 = 4.0;
 
 fn hint_style() -> crate::text::Style {
-    crate::text::Style::new(crate::text::Face::Body, 13.0, HINT)
+    crate::text::Style::new(crate::text::Face::Body, 13.0, hint())
 }
 
 /// How wide `key_hint` draws `keys` and `label`.
@@ -270,8 +325,16 @@ mod tests {
         let glass = 0x10131aff;
         // A quiet button: white at 7% over the glass.
         let quiet = 0x21232aff;
-        assert!(contrast(HINT, glass) >= 4.5, "{}", contrast(HINT, glass));
-        assert!(contrast(HINT, quiet) >= 4.5, "{}", contrast(HINT, quiet));
-        assert!(contrast(PLACEHOLDER, glass) >= 4.5);
+        assert!(
+            contrast(hint(), glass) >= 4.5,
+            "{}",
+            contrast(hint(), glass)
+        );
+        assert!(
+            contrast(hint(), quiet) >= 4.5,
+            "{}",
+            contrast(hint(), quiet)
+        );
+        assert!(contrast(placeholder(), glass) >= 4.5);
     }
 }

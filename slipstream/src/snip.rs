@@ -762,7 +762,7 @@ fn paint_tile(
         logical.w as f32,
         logical.h as f32,
         3.0,
-        panel::CHIP | 0xff,
+        panel::chip() | 0xff,
     );
     card.border(0.0, 0.0, logical.w as f32, logical.h as f32, 3.0, 1.0, edge);
     let side = ((w.min(h) as f64) * 0.7).round().max(1.0) as usize;
@@ -793,26 +793,26 @@ fn paint_tile(
 }
 
 fn paint_legend(scale: f64) -> Option<Painted> {
-    let style = Style::new(Face::Mono, 13.0, panel::HINT);
+    let style = Style::new(Face::Mono, 13.0, panel::hint());
     let legend = "drag a region · a–z a window · ⏎ whole screen · Esc cancel";
     let w = (text::width(legend, &style) + 32.0) * DESIGN_PX as f32;
     let h = (13.0 * 1.2 + 16.0) * DESIGN_PX as f32;
     let logical = Size::from((w.ceil() as i32, h.ceil() as i32));
     Painted::new(logical, scale, |p| {
         let f = DESIGN_PX as f32;
-        p.fill(0.0, 0.0, w, h, 10.0 * f, panel::CHIP | 0xe6);
-        let style = Style::new(Face::Mono, 13.0 * f, panel::HINT);
+        p.fill(0.0, 0.0, w, h, 10.0 * f, panel::chip() | 0xe6);
+        let style = Style::new(Face::Mono, 13.0 * f, panel::hint());
         p.text(legend, 16.0 * f, h / 2.0, &style);
     })
 }
 
 fn paint_readout(label: &str, scale: f64) -> Option<Painted> {
-    let style = Style::new(Face::Mono, 12.0, panel::INK);
+    let style = Style::new(Face::Mono, 12.0, panel::ink());
     let w = text::width(label, &style) + 16.0;
     let h = 22.0;
     let logical = Size::from((w.ceil() as i32, h as i32));
     Painted::new(logical, scale, |p| {
-        p.fill(0.0, 0.0, w, h, 6.0, panel::CHIP | 0xe6);
+        p.fill(0.0, 0.0, w, h, 6.0, panel::chip() | 0xe6);
         p.text(label, 8.0, h / 2.0, &style);
     })
 }

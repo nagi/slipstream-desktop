@@ -526,7 +526,7 @@ impl Painter {
     /// faint rounded fill with a 1 px edge. Every surface that names a key draws it this way.
     /// Returns its width.
     pub fn keycap(&mut self, key: &str, x: f32, centre: f32) -> f32 {
-        let style = text::Style::new(text::Face::Mono, 12.0, crate::panel::PROSE);
+        let style = text::Style::new(text::Face::Mono, 12.0, crate::panel::prose());
         let label = key.to_uppercase();
         let (w, h) = (keycap_width(key), KEYCAP_H);
         crate::panel::quiet_button(self, x, centre - h / 2.0, w, h, 5.0, false);

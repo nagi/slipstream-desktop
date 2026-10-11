@@ -246,7 +246,7 @@ impl Slipstream {
         let scale = self.output_scale().unwrap_or(1.0);
         let px = (ICON as f64 * DESIGN_PX as f64 * scale).round() as u32;
         let icon = Pixmap::new(px, px).map(|mut pixmap| {
-            icons::draw(&mut pixmap, icons::LOGO, 0.0, 0.0, px as f32, None);
+            icons::draw(&mut pixmap, &icons::logo(), 0.0, 0.0, px as f32, None);
             pixmap
         });
         Notice {

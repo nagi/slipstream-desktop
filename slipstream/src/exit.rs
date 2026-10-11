@@ -24,7 +24,7 @@ use crate::{
     card::{self, Btn, Button, Card, Hit, Row},
     motion::{HYPR, REDUCED_FADE},
     paint::Painted,
-    panel::{self, AMBER, BELOW, DESIGN_PX, MARGIN},
+    panel::{self, BELOW, DESIGN_PX, MARGIN, amber},
 };
 
 /// After the close request, before anything left over is named.
@@ -592,7 +592,7 @@ impl<W: Clone + PartialEq> Exit<W> {
                 .map(|open| {
                     let mut row = row(open);
                     if self.prompting.contains(&open.app) {
-                        row.note = Some(("asking to save".to_string(), AMBER));
+                        row.note = Some(("asking to save".to_string(), amber()));
                     }
                     row
                 })
@@ -704,7 +704,7 @@ fn row<W>(open: &Open<W>) -> Row {
         title: open.title.clone(),
         note: open
             .minimised
-            .then(|| ("minimised".to_string(), panel::HINT)),
+            .then(|| ("minimised".to_string(), panel::hint())),
     }
 }
 
@@ -724,9 +724,9 @@ fn paint_slim(slim: &Slim, scale: f64) -> Option<Painted> {
         let left = fx + crate::toast::PAD;
         let bar_y = fy + height - 16.0 - 4.0;
         let bar_w = SLIM_WIDTH - 2.0 * crate::toast::PAD;
-        p.fill(left, bar_y, bar_w, 4.0, 2.0, panel::TRACK);
+        p.fill(left, bar_y, bar_w, 4.0, 2.0, panel::track());
         if slim.filled > 0 {
-            p.fill(left, bar_y, slim.filled as f32, 4.0, 2.0, AMBER);
+            p.fill(left, bar_y, slim.filled as f32, 4.0, 2.0, amber());
         }
     })
 }

@@ -16,7 +16,8 @@ use crate::{
     calendar::{self, Date},
     notices::{self, Notices},
     paint::Painted,
-    panel::{self, AMBER, DARK, DESIGN_PX, GAP, INK, PADDING},
+    palette,
+    panel::{self, DESIGN_PX, GAP, PADDING, amber, dark, ink},
     text::{self, Face, Style},
 };
 
@@ -458,10 +459,10 @@ impl Centre {
                 calendar::grid(year, month).len() / 7
             });
             let card_h = 2.0 * CAL_PAD_Y + CAL_HEAD + DOW_H + weeks as f32 * (CELL_H + CELL_GAP);
-            p.fill(x0, y, inner, card_h, panel::TILE_RADIUS, panel::TILE);
+            p.fill(x0, y, inner, card_h, panel::TILE_RADIUS, panel::tile());
             if let Some((today, (year, month))) = shown {
                 let head_centre = y + CAL_PAD_Y + 10.0;
-                let title = Style::new(Face::BodyBold, 16.0, INK);
+                let title = Style::new(Face::BodyBold, 16.0, ink());
                 let month_name = calendar::MONTHS[month as usize - 1];
                 p.text(
                     &format!("{month_name} {year}"),
@@ -476,7 +477,7 @@ impl Centre {
                     let this_month = calendar::MONTHS[today.month as usize - 1];
                     format!("Today is {weekday} {} {this_month}", today.day)
                 };
-                let note_style = Style::new(Face::Body, 14.0, panel::HINT);
+                let note_style = Style::new(Face::Body, 14.0, panel::hint());
                 let note_w = text::width(&note, &note_style);
                 p.text(
                     &note,
@@ -488,7 +489,7 @@ impl Centre {
                 let grid_x = x0 + CAL_PAD_X;
                 let grid_y = y + CAL_PAD_Y + CAL_HEAD;
                 let cell_w = (inner - 2.0 * CAL_PAD_X - 6.0 * CELL_GAP) / 7.0;
-                let initial = Style::new(Face::Body, 12.0, panel::PLACEHOLDER);
+                let initial = Style::new(Face::Body, 12.0, panel::placeholder());
                 for (column, letter) in ["M", "T", "W", "T", "F", "S", "S"].iter().enumerate() {
                     let cell_x = grid_x + column as f32 * (cell_w + CELL_GAP);
                     let w = text::width(letter, &initial);
@@ -504,12 +505,12 @@ impl Centre {
                     let cell_y = grid_y + DOW_H + CELL_GAP + (i / 7) as f32 * (CELL_H + CELL_GAP);
                     let is_today = look.month == 0 && cell.in_month && cell.day == today.day;
                     let style = if is_today {
-                        p.fill(cell_x, cell_y, cell_w, CELL_H, 8.0, AMBER);
-                        Style::new(Face::BodyBold, 14.0, DARK)
+                        p.fill(cell_x, cell_y, cell_w, CELL_H, 8.0, amber());
+                        Style::new(Face::BodyBold, 14.0, dark())
                     } else if cell.in_month {
-                        Style::new(Face::Body, 14.0, 0xd5dae3ff)
+                        Style::new(Face::Body, 14.0, palette::tone(0xd5dae3ff))
                     } else {
-                        Style::new(Face::Body, 14.0, 0x6f7888ff)
+                        Style::new(Face::Body, 14.0, palette::tone(0x6f7888ff))
                     };
                     let style = Style {
                         tabular: true,
@@ -529,7 +530,7 @@ impl Centre {
 
             // Apps running with no visible window.
             if !look.background_apps.is_empty() {
-                let heading = Style::new(Face::BodyBold, 16.0, INK);
+                let heading = Style::new(Face::BodyBold, 16.0, ink());
                 p.text("Background Apps", x0, y + HEAD_H / 2.0, &heading);
                 y += HEAD_H + GAP;
 
@@ -546,7 +547,7 @@ impl Centre {
                 const CHIP_GAP: f32 = 8.0;
                 const CHIP_H: f32 = CHIP_PAD_TOP + ICON_SZ + NAME_GAP + NAME_H + CHIP_PAD_BOT;
 
-                let name_style = Style::new(Face::Body, 11.0, panel::HINT);
+                let name_style = Style::new(Face::Body, 11.0, panel::hint());
                 let chip_ws: Vec<f32> = bg_data
                     .iter()
                     .map(|(_, name, _)| {
@@ -581,14 +582,21 @@ impl Centre {
                     if is_launching {
                         let t = look.launch_frac as f32 / 255.0;
                         let pulse = (t * std::f32::consts::PI).sin();
-                        // Fill brightens toward QUIET_LIT.
+                        // Fill brightens toward `quiet_lit`.
                         let fill_a = 0x12u32 + (pulse * (0x26u32 - 0x12u32) as f32) as u32;
-                        p.fill(cx, y, cw, CHIP_H, CHIP_RADIUS, 0xffffff00 | fill_a);
-                        p.border(cx, y, cw, CHIP_H, CHIP_RADIUS, 1.0, panel::EDGE);
+                        p.fill(
+                            cx,
+                            y,
+                            cw,
+                            CHIP_H,
+                            CHIP_RADIUS,
+                            palette::tone(0xffffff00) | fill_a,
+                        );
+                        p.border(cx, y, cw, CHIP_H, CHIP_RADIUS, 1.0, panel::edge());
                         // Outer glow ring in the focus colour (skip for reduced motion).
                         if !self.reduced_motion {
                             let ring_a = (pulse * 0xcc as f32) as u32;
-                            let ring = (panel::FOCUS & 0xffffff00) | ring_a;
+                            let ring = (panel::focus() & palette::tone(0xffffff00)) | ring_a;
                             p.border(
                                 cx - 3.0,
                                 y - 3.0,
@@ -600,8 +608,8 @@ impl Centre {
                             );
                         }
                     } else {
-                        p.fill(cx, y, cw, CHIP_H, CHIP_RADIUS, panel::QUIET);
-                        p.border(cx, y, cw, CHIP_H, CHIP_RADIUS, 1.0, panel::EDGE);
+                        p.fill(cx, y, cw, CHIP_H, CHIP_RADIUS, panel::quiet());
+                        p.border(cx, y, cw, CHIP_H, CHIP_RADIUS, 1.0, panel::edge());
                     }
                     // Keyboard focus ring (drawn after the chip fill so it sits on top).
                     if is_selected {
@@ -635,17 +643,17 @@ impl Centre {
             }
 
             // "Notifications", and the Do not disturb switch.
-            let heading = Style::new(Face::BodyBold, 16.0, INK);
+            let heading = Style::new(Face::BodyBold, 16.0, ink());
             p.text("Notifications", x0, y + HEAD_H / 2.0, &heading);
             let switch_x = x0 + inner - 42.0;
             let (track, knob, knob_x) = if look.do_not_disturb {
-                (AMBER, DARK, switch_x + 21.0)
+                (amber(), dark(), switch_x + 21.0)
             } else {
-                (0x3a3f4bff, INK, switch_x + 3.0)
+                (palette::tone(0x3a3f4bff), ink(), switch_x + 3.0)
             };
             p.fill(switch_x, y, 42.0, 24.0, 12.0, track);
             p.fill(knob_x, y + 3.0, 18.0, 18.0, 9.0, knob);
-            let label = Style::new(Face::Body, 14.0, panel::TERTIARY);
+            let label = Style::new(Face::Body, 14.0, panel::tertiary());
             let label_x = switch_x - 10.0 - text::width("Do not disturb", &label);
             p.text("Do not disturb", label_x, y + HEAD_H / 2.0, &label);
             let dnd_x = label_x - 8.0;
@@ -664,14 +672,18 @@ impl Centre {
             // The footer, along the bottom: the keys, and Clear all.
             let foot_y = fy + height - PADDING - FOOT_H;
             let foot_centre = foot_y + FOOT_H / 2.0;
-            let keys = Style::new(Face::Mono, 12.0, panel::HINT);
+            let keys = Style::new(Face::Mono, 12.0, panel::hint());
             let mut x = x0;
             for (keys, label) in [(&["PgUp", "PgDn"][..], "month"), (&["Esc"][..], "")] {
                 x += panel::key_hint_width(keys, label);
                 panel::key_hint(p, x, foot_centre, keys, label);
                 x += panel::HINT_GAP;
             }
-            let clear_ink = if listed.is_empty() { panel::HINT } else { INK };
+            let clear_ink = if listed.is_empty() {
+                panel::hint()
+            } else {
+                ink()
+            };
             let clear = Style::new(Face::Body, 14.0, clear_ink);
             let clear_w = text::width("Clear all", &clear) + 28.0;
             let clear_x = x0 + inner - clear_w;
@@ -696,7 +708,7 @@ impl Centre {
             let bottom = foot_y - GAP;
             if listed.is_empty() {
                 scroll = 0;
-                let empty = Style::new(Face::Body, 16.0, panel::HINT);
+                let empty = Style::new(Face::Body, 16.0, panel::hint());
                 let message = "You’re all caught up.";
                 let w = text::width(message, &empty);
                 p.text(message, x0 + (inner - w) / 2.0, y + 49.0, &empty);
@@ -725,7 +737,7 @@ impl Centre {
                     if top + h > bottom {
                         break;
                     }
-                    p.fill(x0, top, inner, *h, panel::TILE_RADIUS, panel::TILE);
+                    p.fill(x0, top, inner, *h, panel::TILE_RADIUS, panel::tile());
                     let hits = notices::paint_card(p, notice, x0, top, inner, CARD_LINES);
                     let [cx, cy, cw, ch] = hits.cross;
                     targets.push((Target::Dismiss(notice.id), on_screen(cx, cy, cw, ch)));
@@ -915,7 +927,7 @@ mod tests {
             }),
             month: centre.month,
             do_not_disturb: false,
-            ring: panel::FOCUS,
+            ring: panel::focus(),
             revision: notices.revision(),
             selected: centre.selected,
             action: centre.action,

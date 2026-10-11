@@ -128,6 +128,7 @@ Then log out and choose **Slipstream** on the login screen. Tap Super for your a
 - **A screen that stays on when you want it to.** Hold Caps Lock for Awake: the desktop won't fade or lock by itself until you hold it again. A tap is still Caps Lock.
 - **Games and virtual machines behave.** They can hold the mouse and every key, and one shortcut always takes it back.
 - **A meter of your own on the bar,** for any allowance a command can report: a quota, a plan's limits, a disk.
+- **Your Omarchy theme, on the whole desktop.** On Omarchy, the bar, the panels, the rings, the streams and the living wallpapers follow the theme you've set, and change the moment you change it.
 - **The Linux tools you already have keep working.** Screenshot and recording tools like `grim` and `wf-recorder`, idle tools, colour-temperature tools - and nothing records your screen without asking you first, by name.
 
 [**The full list →**](guide/features.md) · [**Every key →**](guide/keys.md)

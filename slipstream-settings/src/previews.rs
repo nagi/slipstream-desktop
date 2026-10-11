@@ -2,8 +2,9 @@
 //!
 //! The wallpaper is drawn on the CPU by the compositor, so the compositor draws the previews too:
 //! `slipstream --wallpaper-preview ID` composes a variation off screen, with no display and no
-//! GPU, and writes a few small frames. They are made once for each build of the compositor, on a
-//! thread of their own, and kept in the cache folder; the page shows each card's frames in turn,
+//! GPU, and writes a few small frames. They are made once for each build of the compositor and
+//! each set of colours the desktop is drawn in, on a thread of their own, and kept in the cache
+//! folder; the page shows each card's frames in turn,
 //! or only the still picture when motion is reduced.
 
 use std::{
@@ -139,6 +140,10 @@ pub fn fill(pictures: Vec<(&'static str, gtk::Picture)>, reduced: bool) {
     let Some(build) = build_name(&compositor) else {
         return;
     };
+    // The compositor draws them in the colours the desktop is drawn in, so previews drawn in
+    // other colours are no more use than another build's.
+    let settings = slipstream_config::read(&slipstream_config::path()).unwrap_or_default();
+    let build = format!("{build}-{}", crate::colours::name(&settings));
     let root = cache_root();
     let folder = root.join(&build);
     if HELD.with(Cell::get) {

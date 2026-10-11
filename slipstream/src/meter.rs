@@ -15,21 +15,25 @@ use std::{
 use slipstream_config::meter::{RUN_LIMIT, Report, Run, unix_now};
 pub use slipstream_config::meter::{Reading, Section};
 
-use crate::panel::AMBER;
+use crate::{palette, panel::amber};
 
 /// The most sections the bar makes room for; quick settings shows them all.
 pub const BAR_SECTIONS: usize = 3;
 
-const CALM: u32 = 0xcfd6e2ff;
+fn calm() -> u32 {
+    palette::tone(0xcfd6e2ff)
+}
 /// Nearly used up. Orange rather than red, which the bar keeps for sharing.
-const HOT: u32 = 0xff7a45ff;
+fn hot() -> u32 {
+    palette::orange(0xff7a45ff)
+}
 
 /// A gauge's colour at `percent` used.
 pub fn ink(percent: u8) -> u32 {
     match percent {
-        90.. => HOT,
-        75.. => AMBER,
-        _ => CALM,
+        90.. => hot(),
+        75.. => amber(),
+        _ => calm(),
     }
 }
 
@@ -144,9 +148,9 @@ mod tests {
 
     #[test]
     fn colours_warm_as_the_allowance_runs_out() {
-        assert_eq!(ink(74), CALM);
-        assert_eq!(ink(75), AMBER);
-        assert_eq!(ink(90), HOT);
+        assert_eq!(ink(74), calm());
+        assert_eq!(ink(75), amber());
+        assert_eq!(ink(90), hot());
         assert_eq!(dim(0xffb547ff), 0xffb54772);
     }
 

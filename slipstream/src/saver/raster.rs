@@ -3,7 +3,54 @@
 use super::*;
 
 /// The desktop's backdrop colour, as behind every window.
-pub(super) const BACKGROUND: [u8; 3] = [11, 14, 19];
+pub(super) const BACKGROUND: [u8; 3] = slipstream_config::theme::OWN_BACKDROP;
+
+/// The colours the wallpaper is painted in. Every variation composes its cells in Slipstream's
+/// own colours, over `BACKGROUND`; a followed theme recolours each as it is painted
+/// (`Palette::lit`), so no variation knows there is one.
+#[derive(Default)]
+pub(super) struct Inks {
+    /// The theme, and which change of colours it came with.
+    pub(super) palette: Option<slipstream_config::theme::Palette>,
+    pub(super) seen: Option<u64>,
+}
+
+/// A colour to draw in, and the ground it is drawn over.
+pub(super) type Ink = ([u8; 3], [u8; 3]);
+
+impl Inks {
+    /// The colours as they are now.
+    pub(super) fn now() -> Self {
+        Self {
+            palette: crate::palette::current(),
+            seen: Some(crate::palette::changes()),
+        }
+    }
+
+    /// Takes up the colours if they have changed since these were read, and says whether they
+    /// had: everything painted in the old ones needs painting again.
+    pub(super) fn follow(&mut self) -> bool {
+        let changed = self.seen != Some(crate::palette::changes());
+        if changed {
+            *self = Self::now();
+        }
+        changed
+    }
+
+    pub(super) fn ground(&self) -> [u8; 3] {
+        self.palette
+            .as_ref()
+            .map_or(BACKGROUND, |palette| palette.ground)
+    }
+
+    /// A cell's colour as painted, over the ground.
+    pub(super) fn of(&self, rgb: [u8; 3]) -> Ink {
+        match &self.palette {
+            Some(palette) => (palette.lit(rgb), palette.ground),
+            None => (rgb, BACKGROUND),
+        }
+    }
+}
 
 /// Characters other than blocks and lines, rasterised once per size.
 #[derive(Default)]
@@ -23,7 +70,7 @@ impl GlyphCache {
         w: usize,
         h: usize,
         ch: char,
-        rgb: [u8; 3],
+        (rgb, ground): Ink,
         weight: f32,
     ) {
         let px = h as f32 * 0.72;
@@ -53,7 +100,7 @@ impl GlyphCache {
                 let at = (py as usize * width + px as usize) * 4;
                 let amount = cover as f32 / 255.0 * weight;
                 for ((channel, &ink), &ground) in
-                    pixels[at..at + 3].iter_mut().zip(&rgb).zip(&BACKGROUND)
+                    pixels[at..at + 3].iter_mut().zip(&rgb).zip(&ground)
                 {
                     *channel = add_ink(*channel, ink, ground, amount);
                 }
@@ -79,7 +126,7 @@ pub(super) fn fill(
     }
 }
 
-/// Adds `rgb` over a rectangle, `weight` of the way from the background (1 paints it solid).
+/// Adds `rgb` over a rectangle, `weight` of the way from the ground (1 paints it solid).
 #[allow(clippy::too_many_arguments)]
 pub(super) fn ink_fill(
     pixels: &mut [u8],
@@ -88,13 +135,12 @@ pub(super) fn ink_fill(
     y: usize,
     w: usize,
     h: usize,
-    rgb: [u8; 3],
+    (rgb, ground): Ink,
     weight: f32,
 ) {
     // The step each channel takes is the same across the whole rectangle, so it's worked out
     // once, with the half that rounds it folded in.
-    let step: [f32; 3] =
-        std::array::from_fn(|c| (rgb[c] as f32 - BACKGROUND[c] as f32) * weight + 0.5);
+    let step: [f32; 3] = std::array::from_fn(|c| (rgb[c] as f32 - ground[c] as f32) * weight + 0.5);
     for row in y..y + h {
         let start = (row * width + x) * 4;
         for pixel in pixels[start..start + w * 4].chunks_exact_mut(4) {
@@ -114,11 +160,13 @@ pub(super) fn add_ink(channel: u8, ink: u8, ground: u8, amount: f32) -> u8 {
 }
 
 /// Draws a cell as `look` says: one cell, or two cross-fading between steps.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn paint_cell(
     pixels: &mut [u8],
     width: usize,
     layout: &Layout,
     glyphs: &mut GlyphCache,
+    inks: &Inks,
     col: i32,
     row: i32,
     (from, to, along): Look,
@@ -126,12 +174,20 @@ pub(super) fn paint_cell(
     let (w, h) = (layout.cell_w, layout.cell_h);
     let x0 = layout.origin.0 + col as usize * w;
     let y0 = layout.origin.1 + row as usize * h;
-    fill(pixels, width, x0, y0, w, h, BACKGROUND);
+    fill(pixels, width, x0, y0, w, h, inks.ground());
     let weight = along as f32 / TWEEN_LEVELS as f32;
+    let at = (x0, y0, w, h);
     if from != to {
-        ink_cell(pixels, width, glyphs, (x0, y0, w, h), from, 1.0 - weight);
+        ink_cell(
+            pixels,
+            width,
+            glyphs,
+            at,
+            (from.ch, inks.of(from.rgb)),
+            1.0 - weight,
+        );
     }
-    ink_cell(pixels, width, glyphs, (x0, y0, w, h), to, weight);
+    ink_cell(pixels, width, glyphs, at, (to.ch, inks.of(to.rgb)), weight);
 }
 
 /// Blocks and lines are drawn as exact rectangles, so rows join up as they do in a terminal.
@@ -140,12 +196,11 @@ pub(super) fn ink_cell(
     width: usize,
     glyphs: &mut GlyphCache,
     (x0, y0, w, h): (usize, usize, usize, usize),
-    cell: Cell,
+    (ch, rgb): (char, Ink),
     weight: f32,
 ) {
-    let rgb = cell.rgb;
     let (half_w, half_h) = (w / 2, h / 2);
-    if let Some(lit) = quarters(cell.ch) {
+    if let Some(lit) = quarters(ch) {
         if lit == [true; 4] {
             ink_fill(pixels, width, x0, y0, w, h, rgb, weight);
             return;
@@ -165,7 +220,7 @@ pub(super) fn ink_cell(
         }
         return;
     }
-    match cell.ch {
+    match ch {
         ' ' => {}
         // Shades fill the cell at a fraction of the ink, which is what they look like in a
         // terminal and several times cheaper than a glyph.

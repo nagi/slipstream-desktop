@@ -31,7 +31,7 @@ use smithay::utils::{Logical, Physical, Point, Rectangle, Size, Transform};
 use slipstream_config::Effects;
 
 use crate::{
-    glmatrix::{Glyphs, TINT},
+    glmatrix::{Glyphs, tint},
     render::OutputElement,
     tilt,
 };
@@ -271,7 +271,7 @@ impl Fx {
             Uniform::new("content", (content.w as f32, content.h as f32)),
             Uniform::new("cell", (cell.0 as f32, cell.1 as f32)),
             Uniform::new("t", t as f32),
-            Uniform::new("ink", TINT),
+            Uniform::new("ink", tint()),
             Uniform::new("window_h", window_h),
             Uniform::new("gravity", gravity as f32),
             Uniform::new("unit", scale as f32),

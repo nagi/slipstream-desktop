@@ -91,6 +91,13 @@ impl Chrome {
         self.legend = None;
     }
 
+    /// Paints everything again next frame: the colours it was painted in have changed.
+    pub fn forget_painted(&mut self) {
+        self.forget_painted_text();
+        self.dock_frames.clear();
+        self.deck_label = None;
+    }
+
     /// A shade over a distant window. `index` keeps each distant window's shade separate.
     pub(super) fn dim(
         &mut self,
@@ -281,10 +288,10 @@ pub(super) fn tag_motion(age: f64, reduced_motion: bool) -> (f64, f64) {
 fn paint_tag(rung: Rung, scale: f64) -> Option<(Pixmap, Size<i32, Logical>)> {
     const PIP: f32 = 7.0;
     const PIP_GAP: f32 = 4.0;
-    const INK: u32 = panel::DARK;
+    let ink = panel::dark();
     let style = Style {
         tracking: 0.08,
-        ..Style::new(Face::MonoBold, 16.0, INK)
+        ..Style::new(Face::MonoBold, 16.0, ink)
     };
     let label = rung.label().to_uppercase();
     let rungs = Rung::LADDER.len() as f32;
@@ -298,15 +305,15 @@ fn paint_tag(rung: Rung, scale: f64) -> Option<(Pixmap, Size<i32, Logical>)> {
         (size.h as f64 * scale).round() as u32,
         scale as f32 * DESIGN_PX,
     )?;
-    p.fill(0.0, 0.0, w, h, 6.0, panel::AMBER);
+    p.fill(0.0, 0.0, w, h, 6.0, panel::amber());
     p.text(&label, 12.0, h / 2.0, &style);
     let mut x = 12.0 + text_w + 12.0;
     for step in Rung::LADDER {
         let (y, radius) = ((h - PIP) / 2.0, 2.0);
         if step == rung {
-            p.fill(x, y, PIP, PIP, radius, INK);
+            p.fill(x, y, PIP, PIP, radius, ink);
         } else {
-            p.border(x, y, PIP, PIP, radius, 1.5, (INK & 0xffffff00) | 0x80);
+            p.border(x, y, PIP, PIP, radius, 1.5, (ink & 0xffffff00) | 0x80);
         }
         x += PIP + PIP_GAP;
     }
@@ -370,7 +377,9 @@ const TIPS_RINGS: i32 = 7;
 
 const TIPS_RING_STEP: f32 = 1.6;
 
-const TIPS_GLOW: u32 = panel::MINT;
+pub(super) fn tips_glow() -> u32 {
+    panel::mint()
+}
 
 /// Room around the docked pane for its frame and the shadow, in logical pixels.
 const DOCK_MARGIN: i32 = 64;
@@ -391,8 +400,8 @@ fn paint_dock_frame(size: (i32, i32), scale: f64) -> Option<paint::Painted> {
         let (x, y) = (m - edge, m - 2.0 * DOCK_RADIUS);
         let (wide, tall) = (w + 2.0 * edge, h + edge + 2.0 * DOCK_RADIUS);
         p.shadow(x, y, wide, tall, DOCK_RADIUS, 10.0, 40.0, 0x00000040);
-        p.fill(x, y, wide, tall, DOCK_RADIUS, panel::CHIP | 0xe6);
-        p.border(x, y, wide, tall, DOCK_RADIUS, 1.0, panel::DIVIDER);
+        p.fill(x, y, wide, tall, DOCK_RADIUS, panel::chip() | 0xe6);
+        p.border(x, y, wide, tall, DOCK_RADIUS, 1.0, panel::divider());
         p.clear(0.0, 0.0, logical.w as f32, m - edge);
         p.clear(m, m, w, h);
     })
@@ -440,14 +449,14 @@ impl Chrome {
 
 /// Bullet time's key legend, a pill of its keys laid out in design pixels, painted at `scale`.
 pub(super) fn paint_legend(scale: f64) -> Option<paint::Painted> {
-    let style = Style::new(Face::Mono, 13.0, panel::HINT);
+    let style = Style::new(Face::Mono, 13.0, panel::hint());
     let legend = bullet::legend();
     let (w, h) = (text::width(&legend, &style) + 32.0, 13.0 * 1.2 + 16.0);
     let logical =
         Size::<i32, Logical>::from(((w * DESIGN_PX).ceil() as i32, (h * DESIGN_PX).ceil() as i32));
     paint::Painted::new(logical, scale, |p| {
         p.f *= DESIGN_PX;
-        p.fill(0.0, 0.0, w, h, 10.0, panel::CHIP | 0xcc);
+        p.fill(0.0, 0.0, w, h, 10.0, panel::chip() | 0xcc);
         p.text(&legend, 16.0, h / 2.0, &style);
     })
 }
@@ -456,7 +465,7 @@ pub(super) fn paint_legend(scale: f64) -> Option<paint::Painted> {
 /// saying what to press, inside a soft glow drawn as rings fading outwards. The glow is baked in
 /// and the whole thing is faded in and out as it floats, so nothing repaints per frame.
 pub(super) fn paint_tips(scale: f64, key: &str) -> Option<(Pixmap, Size<i32, Logical>)> {
-    let words = Style::new(Face::Mono, 14.0, panel::PROSE);
+    let words = Style::new(Face::Mono, 14.0, panel::prose());
     let pill_w = (TIPS_PAD
         + text::width(TIPS_TEXT, &words)
         + TIPS_GAP
@@ -465,7 +474,7 @@ pub(super) fn paint_tips(scale: f64, key: &str) -> Option<(Pixmap, Size<i32, Log
         .ceil();
     // Room around the pill for the glow to fade out into.
     let halo = TIPS_RINGS as f32 * TIPS_RING_STEP;
-    let under = Style::new(Face::Body, 13.0, panel::PLACEHOLDER);
+    let under = Style::new(Face::Body, 13.0, panel::placeholder());
     let under_w = text::width(TIPS_UNDER.0, &under)
         + 2.0 * TIPS_UNDER_SPACE
         + paint::keycap_width(TIPS_UNDER_KEY)
@@ -494,7 +503,7 @@ pub(super) fn paint_tips(scale: f64, key: &str) -> Option<(Pixmap, Size<i32, Log
             TIPS_H + 2.0 * grow,
             radius,
             TIPS_RING_STEP,
-            (TIPS_GLOW & 0xffffff00) | alpha,
+            (tips_glow() & 0xffffff00) | alpha,
         );
     }
     p.fill(
@@ -503,7 +512,7 @@ pub(super) fn paint_tips(scale: f64, key: &str) -> Option<(Pixmap, Size<i32, Log
         pill_w,
         TIPS_H,
         TIPS_H / 2.0,
-        panel::CHIP | 0xe0,
+        panel::chip() | 0xe0,
     );
     p.border(
         pill_x,
@@ -512,7 +521,7 @@ pub(super) fn paint_tips(scale: f64, key: &str) -> Option<(Pixmap, Size<i32, Log
         TIPS_H,
         TIPS_H / 2.0,
         1.0,
-        (TIPS_GLOW & 0xffffff00) | 0x66,
+        (tips_glow() & 0xffffff00) | 0x66,
     );
     let centre = halo + TIPS_H / 2.0;
     p.text(TIPS_TEXT, pill_x + TIPS_PAD, centre, &words);

@@ -20,6 +20,7 @@ use crate::{
     miniature,
     motion::HYPR,
     paint::{self, Painted, Painter},
+    palette,
     panel::{self, DESIGN_PX},
     text::{self, Face, Style},
     tour::{self, CHAPTERS, LESSONS},
@@ -461,6 +462,13 @@ impl Sheet {
         self.shown = None;
     }
 
+    /// Paints the card and the tour's miniature again next frame: the colours they were painted
+    /// in have changed.
+    pub fn forget_painted(&mut self) {
+        self.shown = None;
+        self.stage_shown = None;
+    }
+
     /// A key while it's open. On the tour, Enter and the arrows step through the lessons and Esc
     /// goes back to the list. Otherwise typing filters the rows; Esc clears the filter, then
     /// closes.
@@ -678,37 +686,45 @@ fn paint_tour(look: &Look, step: usize, tried: bool, names: &KeyNames) -> Option
     let mut x = fx + PADDING;
     for (n, chapter) in CHAPTERS.iter().enumerate() {
         let (face, ink) = match n.cmp(&lesson.chapter) {
-            std::cmp::Ordering::Equal => (Face::BodyBold, panel::INK),
-            std::cmp::Ordering::Less => (Face::Body, panel::SECONDARY),
-            std::cmp::Ordering::Greater => (Face::Body, panel::PLACEHOLDER),
+            std::cmp::Ordering::Equal => (Face::BodyBold, panel::ink()),
+            std::cmp::Ordering::Less => (Face::Body, panel::secondary()),
+            std::cmp::Ordering::Greater => (Face::Body, panel::placeholder()),
         };
         let w = p.text(chapter, x, centre, &Style::new(face, 15.0, ink));
         if n == lesson.chapter {
-            p.fill(x, fy + HEAD_H - 2.0, w, 2.0, 1.0, panel::AMBER);
+            p.fill(x, fy + HEAD_H - 2.0, w, 2.0, 1.0, panel::amber());
         }
         x += w + 26.0;
     }
     let right_x = fx + width - PADDING - paint::keycap_width("Esc");
     p.keycap("Esc", right_x, centre);
-    p.fill(fx, fy + HEAD_H, width, 1.0, 0.0, panel::DIVIDER);
+    p.fill(fx, fy + HEAD_H, width, 1.0, 0.0, panel::divider());
 
     // The miniature's place, filled in case a frame shows before it's painted.
     let (sx, sy, sw, sh) = layout.stage;
     let (sx, sy) = (fx + sx, fy + sy);
-    p.border(sx - 1.0, sy - 1.0, sw + 2.0, sh + 2.0, 9.0, 1.0, 0xffffff1f);
-    p.fill(sx, sy, sw, sh, 8.0, 0x0b0d12ff);
+    p.border(
+        sx - 1.0,
+        sy - 1.0,
+        sw + 2.0,
+        sh + 2.0,
+        9.0,
+        1.0,
+        palette::tone(0xffffff1f),
+    );
+    p.fill(sx, sy, sw, sh, 8.0, palette::tone(0x0b0d12ff));
 
     // The words, beside it.
     let cx = sx + sw + TOUR_COLUMN_GAP;
     let cw = fx + width - PADDING - cx;
     let mut y = sy + 12.0;
-    let title = Style::new(Face::BodyBold, 26.0, panel::BRIGHT);
+    let title = Style::new(Face::BodyBold, 26.0, panel::bright());
     for line in text::wrap(lesson.title, &title, cw) {
         p.text(&line, cx, y, &title);
         y += 32.0;
     }
     y += 8.0;
-    let why = Style::new(Face::Body, 16.0, panel::PROSE);
+    let why = Style::new(Face::Body, 16.0, panel::prose());
     for line in text::wrap(&names.fill(lesson.why), &why, cw) {
         p.text(&line, cx, y, &why);
         y += 24.0;
@@ -718,7 +734,7 @@ fn paint_tour(look: &Look, step: usize, tried: bool, names: &KeyNames) -> Option
         y += 14.0;
         p.text("FROM WINDOWS", cx, y, &panel::section_style());
         y += 22.0;
-        let words = Style::new(Face::Body, 15.0, panel::SECONDARY);
+        let words = Style::new(Face::Body, 15.0, panel::secondary());
         for line in text::wrap(habit, &words, cw) {
             p.text(&line, cx, y, &words);
             y += 22.0;
@@ -743,7 +759,7 @@ fn paint_tour(look: &Look, step: usize, tried: bool, names: &KeyNames) -> Option
             let name = style.label().trim_end_matches(" style");
             let (face, ink) = match style == names.style() {
                 true => (Face::BodyBold, ring),
-                false => (Face::Body, panel::SECONDARY),
+                false => (Face::Body, panel::secondary()),
             };
             key_x += p.text(name, key_x, keys_y, &Style::new(face, 15.0, ink)) + 22.0;
         }
@@ -761,7 +777,7 @@ fn paint_tour(look: &Look, step: usize, tried: bool, names: &KeyNames) -> Option
 
     // The foot: a mark for every lesson, grouped by chapter, and the keys that move on.
     let foot = fy + height - TOUR_FOOT_H;
-    p.fill(fx, foot, width, 1.0, 0.0, panel::DIVIDER);
+    p.fill(fx, foot, width, 1.0, 0.0, panel::divider());
     let centre = foot + TOUR_FOOT_H / 2.0;
     let mut mark_x = fx + PADDING;
     for (n, each) in LESSONS.iter().enumerate() {
@@ -769,9 +785,9 @@ fn paint_tour(look: &Look, step: usize, tried: bool, names: &KeyNames) -> Option
             mark_x += 10.0;
         }
         let shade = match n.cmp(&step) {
-            std::cmp::Ordering::Less => 0xffffff59,
-            std::cmp::Ordering::Equal => panel::AMBER,
-            std::cmp::Ordering::Greater => 0xffffff1f,
+            std::cmp::Ordering::Less => palette::tone(0xffffff59),
+            std::cmp::Ordering::Equal => panel::amber(),
+            std::cmp::Ordering::Greater => palette::tone(0xffffff1f),
         };
         p.fill(mark_x, centre - 1.5, 16.0, 3.0, 1.5, shade);
         mark_x += 20.0;
@@ -877,26 +893,33 @@ fn paint(look: &Look, sections: &[Section]) -> Option<Painted> {
             "Keyboard shortcuts",
             x,
             centre,
-            &Style::new(Face::Body, 22.0, panel::INK),
+            &Style::new(Face::Body, 22.0, panel::ink()),
         );
         let title_w = text::width(
             "Keyboard shortcuts",
-            &Style::new(Face::Body, 22.0, panel::INK),
+            &Style::new(Face::Body, 22.0, panel::ink()),
         );
         p.text(
             "type to filter",
             x + title_w + 16.0,
             centre + 1.0,
-            &Style::new(Face::Body, 15.0, panel::PLACEHOLDER),
+            &Style::new(Face::Body, 15.0, panel::placeholder()),
         );
     } else {
         let typed = p.text(
             &look.query,
             x,
             centre,
-            &Style::new(Face::Body, 22.0, panel::BRIGHT),
+            &Style::new(Face::Body, 22.0, panel::bright()),
         );
-        p.fill(x + typed + 2.0, centre - 11.0, 3.0, 22.0, 0.0, panel::AMBER);
+        p.fill(
+            x + typed + 2.0,
+            centre - 11.0,
+            3.0,
+            22.0,
+            0.0,
+            panel::amber(),
+        );
     }
     let mut right_x = fx + width - PADDING - paint::keycap_width("Esc");
     p.keycap("Esc", right_x, centre);
@@ -905,24 +928,24 @@ fn paint(look: &Look, sections: &[Section]) -> Option<Painted> {
     // under a finger. Laid out from where that finished, so the two can never run together.
     if look.query.is_empty() {
         let says = "take the tour";
-        let hint = Style::new(Face::Body, 15.0, panel::PLACEHOLDER);
+        let hint = Style::new(Face::Body, 15.0, panel::placeholder());
         right_x -= 14.0 + text::width(says, &hint);
         p.text(says, right_x, centre + 1.0, &hint);
         right_x -= KEY_GAP + paint::keycap_width("⏎");
         p.keycap("⏎", right_x, centre);
     }
-    p.fill(fx, fy + HEAD_H, width, 1.0, 0.0, panel::DIVIDER);
+    p.fill(fx, fy + HEAD_H, width, 1.0, 0.0, panel::divider());
 
     let column_w = (width - 2.0 * PADDING - COLUMN_GAP) / 2.0;
     let title = panel::section_style();
-    let does = Style::new(Face::Body, 15.0, 0xcdd6f4ff);
+    let does = Style::new(Face::Body, 15.0, palette::tone(0xcdd6f4ff));
     let top = fy + HEAD_H + 16.0;
     if sections.is_empty() {
         p.text(
             &format!("No keys match “{}”.", look.query.trim()),
             fx + PADDING,
             top + 20.0,
-            &Style::new(Face::Body, 16.0, panel::HINT),
+            &Style::new(Face::Body, 16.0, panel::hint()),
         );
     }
     for (column, list) in [left, right].iter().enumerate() {

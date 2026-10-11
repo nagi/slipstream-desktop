@@ -71,6 +71,7 @@ mod offer;
 mod osd;
 mod overview;
 mod paint;
+mod palette;
 mod pane;
 mod panel;
 mod power;
@@ -172,6 +173,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // A living-wallpaper variation drawn off screen for the Settings app's previews: no display,
     // no GPU, and nothing else started.
     if args.first().map(String::as_str) == Some("--wallpaper-preview") {
+        // In the colours the desktop is drawn in, as the wallpaper itself will be.
+        let settings = settings::startup();
+        palette::set(settings.palette(settings.appearance.theme().as_ref()));
         let done = saver::preview::Request::parse(&args[1..])
             .and_then(|request| saver::preview::run(&request));
         if let Err(err) = done {
@@ -250,6 +254,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     watch::watch_recent_files(&event_loop.handle());
     // Settings apply as soon as they're saved.
     watch::watch_settings(&event_loop.handle());
+    watch::watch_theme(&event_loop.handle());
     // A fallback face loaded on its own thread wakes the loop, which takes it in between paints.
     {
         use smithay::reexports::calloop::ping;
@@ -294,7 +299,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Dark or light, for every app that asks the desktop. Nested, the desktop Slipstream runs
     // inside already answers that for its own apps.
     if session || std::env::var("SLIPSTREAM_APPEARANCE").as_deref() == Ok("1") {
-        appearance::serve(state.settings.appearance.colour_scheme);
+        appearance::serve(appearance::Look::of(&state.settings, state.theme.as_ref()));
     }
 
     if hardware {

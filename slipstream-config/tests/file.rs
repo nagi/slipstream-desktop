@@ -29,6 +29,7 @@ fn written_settings_read_back_and_leave_nothing_else_behind() {
     let settings = Settings {
         appearance: Appearance {
             colour_scheme: ColourScheme::Light,
+            follow_omarchy_theme: false,
         },
         wallpaper: Wallpaper {
             fade_after_secs: 600,
@@ -54,7 +55,7 @@ fn written_settings_read_back_and_leave_nothing_else_behind() {
         },
         borders: Borders {
             selected_tile: "#3cf0c0".into(),
-            bullet_time: "#ff9b3d".into(),
+            highlight: "#ff9b3d".into(),
         },
         session: Session {
             remember: true,

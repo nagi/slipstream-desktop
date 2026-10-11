@@ -92,6 +92,11 @@ pub struct LowCard {
 }
 
 impl LowCard {
+    /// Paints it again next frame: the colours it was painted in have changed.
+    pub fn forget_painted(&mut self) {
+        self.shown = None;
+    }
+
     fn new(percent: u8, left: Option<String>, now: f64, reduced_motion: bool) -> Self {
         Self {
             since: now,

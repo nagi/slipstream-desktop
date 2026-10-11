@@ -24,7 +24,8 @@ use crate::{
     motion::{HYPR, REDUCED_FADE},
     notify::{self, Image, Incoming, Reason},
     paint::{self, Painted, Painter},
-    panel::{self, DESIGN_PX, INK},
+    palette,
+    panel::{self, DESIGN_PX, ink},
     text::{self, Face, Style},
 };
 

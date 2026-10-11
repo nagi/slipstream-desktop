@@ -6,6 +6,7 @@
 //! `--screenshot PATH` draws the window into a PNG and quits (`--page ID` picks the page), to
 //! check how it looks without opening it on screen; GTK's Broadway backend works for that.
 
+mod colours;
 mod fonts;
 mod pages;
 mod power;
@@ -89,6 +90,13 @@ impl Store {
 
     pub fn path(&self) -> &Path {
         &self.path
+    }
+
+    /// Takes the file as it stands now, for a page built again after something else changed it.
+    pub fn reload(&self) {
+        if let Ok(on_disk) = slipstream_config::read(&self.path) {
+            *self.settings.borrow_mut() = on_disk;
+        }
     }
 
     /// Changes the settings and saves them. Slipstream picks the change up from the file.
@@ -210,33 +218,89 @@ fn focus_css(rgb: [f32; 3]) -> String {
     )
 }
 
-/// Slipstream's colours, spacing and fonts, over GTK's dark theme.
+thread_local! {
+    /// The window's stylesheet, and the keyboard's outline over it: loaded again whenever the
+    /// colours the desktop is drawn in change.
+    static STYLE: (gtk::CssProvider, gtk::CssProvider) =
+        (gtk::CssProvider::new(), gtk::CssProvider::new());
+    /// What else wants telling when they change: the Appearance page, which says which theme is
+    /// followed.
+    static RESTYLED: RefCell<Vec<Box<dyn Fn()>>> = RefCell::default();
+    /// Watches Omarchy's theme for as long as the app runs.
+    static THEME_WATCH: RefCell<Option<gio::FileMonitor>> = RefCell::default();
+}
+
+/// Slipstream's colours, spacing and fonts: its own over GTK's dark theme, or those of the
+/// Omarchy theme the desktop follows, and followed from here on as the desktop follows it.
 fn style() {
     let Some(display) = gdk::Display::default() else {
         return;
     };
-    let provider = gtk::CssProvider::new();
-    provider.load_from_string(include_str!("style.css"));
-    gtk::style_context_add_provider_for_display(
-        &display,
-        &provider,
-        gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
-    );
-    // The keyboard's outline is the focus ring's colour, as it is on the desktop.
-    let ring = slipstream_config::read(&slipstream_config::path())
-        .unwrap_or_default()
-        .borders
-        .selected_tile_rgb();
-    let focus = gtk::CssProvider::new();
-    focus.load_from_string(&focus_css(ring));
-    gtk::style_context_add_provider_for_display(
-        &display,
-        &focus,
-        gtk::STYLE_PROVIDER_PRIORITY_APPLICATION + 1,
-    );
-    if let Some(settings) = gtk::Settings::default() {
-        settings.set_gtk_application_prefer_dark_theme(true);
+    STYLE.with(|(sheet, focus)| {
+        gtk::style_context_add_provider_for_display(
+            &display,
+            sheet,
+            gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
+        );
+        gtk::style_context_add_provider_for_display(
+            &display,
+            focus,
+            gtk::STYLE_PROVIDER_PRIORITY_APPLICATION + 1,
+        );
+    });
+    restyle();
+    // `omarchy theme set` moves the new theme into place and then writes its name, so the
+    // colours are read once that has settled. Where there is no Omarchy there is no folder, and
+    // nothing to watch.
+    let current = gio::File::for_path(slipstream_config::theme::current_dir());
+    let watch = current.monitor_directory(gio::FileMonitorFlags::NONE, gio::Cancellable::NONE);
+    if let Ok(watch) = watch {
+        let pending = Rc::new(std::cell::Cell::new(false));
+        watch.connect_changed(move |_, _, _, _| {
+            if pending.replace(true) {
+                return;
+            }
+            let pending = Rc::clone(&pending);
+            glib::timeout_add_local_once(Duration::from_millis(300), move || {
+                pending.set(false);
+                restyle();
+            });
+        });
+        THEME_WATCH.with(|held| held.replace(Some(watch)));
     }
+}
+
+/// Loads the stylesheet in the colours the desktop is drawn in now, and tells whoever asked to
+/// hear of it (`when_restyled`).
+pub fn restyle() {
+    let settings = slipstream_config::read(&slipstream_config::path()).unwrap_or_default();
+    let palette = colours::palette(&settings);
+    let css = include_str!("style.css");
+    STYLE.with(|(sheet, focus)| {
+        match &palette {
+            Some(palette) => sheet.load_from_string(&colours::in_theme(css, palette)),
+            None => sheet.load_from_string(css),
+        }
+        // The keyboard's outline is the focus ring's colour, as it is on the desktop.
+        let ring = settings
+            .borders
+            .ring_rgb(settings.appearance.theme().as_ref());
+        focus.load_from_string(&focus_css(ring));
+    });
+    if let Some(gtk_settings) = gtk::Settings::default() {
+        let light = palette.is_some_and(|palette| palette.light);
+        gtk_settings.set_gtk_application_prefer_dark_theme(!light);
+    }
+    RESTYLED.with(|told| {
+        for tell in told.borrow().iter() {
+            tell();
+        }
+    });
+}
+
+/// Calls `tell` whenever the colours the desktop is drawn in change.
+pub fn when_restyled(tell: impl Fn() + 'static) {
+    RESTYLED.with(|told| told.borrow_mut().push(Box::new(tell)));
 }
 
 fn activate(app: &gtk::Application, page: Option<&str>, screenshot: Option<PathBuf>) {

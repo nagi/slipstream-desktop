@@ -15,6 +15,7 @@ use smithay::{
 use crate::{
     glmatrix::{Band, Glyphs, Look},
     paint::{self, Painter},
+    palette,
     streaks::Streaks,
     usage::Meter,
 };
@@ -26,10 +27,14 @@ pub const TOP: i32 = 7;
 /// How round its corners are, in logical pixels.
 const RADIUS: f32 = 5.0;
 /// The dark card the light runs over: the streams' own.
-const CARD: u32 = 0x0b0d12ff;
+fn card() -> u32 {
+    palette::night(0x0b0d12ff)
+}
 /// Its edge, when the keyboard is elsewhere, and how strong it is in the ring's colour when the
 /// keyboard is in the pane.
-const EDGE: u32 = 0xffffff1c;
+fn edge() -> u32 {
+    palette::night(0xffffff1c)
+}
 const EDGE_HELD: u32 = 0xa6;
 /// How far inside the edge the light stops, in logical pixels.
 const INSET: f64 = 1.0;
@@ -50,7 +55,9 @@ const FRONT: f32 = 14.0;
 const FRONT_GLOW: f32 = 120.0;
 const AHEAD: f32 = 0.3;
 /// The edge's colour when the landing's flash is on it.
-const EDGE_FLASH: u32 = 0xffffffe6;
+fn edge_flash() -> u32 {
+    palette::night(0xffffffe6)
+}
 
 /// What the painted strip shows, beyond the light itself.
 #[derive(Clone, Copy, PartialEq)]
@@ -85,6 +92,12 @@ pub struct Slot {
 }
 
 impl Slot {
+    /// Paints it again next frame: the colours it was painted in have changed.
+    pub fn forget_painted(&mut self) {
+        self.painted = None;
+        self.look_load = None;
+    }
+
     /// A slot for an app called `name` whose process is `pid`, from `now` on the animation clock.
     pub fn new(name: String, pid: Option<u32>, now: f64) -> Self {
         Self {
@@ -305,11 +318,11 @@ fn edge_colour(keyboard: bool, ring: [f32; 3], flash: f32) -> u32 {
         let channel = |value: f32| (value.clamp(0.0, 1.0) * 255.0).round() as u32;
         (channel(ring[0]) << 24) | (channel(ring[1]) << 16) | (channel(ring[2]) << 8) | EDGE_HELD
     } else {
-        EDGE
+        edge()
     };
     let flash = flash.clamp(0.0, 1.0);
     let mix = |shift: u32| {
-        let (a, b) = ((rest >> shift) & 0xff, (EDGE_FLASH >> shift) & 0xff);
+        let (a, b) = ((rest >> shift) & 0xff, (edge_flash() >> shift) & 0xff);
         ((a as f32 + (b as f32 - a as f32) * flash).round() as u32) << shift
     };
     mix(24) | mix(16) | mix(8) | mix(0)
@@ -330,7 +343,7 @@ fn paint_strip(
     let radius = RADIUS * scale as f32;
     let (iw, ih) = inner;
     let mut p = Painter::new(w, h, 1.0)?;
-    p.fill(0.0, 0.0, w as f32, h as f32, radius, CARD);
+    p.fill(0.0, 0.0, w as f32, h as f32, radius, card());
     // The shape inside the edge that the light may fall on.
     let mut shape = Painter::new(iw as u32, ih as u32, 1.0)?;
     shape.fill(
@@ -375,8 +388,8 @@ mod tests {
         for pixel in light.chunks_exact_mut(4) {
             pixel[0] = 255;
         }
-        let strip = paint_strip(&light, GAIN_RAIN, (8, 6), 1, (6, 4), 1.0, EDGE).unwrap();
-        let dark = paint_strip(&[0u8; 96], GAIN_RAIN, (8, 6), 1, (6, 4), 1.0, EDGE).unwrap();
+        let strip = paint_strip(&light, GAIN_RAIN, (8, 6), 1, (6, 4), 1.0, edge()).unwrap();
+        let dark = paint_strip(&[0u8; 96], GAIN_RAIN, (8, 6), 1, (6, 4), 1.0, edge()).unwrap();
         let red = |p: &resvg::tiny_skia::Pixmap, x, y| p.pixel(x, y).unwrap().red();
         let middle = red(&strip, 4, 3);
         assert!(middle > red(&dark, 4, 3) + 100 && middle < 200, "{middle}");
@@ -451,10 +464,10 @@ mod tests {
     #[test]
     fn the_landing_flash_whitens_the_edge_and_leaves_it_as_it_was() {
         let ring = [0.2, 0.8, 1.0];
-        assert_eq!(edge_colour(false, ring, 0.0), EDGE);
-        assert_eq!(edge_colour(false, ring, 1.0), EDGE_FLASH);
-        assert_eq!(edge_colour(true, ring, 1.0), EDGE_FLASH);
+        assert_eq!(edge_colour(false, ring, 0.0), edge());
+        assert_eq!(edge_colour(false, ring, 1.0), edge_flash());
+        assert_eq!(edge_colour(true, ring, 1.0), edge_flash());
         let part = edge_colour(false, ring, 0.5);
-        assert!((part & 0xff) > (EDGE & 0xff) && (part & 0xff) < (EDGE_FLASH & 0xff));
+        assert!((part & 0xff) > (edge() & 0xff) && (part & 0xff) < (edge_flash() & 0xff));
     }
 }

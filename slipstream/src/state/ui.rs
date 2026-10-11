@@ -51,6 +51,10 @@ impl Slipstream {
         if !crate::fallback::take_landed() {
             return;
         }
+        self.forget_painted_text();
+    }
+
+    fn forget_painted_text(&mut self) {
         for chrome in self.chromes.values_mut() {
             chrome.forget_painted_text();
         }
@@ -69,6 +73,63 @@ impl Slipstream {
         }
         if let Some(share) = self.share.as_mut() {
             share.forget_painted_text();
+        }
+    }
+
+    /// The colours have changed: everything Slipstream painted in the old ones is painted again.
+    /// The living wallpaper sees the change for itself (`saver::Inks`), and whatever is drawn
+    /// afresh every frame needs no telling.
+    fn forget_painted(&mut self) {
+        self.forget_painted_text();
+        for chrome in self.chromes.values_mut() {
+            chrome.forget_painted();
+        }
+        self.sheet.forget_painted();
+        self.rain.forget_painted();
+        self.osd.forget_painted();
+        self.history.forget_painted();
+        self.scope.forget_painted();
+        if let Some(card) = self.battery.card.as_mut() {
+            card.forget_painted();
+        }
+        if let Some(switcher) = self.switcher.as_mut() {
+            switcher.forget_painted();
+        }
+        if let Some(arrange) = self.arrange.as_mut() {
+            arrange.forget_painted();
+        }
+        if let Some(connect) = self.connect.as_mut() {
+            connect.forget_painted_text();
+        }
+        if let Some(lock) = self.lock.as_mut() {
+            lock.forget_painted();
+        }
+        for slot in [&mut self.dock_slot, &mut self.dock_slot_leaving] {
+            if let Some(slot) = slot.as_mut() {
+                slot.forget_painted();
+            }
+        }
+    }
+
+    /// Takes up the Omarchy theme as it stands, or Slipstream's own colours where none is
+    /// followed: when Slipstream starts, when Omarchy changes its theme (`watch.rs` follows
+    /// it), and when the settings change what is followed or what the rings are.
+    pub fn apply_theme(&mut self) {
+        let theme = self.settings.appearance.theme();
+        let palette = self.settings.palette(theme.as_ref());
+        self.ring_rgb = self.settings.borders.ring_rgb(theme.as_ref());
+        self.rain.set_ring_colour(self.ring_rgb);
+        // Apps hear about it over the settings portal, and change without restarting.
+        crate::appearance::set(crate::appearance::Look::of(&self.settings, theme.as_ref()));
+        if theme != self.theme {
+            match &theme {
+                Some(theme) => tracing::info!(name = theme.name, "following the Omarchy theme"),
+                None => tracing::info!("drawn in Slipstream's own colours"),
+            }
+            self.theme = theme;
+        }
+        if crate::palette::set(palette) {
+            self.forget_painted();
         }
     }
 
@@ -286,18 +347,13 @@ impl Slipstream {
             self.night.schedule_changed();
         }
         self.set_reduced_motion(settings.motion.reduced);
-        // Apps hear about dark and light over the settings portal, and change without restarting.
-        crate::appearance::set(settings.appearance.colour_scheme);
         meter::configure(&settings.meter);
         let now = self.clock.tick();
         self.wallpaper = settings.wallpaper.clone();
         for saver in self.savers.values_mut() {
             saver.set_wallpaper(&settings.wallpaper, now);
         }
-        self.ring_rgb = settings.borders.selected_tile_rgb();
-        self.rain.set_ring_colour(self.ring_rgb);
         self.rain.set_effects(settings.motion.effects);
-        self.bullet_rgb = settings.borders.bullet_time_rgb();
         if settings.run_or_raise != self.settings.run_or_raise || settings.keys != self.settings.keys
         {
             self.set_run_or_raise(&settings.run_or_raise, settings.keys.style);
@@ -331,6 +387,8 @@ impl Slipstream {
             }
         }
         self.settings = settings;
+        // The rings' colours, dark or light for apps, and whether a theme is followed at all.
+        self.apply_theme();
         // The screens were moved about in Settings: put them where they are now said to be, and
         // re-tile, since every workspace's area has changed with them.
         if rearrange {
