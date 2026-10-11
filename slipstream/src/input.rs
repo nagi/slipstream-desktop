@@ -16,7 +16,10 @@ use smithay::{
             RelativeMotionEvent,
         },
     },
-    reexports::calloop::timer::{TimeoutAction, Timer},
+    reexports::{
+        calloop::timer::{TimeoutAction, Timer},
+        wayland_server::Resource,
+    },
     utils::{Logical, Point, SERIAL_COUNTER},
     wayland::{compositor::with_states, seat::WaylandFocus, shell::xdg::XdgToplevelSurfaceData},
 };
@@ -1495,6 +1498,10 @@ impl Slipstream {
     /// The keyboard's own state isn't touched. `set_modifier_state` would do the same through it,
     /// but it loses the layout on the way, and whoever types in a second layout would be back in
     /// the first after every paste.
+    ///
+    /// The key goes to the app's own keyboards and not through the keyboard's grab. An input
+    /// method holds that grab for as long as the app is taking text, in a terminal all the time,
+    /// and would be handed the key without the modifiers the app was just told of.
     fn send_chord(&mut self, chord: crate::copypaste::Chord) {
         // Shift and Control are real modifiers, which have the same place in every keymap.
         const SHIFT: u32 = 1 << 0;
@@ -1520,12 +1527,17 @@ impl Slipstream {
         sent.serialized.depressed =
             if chord.ctrl { CONTROL } else { 0 } | if chord.shift { SHIFT } else { 0 };
         sent.serialized.latched = 0;
-        let time = InputTime::now();
+        let Some(client) = focus.wl_surface().and_then(|surface| surface.client()) else {
+            return;
+        };
+        let time = InputTime::now().millis();
         let seat = self.seat.clone();
         focus.modifiers(&seat, self, sent, SERIAL_COUNTER.next_serial());
         for state in [KeyState::Pressed, KeyState::Released] {
             let serial = SERIAL_COUNTER.next_serial();
-            keyboard.input_forward(self, keycode, state, serial, time, false);
+            for wl_keyboard in keyboard.client_keyboards(&client) {
+                wl_keyboard.key(serial.into(), time, keycode.raw() - 8, state.into());
+            }
         }
         focus.modifiers(&seat, self, held, SERIAL_COUNTER.next_serial());
     }
