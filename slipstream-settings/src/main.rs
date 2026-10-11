@@ -6,6 +6,7 @@
 //! `--screenshot PATH` draws the window into a PNG and quits (`--page ID` picks the page), to
 //! check how it looks without opening it on screen; GTK's Broadway backend works for that.
 
+mod colours;
 mod fonts;
 mod harmony;
 mod pages;
@@ -91,6 +92,13 @@ impl Store {
 
     pub fn path(&self) -> &Path {
         &self.path
+    }
+
+    /// Takes the file as it stands now, for a page built again after something else changed it.
+    pub fn reload(&self) {
+        if let Ok(on_disk) = slipstream_config::read(&self.path) {
+            *self.settings.borrow_mut() = on_disk;
+        }
     }
 
     /// Changes the settings and saves them. Slipstream picks the change up from the file.
@@ -281,27 +289,30 @@ fn hue_css() -> String {
     )
 }
 
-/// Slipstream's colours, spacing and fonts, over GTK's dark theme.
+thread_local! {
+    /// The window's stylesheet, loaded again whenever the colours the desktop is drawn in
+    /// change.
+    static SHEET: gtk::CssProvider = gtk::CssProvider::new();
+    /// What else wants telling when they change: the Appearance page, which says which theme is
+    /// followed.
+    static RESTYLED: RefCell<Vec<Box<dyn Fn()>>> = RefCell::default();
+    /// Watches Omarchy's theme for as long as the app runs.
+    static THEME_WATCH: RefCell<Option<gio::FileMonitor>> = RefCell::default();
+}
+
+/// Slipstream's colours, spacing and fonts: its own over GTK's dark theme, or those of the
+/// Omarchy theme the desktop follows, and followed from here on as the desktop follows it.
 fn style() {
     let Some(display) = gdk::Display::default() else {
         return;
     };
-    let provider = gtk::CssProvider::new();
-    provider.load_from_string(include_str!("style.css"));
-    gtk::style_context_add_provider_for_display(
-        &display,
-        &provider,
-        gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
-    );
-    // The controls take Slipstream's three colours, as the desktop does.
-    let borders = slipstream_config::read(&slipstream_config::path())
-        .unwrap_or_default()
-        .borders;
-    restyle([
-        borders.selected_tile_rgb(),
-        borders.bullet_time_rgb(),
-        borders.accent_rgb(),
-    ]);
+    SHEET.with(|sheet| {
+        gtk::style_context_add_provider_for_display(
+            &display,
+            sheet,
+            gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
+        );
+    });
     let rainbow = gtk::CssProvider::new();
     rainbow.load_from_string(&hue_css());
     COLOURS.with(|colours| {
@@ -313,9 +324,59 @@ fn style() {
             );
         }
     });
-    if let Some(settings) = gtk::Settings::default() {
-        settings.set_gtk_application_prefer_dark_theme(true);
+    retheme();
+    // `omarchy theme set` moves the new theme into place and then writes its name, so the
+    // colours are read once that has settled. Where there is no Omarchy there is no folder, and
+    // nothing to watch.
+    let current = gio::File::for_path(slipstream_config::theme::current_dir());
+    let watch = current.monitor_directory(gio::FileMonitorFlags::NONE, gio::Cancellable::NONE);
+    if let Ok(watch) = watch {
+        let pending = Rc::new(std::cell::Cell::new(false));
+        watch.connect_changed(move |_, _, _, _| {
+            if pending.replace(true) {
+                return;
+            }
+            let pending = Rc::clone(&pending);
+            glib::timeout_add_local_once(Duration::from_millis(300), move || {
+                pending.set(false);
+                retheme();
+            });
+        });
+        THEME_WATCH.with(|held| held.replace(Some(watch)));
     }
+}
+
+/// Loads the stylesheet and the three colours as the desktop is drawn in them now, and tells
+/// whoever asked to hear of it (`when_restyled`).
+pub fn retheme() {
+    let settings = slipstream_config::read(&slipstream_config::path()).unwrap_or_default();
+    let palette = colours::palette(&settings);
+    let css = include_str!("style.css");
+    SHEET.with(|sheet| match &palette {
+        Some(palette) => sheet.load_from_string(&colours::in_theme(css, palette)),
+        None => sheet.load_from_string(css),
+    });
+    // The controls take Slipstream's three colours, as the desktop does.
+    let (borders, theme) = (&settings.borders, settings.appearance.theme());
+    restyle([
+        borders.selected_tile_rgb(theme.as_ref()),
+        borders.bullet_time_rgb(theme.as_ref()),
+        borders.accent_rgb(theme.as_ref()),
+    ]);
+    if let Some(gtk_settings) = gtk::Settings::default() {
+        let light = palette.is_some_and(|palette| palette.light);
+        gtk_settings.set_gtk_application_prefer_dark_theme(!light);
+    }
+    RESTYLED.with(|told| {
+        for tell in told.borrow().iter() {
+            tell();
+        }
+    });
+}
+
+/// Calls `tell` whenever the colours the desktop is drawn in change.
+pub fn when_restyled(tell: impl Fn() + 'static) {
+    RESTYLED.with(|told| told.borrow_mut().push(Box::new(tell)));
 }
 
 fn activate(app: &gtk::Application, page: Option<&str>, screenshot: Option<PathBuf>) {

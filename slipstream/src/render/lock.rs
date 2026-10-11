@@ -5,7 +5,7 @@ use super::*;
 
 /// The lock's veil, premultiplied as the renderer takes colours.
 pub(super) fn veil_colour() -> Color32F {
-    let [r, g, b, a] = crate::lock::VEIL;
+    let [r, g, b, a] = crate::lock::veil();
     Color32F::new(r * a, g * a, b * a, a)
 }
 

@@ -183,7 +183,7 @@ impl Explorer {
 
         // The side column: answer, emoji, settings, files, run, system.
         let side_x = card.x + apps_w;
-        p.fill(side_x, body_y, 1.0, BODY_H, 0.0, panel::DIVIDER);
+        p.fill(side_x, body_y, 1.0, BODY_H, 0.0, panel::divider());
         let mut side = Side {
             p: &mut p,
             look,
@@ -212,14 +212,14 @@ impl Explorer {
             card.x + panel::HEAD_INSET,
             centre - 14.0,
             28.0,
-            Some(panel::HINT),
+            Some(panel::hint()),
         );
         let mut x = card.x + panel::HEAD_INSET + 28.0 + 16.0;
         x += p.text(
             &look.query,
             x,
             centre,
-            &Style::new(Face::Body, 27.0, panel::BRIGHT),
+            &Style::new(Face::Body, 27.0, panel::bright()),
         );
         // In logical pixels from the painted area's corner.
         self.caret_at = Point::from((
@@ -231,7 +231,7 @@ impl Explorer {
                 "Apps, files, settings, sums, :emoji",
                 x + 9.0,
                 centre,
-                &Style::new(Face::Body, 27.0, panel::PLACEHOLDER),
+                &Style::new(Face::Body, 27.0, panel::placeholder()),
             );
         }
         panel::key_hint(
@@ -247,7 +247,7 @@ impl Explorer {
             card.width,
             1.0,
             0.0,
-            panel::DIVIDER,
+            panel::divider(),
         );
     }
 
@@ -274,7 +274,7 @@ impl Explorer {
                 &message,
                 card.x + 30.0,
                 body_y + 62.0,
-                &Style::new(Face::Body, 16.0, panel::HINT),
+                &Style::new(Face::Body, 16.0, panel::hint()),
             );
         }
         let icon_px = (ICON * p.f).round() as u32;
@@ -311,7 +311,11 @@ impl Explorer {
             let style = Style::new(
                 Face::Body,
                 15.0,
-                if selected { 0xffffffff } else { panel::INK },
+                if selected {
+                    palette::tone(0xffffffff)
+                } else {
+                    panel::ink()
+                },
             );
             let name = text::ellipsize(&app.name, &style, tile_w - 12.0);
             let name_w = text::width(&name, &style);
@@ -342,7 +346,14 @@ impl Explorer {
             let track = ROWS as f32 * (TILE_H + TILE_GAP) - TILE_GAP;
             let thumb = track * ROWS as f32 / rows as f32;
             let top = body_y + 20.0 + track * look.scroll as f32 / rows as f32;
-            p.fill(card.x + apps_w - 9.0, top, 3.0, thumb, 1.5, 0xffffff26);
+            p.fill(
+                card.x + apps_w - 9.0,
+                top,
+                3.0,
+                thumb,
+                1.5,
+                palette::tone(0xffffff26),
+            );
         }
     }
 
@@ -507,7 +518,7 @@ fn paint_footer(
     run_opens: bool,
 ) {
     let foot_y = card.y + SEARCH_H + 1.0 + BODY_H;
-    p.fill(card.x, foot_y, card.width, 1.0, 0.0, panel::DIVIDER);
+    p.fill(card.x, foot_y, card.width, 1.0, 0.0, panel::divider());
     let mut right = card.x + card.width - 22.0;
     let chosen = results.items().into_iter().nth(look.selected);
     let enter = match &chosen {
@@ -698,15 +709,19 @@ pub(super) fn answer_row(
         x + 12.0,
         centre - 11.0,
         22.0,
-        Some(panel::TERTIARY),
+        Some(panel::tertiary()),
     );
     let right = x + w - 12.0;
     let hint = "copy";
-    let hint_style = Style::new(Face::Body, 12.0, panel::HINT);
+    let hint_style = Style::new(Face::Body, 12.0, panel::hint());
     let hint_w = text::width(hint, &hint_style);
     p.text(hint, right - hint_w, centre, &hint_style);
     let room = w - 46.0 - hint_w - 24.0;
-    let colour = if selected { 0xffffffff } else { panel::INK };
+    let colour = if selected {
+        palette::tone(0xffffffff)
+    } else {
+        panel::ink()
+    };
     let style = Style::new(Face::Body, 15.0, colour);
     // What was understood, the value, and any unit after it: `5 km = ` `3.107` ` mi`.
     let (lead, value, tail) = match answer.shown.rfind(&answer.value) {
@@ -762,13 +777,13 @@ pub(super) fn side_row(p: &mut Painter, x: f32, y: f32, w: f32, row: &Row, ring:
     }
     let centre = y + ROW_H / 2.0;
     let ink = if row.dim {
-        panel::HINT
+        panel::hint()
     } else {
-        panel::TERTIARY
+        panel::tertiary()
     };
     match row.glyph {
         Some(glyph) => {
-            let style = Style::new(Face::Body, 20.0, panel::BRIGHT);
+            let style = Style::new(Face::Body, 20.0, panel::bright());
             let glyph_w = text::width(glyph, &style);
             p.text(glyph, x + 12.0 + (22.0 - glyph_w) / 2.0, centre, &style);
         }
@@ -782,18 +797,18 @@ pub(super) fn side_row(p: &mut Painter, x: f32, y: f32, w: f32, row: &Row, ring:
             p.keycap(trailing, right - tw, centre);
             room -= tw + 12.0;
         } else {
-            let style = Style::new(Face::Body, 12.0, panel::HINT);
+            let style = Style::new(Face::Body, 12.0, panel::hint());
             let tw = text::width(trailing, &style);
             p.text(trailing, right - tw, centre, &style);
             room -= tw + 12.0;
         }
     }
     let colour = if row.dim {
-        panel::HINT
+        panel::hint()
     } else if row.selected {
-        0xffffffff
+        palette::tone(0xffffffff)
     } else {
-        panel::INK
+        panel::ink()
     };
     let style = Style::new(Face::Body, 15.0, colour);
     p.text(

@@ -8,13 +8,18 @@
 //! Slipstream names only itself in `XDG_CURRENT_DESKTOP`, so no other desktop's backend answers
 //! for it. Without this one nothing would, and every app would fall back to light.
 //!
+//! A followed Omarchy theme reaches apps the same way: the portal's `accent-color` is the colour
+//! chosen for Slipstream's ring, which libadwaita apps and anything else that reads the key
+//! take for their own buttons and selections, and GNOME's `icon-theme` is the theme's icons.
+//!
 //! `session/slipstream.portal` points xdg-desktop-portal at Slipstream's backend (`portal.rs`) and
-//! `slipstream-portals.conf` asks for it first; the rest of the namespace (accent colour, fonts,
-//! contrast) still goes on to whatever backend the machine has.
+//! `slipstream-portals.conf` asks for it first; the rest of the namespace (fonts, contrast, and
+//! the accent colour where no theme is followed) still goes on to whatever backend the machine
+//! has.
 
 use std::{collections::HashMap, sync::Mutex};
 
-use slipstream_config::ColourScheme;
+use slipstream_config::{ColourScheme, theme::Theme};
 use zbus::{
     interface,
     object_server::SignalEmitter,
@@ -30,26 +35,57 @@ const APPEARANCE: &str = "org.freedesktop.appearance";
 /// than a preference still turn dark.
 const GNOME: &str = "org.gnome.desktop.interface";
 
-/// What the settings file says now. Read by the bus thread, written by the main loop.
-static SCHEME: Mutex<ColourScheme> = Mutex::new(ColourScheme::Dark);
+/// What apps are told.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Look {
+    pub scheme: ColourScheme,
+    /// The followed theme's accent, red, green and blue from 0 to 1.
+    pub accent: Option<(f64, f64, f64)>,
+    /// The followed theme's icon theme.
+    pub icons: Option<String>,
+}
 
-/// Every namespace and key Slipstream answers for, as they stand.
+impl Look {
+    /// What `settings` and the followed `theme`, if there is one, have apps told.
+    pub fn of(settings: &slipstream_config::Settings, theme: Option<&Theme>) -> Self {
+        Self {
+            scheme: settings.appearance.scheme_with(theme),
+            accent: theme.map(|theme| {
+                let [r, g, b] = settings.borders.ring(Some(theme)).map(|c| c as f64 / 255.0);
+                (r, g, b)
+            }),
+            icons: theme.and_then(|theme| theme.icons.clone()),
+        }
+    }
+}
+
+/// What the settings file and the theme say now. Read by the bus thread, written by the main
+/// loop.
+static LOOK: Mutex<Look> = Mutex::new(Look {
+    scheme: ColourScheme::Dark,
+    accent: None,
+    icons: None,
+});
+
+/// Every namespace and key Slipstream answers for, as they stand. What no theme sets is left
+/// out, and so left to another backend.
 fn readings() -> Vec<(&'static str, Vec<(&'static str, OwnedValue)>)> {
-    let scheme = *SCHEME.lock().unwrap();
+    let look = LOOK.lock().unwrap().clone();
     let text = |value: &str| OwnedValue::from(zbus::zvariant::Str::from(value.to_string()));
-    vec![
-        (
-            APPEARANCE,
-            vec![("color-scheme", OwnedValue::from(scheme.portal_value()))],
-        ),
-        (
-            GNOME,
-            vec![
-                ("color-scheme", text(scheme.gnome_value())),
-                ("gtk-theme", text(scheme.gtk_theme())),
-            ],
-        ),
-    ]
+    let mut appearance = vec![("color-scheme", OwnedValue::from(look.scheme.portal_value()))];
+    if let Some(accent) = look.accent
+        && let Ok(value) = OwnedValue::try_from(Value::from(accent))
+    {
+        appearance.push(("accent-color", value));
+    }
+    let mut gnome = vec![
+        ("color-scheme", text(look.scheme.gnome_value())),
+        ("gtk-theme", text(look.scheme.gtk_theme())),
+    ];
+    if let Some(icons) = &look.icons {
+        gnome.push(("icon-theme", text(icons)));
+    }
+    vec![(APPEARANCE, appearance), (GNOME, gnome)]
 }
 
 /// Whether a namespace is one of those asked for. No namespaces at all means all of them, and a
@@ -123,20 +159,20 @@ impl Server {
     ) -> zbus::Result<()>;
 }
 
-/// What apps are told before the settings change.
-pub fn start_with(scheme: ColourScheme) {
-    *SCHEME.lock().unwrap() = scheme;
+/// What apps are told before the settings or the theme change.
+pub fn start_with(look: Look) {
+    *LOOK.lock().unwrap() = look;
 }
 
-/// The setting changed. Apps are told one key at a time, as the interface asks, and take it
-/// without restarting.
-pub fn set(scheme: ColourScheme) {
+/// The settings or the theme changed. Apps are told one key at a time, as the interface asks,
+/// and take it without restarting.
+pub fn set(look: Look) {
     {
-        let mut held = SCHEME.lock().unwrap();
-        if *held == scheme {
+        let mut held = LOOK.lock().unwrap();
+        if *held == look {
             return;
         }
-        *held = scheme;
+        *held = look;
     }
     let Some(connection) = crate::portal::connection() else {
         return;
@@ -182,7 +218,25 @@ mod tests {
     #[test]
     fn keys_outside_slipstreams_own_are_left_to_another_backend() {
         assert!(reading(APPEARANCE, "color-scheme").is_some());
-        assert!(reading(APPEARANCE, "accent-color").is_none());
         assert!(reading("org.gnome.desktop.a11y", "always-show-text-caret").is_none());
+    }
+
+    #[test]
+    fn a_followed_theme_gives_apps_its_accent_and_its_icons() {
+        let text = "mode = \"light\"\nbackground = \"#eff1f5\"\nforeground = \"#4c4f69\"\n\
+                    accent = \"#ff0080\"\n";
+        let mut theme = slipstream_config::theme::parse(text, false).unwrap();
+        theme.icons = Some("Yaru-blue".into());
+        let settings = slipstream_config::Settings::default();
+        let look = Look::of(&settings, Some(&theme));
+        assert_eq!(look.scheme, ColourScheme::Light);
+        assert_eq!(look.accent, Some((1.0, 0.0, 128.0 / 255.0)));
+        assert_eq!(look.icons.as_deref(), Some("Yaru-blue"));
+        // With none, both are another backend's to answer.
+        let own = Look::of(&settings, None);
+        assert_eq!(
+            (own.scheme, own.accent, own.icons),
+            (ColourScheme::Dark, None, None)
+        );
     }
 }

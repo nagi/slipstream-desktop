@@ -166,7 +166,7 @@ pub(super) fn paint_popup(notice: &Notice, scale: f64) -> Option<Card> {
 }
 
 pub(super) fn body_style() -> Style {
-    Style::new(Face::Body, 14.0, 0xbcc3cfff)
+    Style::new(Face::Body, 14.0, palette::tone(0xbcc3cfff))
 }
 
 /// The body in lines no wider than `width`, at most `max`; the last is cut short if there's more.
@@ -238,14 +238,14 @@ pub fn paint_card(
     let text_x = x + PAD_X + ICON + 12.0;
     let text_w = width - (text_x - x) - PAD_X;
     let meta_centre = y + PAD_Y + META_H / 2.0;
-    let meta = Style::new(Face::Body, 12.5, panel::HINT);
+    let meta = Style::new(Face::Body, 12.5, panel::hint());
     let mut right = x + width - PAD_X - 14.0;
     p.icon(
         icons::CLOSE,
         right,
         meta_centre - 7.0,
         14.0,
-        Some(panel::PLACEHOLDER),
+        Some(panel::placeholder()),
     );
     let cross = [right - 8.0, y + PAD_Y - 6.0, 30.0, META_H + 12.0];
     right -= 10.0;
@@ -257,7 +257,7 @@ pub fn paint_card(
         meta_centre,
         &meta,
     );
-    let title = Style::new(Face::BodyBold, 15.0, INK);
+    let title = Style::new(Face::BodyBold, 15.0, ink());
     p.text(
         &text::ellipsize(&notice.summary, &title, text_w),
         text_x,
@@ -273,7 +273,7 @@ pub fn paint_card(
     if !notice.actions.is_empty() {
         let height = card_height(notice, width, max_lines);
         let top = y + height - PAD_Y - BUTTON_H;
-        let label = Style::new(Face::Body, 13.5, INK);
+        let label = Style::new(Face::Body, 13.5, ink());
         let mut bx = text_x;
         for (_, text) in &notice.actions {
             let w = (text::width(text, &label) + 24.0).min(x + width - PAD_X - bx);

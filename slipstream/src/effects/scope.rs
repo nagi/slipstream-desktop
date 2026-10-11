@@ -36,6 +36,7 @@ use smithay::{
 
 use crate::{
     paint::Painter,
+    palette,
     text::{self, Face, Style},
     working::{Agent, AgentStatus},
 };
@@ -68,10 +69,16 @@ const DOT: f64 = 2.0;
 const PITCH: f64 = 3.0;
 
 /// The backing behind a readout: the desktop's backdrop colour, letting some wallpaper through.
-const BACKING: u32 = 0x0b0e13b8;
+fn backing() -> u32 {
+    palette::tone(0x0b0e13b8)
+}
 const BACKING_RADIUS: f32 = 7.0;
-const NAME: u32 = 0xaab2c0ff;
-const HELPER_NAME: u32 = 0x7f8898ff;
+fn name() -> u32 {
+    palette::tone(0xaab2c0ff)
+}
+fn helper_name() -> u32 {
+    palette::tone(0x7f8898ff)
+}
 
 /// How fast a wave settles flat or rises again, as a rate a second.
 const SETTLE: f32 = 3.0;
@@ -239,6 +246,11 @@ pub struct Scope {
 }
 
 impl Scope {
+    /// Paints the readouts again next frame: the colours they were painted in have changed.
+    pub fn forget_painted(&mut self) {
+        self.canvases.clear();
+    }
+
     pub fn new(reduced_motion: bool) -> Self {
         let channels = |rgb: [f32; 3]| rgb.map(|c| c * 255.0);
         let borders = slipstream_config::Borders::default();
@@ -248,8 +260,8 @@ impl Scope {
             shown: 0.0,
             last: None,
             canvases: HashMap::new(),
-            working: channels(borders.selected_tile_rgb()),
-            stopped: channels(borders.bullet_time_rgb()),
+            working: channels(borders.selected_tile_rgb(None)),
+            stopped: channels(borders.bullet_time_rgb(None)),
         }
     }
 
@@ -472,13 +484,13 @@ impl Scope {
 /// The readouts' backings, names and helper rows, as premultiplied pixels `device` big.
 fn base(traces: &[Trace], fit: &Fit, device: (i32, i32), scale: f64) -> Option<Vec<u8>> {
     let mut painter = Painter::new(device.0 as u32, device.1 as u32, scale as f32)?;
-    let style = Style::new(Face::Mono, 11.0, NAME);
-    let helper_style = Style::new(Face::Mono, 10.0, HELPER_NAME);
+    let style = Style::new(Face::Mono, 11.0, name());
+    let helper_style = Style::new(Face::Mono, 10.0, helper_name());
     let width = fit.width as f32;
     for (trace, &(top, count)) in traces.iter().zip(&fit.readouts) {
         let top = top as f32;
         let height = fit.height(count) as f32;
-        painter.fill(0.0, top, width, height, BACKING_RADIUS, BACKING);
+        painter.fill(0.0, top, width, height, BACKING_RADIUS, backing());
         let line = top + PAD as f32 + LABEL as f32 / 2.0 - 1.0;
         let pid = format!("PID: {}", trace.pid);
         let pid_width = text::width(&pid, &helper_style);

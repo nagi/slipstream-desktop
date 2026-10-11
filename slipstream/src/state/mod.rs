@@ -368,6 +368,8 @@ pub struct Slipstream {
     pub settings: slipstream_config::Settings,
     /// The system's keyboard layouts, used while Settings chooses none.
     pub layouts: crate::layouts::Layouts,
+    /// The Omarchy theme the desktop is drawn from, when one is followed (`palette.rs`).
+    pub theme: Option<slipstream_config::theme::Theme>,
     /// The focused window's ring colour, parsed from the settings once rather than every frame.
     /// The panels' keyboard ring takes it too: one colour for where the keys are aimed.
     pub ring_rgb: [f32; 3],
@@ -534,9 +536,13 @@ impl Slipstream {
             },
         );
         plugins.configure(&settings);
-        let ring_rgb = settings.borders.selected_tile_rgb();
-        let bullet_rgb = settings.borders.bullet_time_rgb();
-        let accent_rgb = settings.borders.accent_rgb();
+        // The colours are in place before anything is painted. `apply_theme` follows them from
+        // here on.
+        let theme = settings.appearance.theme();
+        let ring_rgb = settings.borders.selected_tile_rgb(theme.as_ref());
+        let bullet_rgb = settings.borders.bullet_time_rgb(theme.as_ref());
+        let accent_rgb = settings.borders.accent_rgb(theme.as_ref());
+        crate::palette::set(settings.palette(theme.as_ref()));
 
         let reduced_motion = settings.motion.reduced;
         let mut state = Self {
@@ -657,6 +663,7 @@ impl Slipstream {
             debug: debug::Script::default(),
             settings,
             layouts: crate::layouts::Layouts::from_env(),
+            theme,
             ring_rgb,
             bullet_rgb,
             accent_rgb,

@@ -37,6 +37,7 @@ use crate::{
     keys::Mods,
     motion::{HYPR, REDUCED_FADE},
     paint::{self, Painter},
+    palette,
     panel::{self, DESIGN_PX},
     text::{self, Face, Style},
 };

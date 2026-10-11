@@ -42,6 +42,7 @@ use crate::{
     motion,
     overview::{self, Overview},
     paint::{self, Painter},
+    palette,
     panel::{self, DESIGN_PX},
     rain::Rain,
     text::{self, Face, Style},
@@ -64,7 +65,9 @@ use lock::*;
 pub use png_file::{copy_frame, encode_png, save_png};
 
 /// The desktop's backdrop colour, behind every window.
-pub const BACKGROUND: Color32F = Color32F::new(0.043, 0.055, 0.075, 1.0);
+pub fn background() -> Color32F {
+    palette::colour32(palette::tone(0x0b0e13ff))
+}
 /// The focused window's ring, until the settings are read: `borders.selected-tile` chooses it,
 /// and the buffers take the chosen colour on the first frame they are drawn.
 const FOCUS: Color32F = Color32F::new(0.259, 0.827, 1.0, 1.0);
@@ -74,7 +77,13 @@ const RING_ALPHA: f32 = 0.8;
 /// How strong the fine light edge round the docked pane's glass is.
 const DOCK_RIM: f32 = 0.16;
 /// The inside of a bay in the bar's material before its pane has landed in it: dark glass.
-const DOCK_BAY: Color32F = Color32F::new(0.02, 0.03, 0.05, 0.55);
+fn dock_bay() -> Color32F {
+    palette::colour32(palette::tone(0x090e178c))
+}
+/// The light along the docked pane's edges.
+fn rim() -> Color32F {
+    palette::colour32(palette::tone(0xffffffff))
+}
 /// Focus ring width in logical pixels. It sits in the gap, outside the window.
 const RING: i32 = 2;
 /// Over distant windows: dims them to 70% brightness.

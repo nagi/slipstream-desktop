@@ -954,7 +954,7 @@ fn dock_bay_elements(
     let inside =
         Rectangle::<i32, Logical>::new((at.x as i32, at.y as i32).into(), (pane.w, pane.h).into());
     world.elements.push(OutputElement::Solid(
-        chrome.overview.solid(inside, DOCK_BAY, v.scale, v.ui_alpha),
+        chrome.overview.solid(inside, dock_bay(), v.scale, v.ui_alpha),
     ));
 }
 
@@ -1457,14 +1457,14 @@ fn docked_marks(
             .elements
             .push(OutputElement::Solid(chrome.overview.solid(
                 line,
-                WHITE,
+                rim(),
                 drawn.scale,
                 alpha * seam,
             )));
         world.elements.extend(
             chrome
                 .overview
-                .outline(shown, 0.0, 2, WHITE, drawn.scale, alpha * seam * 0.8)
+                .outline(shown, 0.0, 2, rim(), drawn.scale, alpha * seam * 0.8)
                 .into_iter()
                 .map(OutputElement::Solid),
         );
@@ -1472,7 +1472,7 @@ fn docked_marks(
     world.elements.extend(
         chrome
             .overview
-            .outline(shown, 0.0, 1, WHITE, drawn.scale, alpha * DOCK_RIM)
+            .outline(shown, 0.0, 1, rim(), drawn.scale, alpha * DOCK_RIM)
             .into_iter()
             .map(OutputElement::Solid),
     );
@@ -1576,7 +1576,7 @@ fn dock_flight_elements(
             let ring = if v.focused.as_ref() == Some(&window) {
                 (state.ring_rgb, RING_ALPHA)
             } else {
-                ([1.0; 3], DOCK_RIM)
+                (crate::palette::tone_rgb([1.0; 3]), DOCK_RIM)
             };
             let (band_at, band_half, band_light) = lit.band;
             let look = crate::pane::Look {
@@ -1614,7 +1614,7 @@ fn dock_flight_elements(
                     size.into(),
                 );
                 pieces.push(OutputElement::Solid(
-                    chrome.overview.solid(inside, DOCK_BAY, v.scale, alpha),
+                    chrome.overview.solid(inside, dock_bay(), v.scale, alpha),
                 ));
             }
         }
@@ -1669,7 +1669,7 @@ fn workspace_frame_elements(
         let (colour, thickness) = if viewed || drop_target {
             (overview::frame_viewed(state.bullet_rgb), 3)
         } else {
-            (overview::FRAME, 2)
+            (overview::frame(), 2)
         };
         world.elements.extend(
             chrome
@@ -1917,7 +1917,7 @@ fn wallpaper_elements(
             v.sizes(),
             (1.0 - ui, 0.0),
             None,
-            BACKGROUND,
+            background(),
         )
     });
     if let Some(through) = through {
@@ -1935,7 +1935,7 @@ fn wallpaper_elements(
                 v.sizes(),
                 (gone, crate::glass::NEARER),
                 windows,
-                BACKGROUND,
+                background(),
             )
         });
         if let Some(through) = through {

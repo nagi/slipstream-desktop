@@ -13,7 +13,7 @@ use smithay::{
 use crate::{
     icons,
     paint::{Painted, Painter},
-    panel::{self, BELOW, DESIGN_PX, HINT, INK, MARGIN},
+    panel::{self, BELOW, DESIGN_PX, hint, ink, MARGIN},
     text::{self, Face, Style},
 };
 
@@ -145,7 +145,7 @@ fn paint_button(
         )
     } else {
         panel::quiet_button(p, x, y, w, BUTTON_H, panel::ROW_RADIUS, lit);
-        (INK, if lit { INK } else { HINT })
+        (ink(), if lit { ink() } else { hint() })
     };
     let label = Style::new(Face::BodyBold, 14.0, ink);
     let key = Style::new(Face::Mono, 12.0, key_ink);
@@ -169,8 +169,8 @@ fn paint_button(
 
 /// How wide a button has to be for its label and its key.
 fn button_width(button: &Btn) -> f32 {
-    let label = Style::new(Face::BodyBold, 14.0, INK);
-    let key = Style::new(Face::Mono, 12.0, HINT);
+    let label = Style::new(Face::BodyBold, 14.0, ink());
+    let key = Style::new(Face::Mono, 12.0, hint());
     2.0 * BUTTON_PAD + text::width(&button.label, &label) + KEY_GAP + text::width(&button.key, &key)
 }
 
@@ -204,16 +204,16 @@ fn paint_field(
     (accent, attention): (u32, u32),
 ) {
     p.fill(x, y, w, FIELD_H, panel::ROW_RADIUS, 0xffffff14);
-    p.border(x, y, w, FIELD_H, panel::ROW_RADIUS, 1.0, panel::EDGE);
+    p.border(x, y, w, FIELD_H, panel::ROW_RADIUS, 1.0, panel::edge());
     let middle = y + FIELD_H / 2.0;
     let inset = 14.0;
     let room = w - 2.0 * inset - 6.0;
     let typed = Style {
         tracking: 0.1,
-        ..Style::new(Face::Body, 16.0, panel::BRIGHT)
+        ..Style::new(Face::Body, 16.0, panel::bright())
     };
     let end = if field.shown.is_empty() {
-        let label = Style::new(Face::Body, 15.0, panel::PLACEHOLDER);
+        let label = Style::new(Face::Body, 15.0, panel::placeholder());
         p.text(&field.label, x + inset, middle, &label);
         x + inset
     } else {
@@ -229,7 +229,7 @@ fn paint_field(
     };
     p.fill(end + 2.0, middle - 10.0, 2.0, 20.0, 0.0, accent);
     if let Some((line, warning)) = &field.line {
-        let style = Style::new(Face::Body, 13.0, if *warning { attention } else { HINT });
+        let style = Style::new(Face::Body, 13.0, if *warning { attention } else { hint() });
         let line = text::ellipsize(line, &style, w);
         p.text(&line, x, y + FIELD_H + FIELD_LINE / 2.0 + 2.0, &style);
     }
@@ -242,11 +242,11 @@ pub fn paint(
 ) -> (Option<Painted>, Vec<Hit>) {
     let title = Style {
         tracking: 0.02,
-        ..Style::new(Face::Display, 27.0, INK)
+        ..Style::new(Face::Display, 27.0, ink())
     };
-    let note = Style::new(Face::Body, 15.0, HINT);
-    let name = Style::new(Face::BodyBold, 15.0, INK);
-    let where_ = Style::new(Face::Body, 14.0, panel::TERTIARY);
+    let note = Style::new(Face::Body, 15.0, hint());
+    let name = Style::new(Face::BodyBold, 15.0, ink());
+    let where_ = Style::new(Face::Body, 14.0, panel::tertiary());
     let inner = WIDTH - 2.0 * PADDING;
     let lines = text::wrap(&card.note, &note, inner);
     let height = measure(card, lines.len());
@@ -286,7 +286,7 @@ pub fn paint(
                             rw,
                             ROW_H - 2.0,
                             panel::ROW_RADIUS,
-                            panel::QUIET,
+                            panel::quiet(),
                         );
                     }
                     hits.push(Hit {
@@ -337,7 +337,7 @@ pub fn paint(
         // The footer: the answers, in the same order everywhere, the one Enter presses at the
         // right where the eye ends up.
         let foot_y = fy + height - FOOT_H;
-        p.fill(fx, foot_y, WIDTH, 1.0, 0.0, panel::DIVIDER);
+        p.fill(fx, foot_y, WIDTH, 1.0, 0.0, panel::divider());
         let button_y = foot_y + (FOOT_H - BUTTON_H) / 2.0;
         let mut right = fx + WIDTH - PADDING;
         for button in card.buttons.iter().rev() {
@@ -366,9 +366,9 @@ fn paint_switch(
     inner: f32,
     lit: bool,
 ) -> Hit {
-    let label = Style::new(Face::Body, 15.0, INK);
-    let key = Style::new(Face::Mono, 12.0, if lit { INK } else { HINT });
-    let under = Style::new(Face::Body, 12.0, HINT);
+    let label = Style::new(Face::Body, 15.0, ink());
+    let key = Style::new(Face::Mono, 12.0, if lit { ink() } else { hint() });
+    let under = Style::new(Face::Body, 12.0, hint());
     let box_y = y + (CHECK_ROW - CHECK) / 2.0;
     if on {
         p.fill(x, box_y, CHECK, CHECK, 5.0, accent);

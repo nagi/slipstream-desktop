@@ -172,6 +172,11 @@ pub struct Osd {
 }
 
 impl Osd {
+    /// Paints it again next frame: the colours it was painted in have changed.
+    pub fn forget_painted(&mut self) {
+        self.painted = None;
+    }
+
     pub fn new(reduced_motion: bool) -> Self {
         Self {
             reduced_motion,
@@ -300,7 +305,7 @@ fn paint(
     (ink, accent): (u32, u32),
     scale: f64,
 ) -> Option<Painted> {
-    const DIM: u32 = panel::HINT;
+    let dim = panel::hint();
     // Room for the shadow all round.
     let m = panel::NOTICE_MARGIN;
     let logical = Size::<i32, Logical>::from((
@@ -320,7 +325,7 @@ fn paint(
         kind,
         Kind::Volume { muted: true } | Kind::Microphone { muted: true }
     );
-    let ink = if muted { DIM } else { ink };
+    let ink = if muted { dim } else { ink };
     p.icon(
         &kind.icon(level, ink),
         dx + 22.0,
@@ -330,7 +335,7 @@ fn paint(
     );
     let label = Style {
         tabular: true,
-        ..Style::new(Face::Mono, 15.0, panel::PROSE)
+        ..Style::new(Face::Mono, 15.0, panel::prose())
     };
     if kind.has_bar() {
         // The bar runs from the icon to the number, which keeps its own room whatever it says.
@@ -338,12 +343,12 @@ fn paint(
         const BAR_W: f32 = 236.0;
         const BAR_H: f32 = 6.0;
         let (bar_x, y) = (dx + BAR_X, dy + HEIGHT / 2.0 - BAR_H / 2.0);
-        p.fill(bar_x, y, BAR_W, BAR_H, BAR_H / 2.0, panel::TRACK);
+        p.fill(bar_x, y, BAR_W, BAR_H, BAR_H / 2.0, panel::track());
         // Below about a percent there's nothing to draw, and a stub would read as more than none.
         let filled = BAR_W * level.min(100) as f32 / 100.0;
         if filled >= BAR_H {
             let bar = match kind {
-                _ if muted => DIM,
+                _ if muted => dim,
                 Kind::Power { plugged: true } => ink,
                 _ => accent,
             };
@@ -366,22 +371,22 @@ fn paint(
             let (word, colour) = if plugged {
                 ("CHARGING", ink)
             } else {
-                ("ON BATTERY", DIM)
+                ("ON BATTERY", dim)
             };
             p.text(word, bar_x, dy + HEIGHT / 2.0 + 16.0, &tag(colour));
         }
         if muted {
             // Muted keeps the level visible — it's what comes back — and says so in the icon's
             // place, under the bar, rather than taking the number's room.
-            p.text("MUTED", bar_x, dy + HEIGHT / 2.0 + 16.0, &tag(DIM));
+            p.text("MUTED", bar_x, dy + HEIGHT / 2.0 + 16.0, &tag(dim));
         }
     } else if let Some(detail) = detail {
         // A track: what the player is doing, and what it's playing under it.
         let state = Style {
             tracking: 0.12,
-            ..Style::new(Face::BodyBold, 10.0, DIM)
+            ..Style::new(Face::BodyBold, 10.0, dim)
         };
-        let title = Style::new(Face::Body, 15.0, panel::PROSE);
+        let title = Style::new(Face::Body, 15.0, panel::prose());
         p.text(
             &kind.label(level).to_uppercase(),
             dx + 60.0,
@@ -420,7 +425,7 @@ mod tests {
 
     #[test]
     fn the_card_is_the_same_size_whatever_it_says() {
-        let inks = (RING, panel::ACCENT);
+        let inks = (RING, panel::accent());
         let quiet = paint(Kind::Volume { muted: false }, 0, None, inks, 1.25).unwrap();
         let loud = paint(Kind::Volume { muted: false }, 100, None, inks, 1.25).unwrap();
         let mic = paint(Kind::Microphone { muted: true }, 0, None, inks, 1.25).unwrap();
@@ -496,7 +501,7 @@ mod tests {
 
     #[test]
     fn every_lock_key_note_fits_the_card() {
-        let title = Style::new(Face::Body, 15.0, panel::PROSE);
+        let title = Style::new(Face::Body, 15.0, panel::prose());
         let bools = [true, false];
         for on in bools {
             for note in [num_lock_note(on), awake_note(on)] {

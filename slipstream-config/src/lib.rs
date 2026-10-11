@@ -5,6 +5,7 @@
 //! ```toml
 //! [appearance]
 //! colour-scheme = "dark"
+//! follow-omarchy-theme = true
 //!
 //! [wallpaper]
 //! fade-after-secs = 120
@@ -77,9 +78,9 @@
 //! reopen-without-asking = false
 //!
 //! [borders]
-//! selected-tile = "#42d3ff"
-//! bullet-time = "#ffb547"
-//! accent = "#ffb547"
+//! selected-tile = "accent"
+//! bullet-time = "yellow"
+//! accent = "yellow"
 //!
 //! [privacy]
 //! screen-capture-allowed = ["/usr/bin/wf-recorder"]
@@ -108,6 +109,7 @@ pub mod screens;
 pub mod shortcuts;
 pub mod sounds;
 pub mod sun;
+pub mod theme;
 mod run_or_raise;
 mod wallpaper;
 pub mod weight;
@@ -293,13 +295,42 @@ impl KeyStyle {
     }
 }
 
-/// What apps are told to colour themselves.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+/// What apps are told to colour themselves, and where Slipstream's own colours come from.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "kebab-case")]
 pub struct Appearance {
-    /// Dark or light, for every app that asks the desktop which to be. Slipstream's own chrome is
-    /// dark either way.
+    /// Dark or light, for every app that asks the desktop which to be. A followed Omarchy theme
+    /// says which itself.
     pub colour_scheme: ColourScheme,
+    /// Take Slipstream's colours from the theme Omarchy is showing (`theme`), and change with it.
+    /// Where there is no Omarchy, or with this off, Slipstream is drawn in its own.
+    pub follow_omarchy_theme: bool,
+}
+
+impl Default for Appearance {
+    fn default() -> Self {
+        Self {
+            colour_scheme: ColourScheme::default(),
+            follow_omarchy_theme: true,
+        }
+    }
+}
+
+impl Appearance {
+    /// The Omarchy theme to draw the desktop from: the one Omarchy is showing, when it is
+    /// followed and there is one.
+    pub fn theme(&self) -> Option<theme::Theme> {
+        self.follow_omarchy_theme.then(theme::current).flatten()
+    }
+
+    /// What apps are asked to be: the followed theme's own dark or light, else the one chosen.
+    pub fn scheme_with(&self, theme: Option<&theme::Theme>) -> ColourScheme {
+        match theme {
+            Some(theme) if theme.light => ColourScheme::Light,
+            Some(_) => ColourScheme::Dark,
+            None => self.colour_scheme,
+        }
+    }
 }
 
 /// Dark or light.
@@ -547,8 +578,10 @@ impl Default for Lock {
 }
 
 /// Slipstream's three colours, which Settings calls primary, secondary and tertiary; the keys keep
-/// the names of what they first coloured. Each is `#rrggbb`; a value that isn't falls back to the
-/// default, so a mistyped hand edit leaves the desktop usable rather than colourless.
+/// the names of what they first coloured. Each is one of the theme's colours by name
+/// (`theme::PICKS`: `accent`, `yellow`, `green` and so on) or `#rrggbb`. A value that is neither
+/// falls back to the default, so a mistyped hand edit leaves the desktop usable rather than
+/// colourless. Without a theme the names are Slipstream's own colours of those names.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "kebab-case")]
 pub struct Borders {
@@ -559,18 +592,25 @@ pub struct Borders {
     /// the notification count to Caps Lock and a low battery.
     pub bullet_time: String,
     /// The tertiary colour, for what's on or chosen: switches and tiles, sliders, the default
-    /// button, today in the calendar, text cursors and toasts.
+    /// button, today in the calendar, text cursors and toasts. Files from before it had this
+    /// name call it `highlight`.
+    #[serde(alias = "highlight")]
     pub accent: String,
 }
 
-/// Ice cyan. It sits 73° of hue from the code rain, so the ring reads against it rather than
-/// dissolving into it, and it is Slipstream's colour for what's active.
-pub const SELECTED_TILE: &str = "#42d3ff";
-/// Slipstream's amber, near-opposite the ring's cyan: cold means the live desktop, warm the slow
-/// world.
-pub const BULLET_TIME: &str = "#ffb547";
-/// The same amber: what's on inside a panel is warm against the cyan of where the keys are.
-pub const ACCENT: &str = "#ffb547";
+/// The theme's accent: Slipstream's own is its ice cyan. It sits 73° of hue from the code rain,
+/// so the ring reads against it rather than dissolving into it.
+pub const SELECTED_TILE: &str = "accent";
+/// The theme's yellow: Slipstream's own is its amber, near-opposite the ring's cyan: cold means
+/// the live desktop, warm the slow world.
+pub const BULLET_TIME: &str = "yellow";
+/// The same yellow: what's on inside a panel is warm against the colour of where the keys are.
+pub const ACCENT: &str = "yellow";
+/// What `selected-tile` held before colours went by name: the same ice cyan, as a number. A
+/// file that still says so means the accent, not that cyan whatever the theme.
+const SELECTED_TILE_WAS: &str = "#42d3ff";
+/// What `bullet-time` and `accent` held before colours went by name: Slipstream's amber.
+const AMBER_WAS: &str = "#ffb547";
 
 impl Default for Borders {
     fn default() -> Self {
@@ -583,16 +623,72 @@ impl Default for Borders {
 }
 
 impl Borders {
-    pub fn selected_tile_rgb(&self) -> [f32; 3] {
-        rgb(&self.selected_tile).unwrap_or_else(|| rgb(SELECTED_TILE).expect("a valid default"))
+    /// `value` in the followed theme or in Slipstream's own colours: `default` where `value` is
+    /// what the setting held as a number before colours went by name, or isn't a colour at all.
+    fn resolve(
+        value: &str,
+        default: &str,
+        was: &str,
+        theme: Option<&theme::Theme>,
+        own: theme::Rgb,
+    ) -> theme::Rgb {
+        let chosen = match theme::rgb(value) == theme::rgb(was) {
+            true => default,
+            false => value,
+        };
+        theme::pick(chosen, theme)
+            .or_else(|| theme::pick(default, theme))
+            .unwrap_or(own)
     }
 
-    pub fn bullet_time_rgb(&self) -> [f32; 3] {
-        rgb(&self.bullet_time).unwrap_or_else(|| rgb(BULLET_TIME).expect("a valid default"))
+    /// The primary colour, the ring's, in the followed theme or in Slipstream's own colours.
+    pub fn ring(&self, theme: Option<&theme::Theme>) -> theme::Rgb {
+        let tile = &self.selected_tile;
+        Self::resolve(tile, SELECTED_TILE, SELECTED_TILE_WAS, theme, theme::OWN_CYAN)
     }
 
-    pub fn accent_rgb(&self) -> [f32; 3] {
-        rgb(&self.accent).unwrap_or_else(|| rgb(ACCENT).expect("a valid default"))
+    /// The secondary colour, bullet time's, in the followed theme or in Slipstream's own colours.
+    pub fn secondary(&self, theme: Option<&theme::Theme>) -> theme::Rgb {
+        let bullet = &self.bullet_time;
+        Self::resolve(bullet, BULLET_TIME, AMBER_WAS, theme, theme::OWN_AMBER)
+    }
+
+    /// The tertiary colour, the accent, in the followed theme or in Slipstream's own colours.
+    pub fn highlight_colour(&self, theme: Option<&theme::Theme>) -> theme::Rgb {
+        Self::resolve(&self.accent, ACCENT, AMBER_WAS, theme, theme::OWN_AMBER)
+    }
+
+    /// The primary colour as the renderer takes it, each channel from 0 to 1.
+    pub fn selected_tile_rgb(&self, theme: Option<&theme::Theme>) -> [f32; 3] {
+        unit(self.ring(theme))
+    }
+
+    /// The secondary colour as the renderer takes it.
+    pub fn bullet_time_rgb(&self, theme: Option<&theme::Theme>) -> [f32; 3] {
+        unit(self.secondary(theme))
+    }
+
+    /// The tertiary colour as the renderer takes it.
+    pub fn accent_rgb(&self, theme: Option<&theme::Theme>) -> [f32; 3] {
+        unit(self.highlight_colour(theme))
+    }
+}
+
+fn unit(rgb: theme::Rgb) -> [f32; 3] {
+    rgb.map(|channel| channel as f32 / 255.0)
+}
+
+impl Settings {
+    /// Where Slipstream's colours land in `theme`, with the primary and tertiary colours as
+    /// chosen here: `None` without a theme, when Slipstream is drawn in its own.
+    pub fn palette(&self, theme: Option<&theme::Theme>) -> Option<theme::Palette> {
+        theme.map(|theme| {
+            theme::Palette::with(
+                theme,
+                self.borders.ring(Some(theme)),
+                self.borders.highlight_colour(Some(theme)),
+            )
+        })
     }
 }
 
@@ -679,13 +775,14 @@ mod tests {
         assert!(!settings.session.remember);
         assert!(!settings.session.reopen_without_asking);
         assert_eq!(
-            settings.borders.selected_tile_rgb().map(round3),
+            settings.borders.selected_tile_rgb(None).map(round3),
             [0.259, 0.827, 1.0]
         );
         assert_eq!(
-            settings.borders.bullet_time_rgb().map(round3),
+            settings.borders.bullet_time_rgb(None).map(round3),
             [1.0, 0.71, 0.278]
         );
+        assert_eq!(settings.borders.highlight_colour(None), theme::OWN_AMBER);
     }
 
     #[test]
@@ -735,9 +832,9 @@ mod tests {
             bullet_time: "#12345g".into(),
             accent: "".into(),
         };
-        assert_eq!(borders.selected_tile_rgb(), rgb(SELECTED_TILE).unwrap());
-        assert_eq!(borders.bullet_time_rgb(), rgb(BULLET_TIME).unwrap());
-        assert_eq!(borders.accent_rgb(), rgb(ACCENT).unwrap());
+        assert_eq!(borders.ring(None), theme::OWN_CYAN);
+        assert_eq!(borders.secondary(None), theme::OWN_AMBER);
+        assert_eq!(borders.highlight_colour(None), theme::OWN_AMBER);
     }
 
     #[test]
@@ -749,10 +846,80 @@ mod tests {
     }
 
     #[test]
+    fn a_followed_theme_says_dark_or_light() {
+        let text = "mode = \"light\"\nbackground = \"#eff1f5\"\nforeground = \"#4c4f69\"\n";
+        let theme = theme::parse(text, false).unwrap();
+        let appearance = Appearance::default();
+        assert!(
+            appearance.follow_omarchy_theme,
+            "followed unless turned off"
+        );
+        assert_eq!(appearance.scheme_with(None), ColourScheme::Dark);
+        assert_eq!(appearance.scheme_with(Some(&theme)), ColourScheme::Light);
+    }
+
+    #[test]
+    fn the_ring_and_the_highlight_are_colours_of_the_theme_by_name() {
+        let text = "background = \"#1a1b26\"\nforeground = \"#a9b1d6\"\naccent = \"#7aa2f7\"\n\
+                    yellow = \"#e0af68\"\ngreen = \"#9ece6a\"\nmagenta = \"#ad8ee6\"\n";
+        let theme = theme::parse(text, false).unwrap();
+        let borders = Borders::default();
+        assert_eq!(borders.ring(Some(&theme)), [0x7a, 0xa2, 0xf7]);
+        assert_eq!(borders.highlight_colour(Some(&theme)), [0xe0, 0xaf, 0x68]);
+        // Without a theme the same names are Slipstream's own colours.
+        assert_eq!(borders.ring(None), theme::OWN_CYAN);
+        assert_eq!(borders.highlight_colour(None), theme::OWN_AMBER);
+
+        let chosen = Borders {
+            selected_tile: "green".into(),
+            bullet_time: "red".into(),
+            accent: "Magenta".into(),
+        };
+        assert_eq!(chosen.ring(Some(&theme)), [0x9e, 0xce, 0x6a]);
+        assert_eq!(chosen.highlight_colour(Some(&theme)), [0xad, 0x8e, 0xe6]);
+        assert_eq!(chosen.ring(None), theme::OWN_MINT);
+        assert_eq!(chosen.secondary(None), theme::OWN_RED);
+        // A colour written as a number is that colour whatever the theme.
+        let fixed = Borders {
+            selected_tile: "#3CF0C0".into(),
+            ..Borders::default()
+        };
+        assert_eq!(fixed.ring(Some(&theme)), [0x3c, 0xf0, 0xc0]);
+        // The palette takes both, so everything drawn in them follows.
+        let settings = Settings {
+            borders: chosen,
+            ..Settings::default()
+        };
+        let palette = settings.palette(Some(&theme)).unwrap();
+        assert_eq!(palette.accent, [0x9e, 0xce, 0x6a]);
+        assert_eq!(palette.warm, [0xad, 0x8e, 0xe6]);
+        assert_eq!(settings.palette(None), None);
+    }
+
+    #[test]
+    fn a_file_from_before_colours_had_names_still_follows_the_theme() {
+        let settings =
+            parse("[borders]\nselected-tile = \"#42D3FF\"\nbullet-time = \"#ffb547\"\n").unwrap();
+        let text = "background = \"#1a1b26\"\nforeground = \"#a9b1d6\"\naccent = \"#7aa2f7\"\n\
+                    yellow = \"#e0af68\"\n";
+        let theme = theme::parse(text, false).unwrap();
+        assert_eq!(settings.borders.ring(Some(&theme)), [0x7a, 0xa2, 0xf7]);
+        assert_eq!(settings.borders.ring(None), theme::OWN_CYAN);
+        assert_eq!(settings.borders.secondary(Some(&theme)), [0xe0, 0xaf, 0x68]);
+    }
+
+    #[test]
+    fn a_file_that_called_the_accent_highlight_still_reads() {
+        let settings = parse("[borders]\nhighlight = \"cyan\"\n").unwrap();
+        assert_eq!(settings.borders.accent, "cyan");
+    }
+
+    #[test]
     fn what_is_written_reads_back() {
         let settings = Settings {
             appearance: Appearance {
                 colour_scheme: ColourScheme::Light,
+                follow_omarchy_theme: false,
             },
             session: Session {
                 remember: true,
@@ -797,7 +964,7 @@ mod tests {
             borders: Borders {
                 selected_tile: "#b794ff".into(),
                 bullet_time: "#ffcf5c".into(),
-                accent: "#ff77b0".into(),
+                accent: "orange".into(),
             },
             sound: Sound {
                 volume_blip: false,

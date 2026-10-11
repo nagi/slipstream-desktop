@@ -54,6 +54,7 @@ mod motion;
 mod nightlight;
 mod notify;
 mod paint;
+mod palette;
 mod plugins;
 mod polkit;
 mod portal;
@@ -320,6 +321,9 @@ fn run_one_off(args: &[String]) {
     // A living-wallpaper variation drawn off screen for the Settings app's preview: no display,
     // no GPU, and nothing else started.
     if args.first().map(String::as_str) == Some("--wallpaper-preview") {
+        // In the colours the desktop is drawn in, as the wallpaper itself will be.
+        let settings = settings::startup();
+        palette::set(settings.palette(settings.appearance.theme().as_ref()));
         let done = saver::preview::Request::parse(&args[1..])
             .and_then(|request| saver::preview::run(&request, &mut std::io::stdout().lock()));
         if let Err(err) = done {
@@ -394,6 +398,8 @@ fn start_services(
     // Settings apply as soon as they're saved.
     watch::watch_settings(&event_loop.handle());
     watch::watch_plugins(&event_loop.handle());
+    // A followed Omarchy theme applies as soon as Omarchy sets it.
+    watch::watch_theme(&event_loop.handle());
     // A fallback face loaded on its own thread wakes the loop, which takes it in between paints.
     {
         use smithay::reexports::calloop::ping;
@@ -422,7 +428,7 @@ fn start_services(
         let shortcut_events = channel_into(event_loop, Slipstream::shortcut_event)?;
         let holds = channel_into(event_loop, Slipstream::portal_holds)?;
         portal::serve(
-            state.settings.appearance.colour_scheme,
+            appearance::Look::of(&state.settings, state.theme.as_ref()),
             shortcut_events,
             holds,
         );

@@ -21,7 +21,7 @@ use crate::{
     icons,
     motion::{HYPR, REDUCED_FADE},
     paint::{CardStyle, Painted, Painter},
-    panel::{self, DESIGN_PX, INK},
+    panel::{self, DESIGN_PX, ink},
     text::{self, Face, Style},
     tray::{
         Command,
@@ -75,12 +75,14 @@ pub fn confirm_length(reduced_motion: bool) -> f64 {
 }
 
 /// The small surfaces' look, a little lighter than the centre's glass so it stands off it.
-const CARD: CardStyle = CardStyle {
-    radius: 12.0,
-    shadow: (10.0, 34.0, 0x0000006e),
-    fill: panel::NOTICE,
-    edge: 0xffffff1e,
-};
+fn card() -> CardStyle {
+    CardStyle {
+        radius: 12.0,
+        shadow: (10.0, 34.0, 0x0000006e),
+        fill: panel::notice_fill(),
+        edge: crate::palette::tone(0xffffff1e),
+    }
+}
 
 /// What a key, click or move asks of the centre: calls to send the app, and whether the menu is
 /// still open afterwards.
@@ -798,10 +800,10 @@ impl Menu {
             ));
             let painted = Painted::new(logical, look.scale, |p| {
                 p.f *= DESIGN_PX;
-                p.card(MARGIN, MARGIN, sizes.width, height, &CARD);
+                p.card(MARGIN, MARGIN, sizes.width, height, &card());
                 let mut ry = MARGIN + INSET;
                 if let Some(notice) = notice {
-                    let style = Style::new(Face::Body, LABEL_PX, panel::HINT);
+                    let style = Style::new(Face::Body, LABEL_PX, panel::hint());
                     p.text(notice, MARGIN + ROW_PAD + INSET, ry + ROW_H / 2.0, &style);
                     return;
                 }
@@ -816,7 +818,7 @@ impl Menu {
                             rw - 2.0 * ROW_PAD,
                             1.0,
                             0.0,
-                            panel::DIVIDER,
+                            panel::divider(),
                         );
                     } else {
                         let lit = chosen == Some(row.id) || open_child == Some(row.id);
@@ -900,7 +902,7 @@ struct Sizes {
 impl Sizes {
     /// The card for `rows`, or for `notice` alone; `icons` when any row has an icon to show.
     fn of(rows: &[Entry], notice: Option<&str>, icons: bool) -> Self {
-        let style = label_style(INK);
+        let style = label_style(ink());
         let marks = rows.iter().any(|row| row.toggle != Toggle::None);
         let chevrons = rows.iter().any(|row| row.submenu);
         let label_w = match notice {
@@ -989,10 +991,10 @@ fn paint_row(
 ) {
     let centre = y + h / 2.0;
     let ink = match shade {
-        _ if !row.enabled => panel::PLACEHOLDER,
+        _ if !row.enabled => panel::placeholder(),
         Shade::Pressed => panel::ink_on(accent),
-        Shade::Lit => panel::BRIGHT,
-        Shade::Plain => INK,
+        Shade::Lit => panel::bright(),
+        Shade::Plain => ink(),
     };
     let mut lx = x + ROW_PAD;
     if sizes.marks {
@@ -1032,9 +1034,9 @@ fn paint_row(
     // A submenu's chevron points the way it opened.
     if row.submenu {
         let chevron_ink = if row.enabled {
-            panel::SECONDARY
+            panel::secondary()
         } else {
-            panel::PLACEHOLDER
+            panel::placeholder()
         };
         let body = if leftward {
             icons::BACK
@@ -1061,9 +1063,9 @@ fn paint_mark(
     let (edge, accent, tick) = if pressed {
         ((ink & 0xffffff00) | 0x99, ink, on)
     } else if enabled {
-        (panel::TERTIARY, on, ink)
+        (panel::tertiary(), on, ink)
     } else {
-        (panel::PLACEHOLDER, panel::PLACEHOLDER, panel::DARK)
+        (panel::placeholder(), panel::placeholder(), panel::dark())
     };
     match toggle {
         Toggle::None => {}
@@ -1094,7 +1096,7 @@ fn paint_more(p: &mut Painter, x: f32, y: f32, up: bool) {
     } else {
         r#"<path d="M7 10l5 5 5-5"/>"#
     };
-    p.icon(body, x - 6.0, y - 6.0, 12.0, Some(panel::HINT));
+    p.icon(body, x - 6.0, y - 6.0, 12.0, Some(panel::hint()));
 }
 
 /// A box in logical pixels, in design pixels.
@@ -1372,8 +1374,8 @@ mod tests {
             failed: false,
             size: (1536, 960).into(),
             scale: 1.25,
-            ring: panel::FOCUS,
-            accent: panel::ACCENT,
+            ring: panel::focus(),
+            accent: panel::accent(),
             confirmed: menu.confirmed.map(|(id, _)| id),
         };
         menu.repaint(&look, &mut |_, _| None);

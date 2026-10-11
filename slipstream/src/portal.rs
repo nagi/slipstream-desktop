@@ -9,7 +9,6 @@
 
 use std::sync::OnceLock;
 
-use slipstream_config::ColourScheme;
 use smithay::reexports::calloop::channel::Sender;
 
 use crate::{appearance, portal_inhibit, shortcuts};
@@ -23,11 +22,11 @@ static CONNECTION: OnceLock<zbus::blocking::Connection> = OnceLock::new();
 /// Takes the backend's name on the session bus and serves it. If something else has the name
 /// there is another Slipstream running, and this one leaves the portal to it.
 pub fn serve(
-    scheme: ColourScheme,
+    look: appearance::Look,
     shortcut_events: Sender<shortcuts::portal::Event>,
     holds: Sender<Vec<portal_inhibit::Hold>>,
 ) {
-    appearance::start_with(scheme);
+    appearance::start_with(look);
     std::thread::spawn(move || {
         let inhibit = portal_inhibit::Backend::new(holds);
         let connection = zbus::blocking::connection::Builder::session()

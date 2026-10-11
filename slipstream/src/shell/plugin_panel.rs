@@ -22,7 +22,7 @@ use smithay::{
 use crate::{
     Slipstream, icons,
     paint::{Painted, Painter},
-    panel::{self, DESIGN_PX, GAP, INK, PADDING},
+    panel::{self, DESIGN_PX, GAP, ink, PADDING},
     plugins::{Shown, card},
     text::{self, Face, Style},
 };
@@ -398,7 +398,7 @@ impl PluginPanel {
             paint_head(p, facts, x0, y);
             y += HEAD_H + GAP;
             if facts.cards.is_empty() {
-                let quiet = Style::new(Face::Body, 14.0, panel::HINT);
+                let quiet = Style::new(Face::Body, 14.0, panel::hint());
                 let said = if facts.installed == 0 {
                     "No plugins yet"
                 } else {
@@ -407,8 +407,8 @@ impl PluginPanel {
                 p.text(said, x0, y + LINE_H, &quiet);
             }
             for (shown, h) in facts.cards.iter().zip(&heights) {
-                p.fill(x0, y, inner, *h, panel::TILE_RADIUS, panel::TILE);
-                p.border(x0, y, inner, *h, panel::TILE_RADIUS, 1.0, panel::DIVIDER);
+                p.fill(x0, y, inner, *h, panel::TILE_RADIUS, panel::tile());
+                p.border(x0, y, inner, *h, panel::TILE_RADIUS, 1.0, panel::divider());
                 match turned(shown) {
                     0.0 => paint_front(p, facts, shown, x0, y, inner, &mut shapes),
                     1.0 => paint_back(p, facts, shown, x0, y, inner, &mut shapes),
@@ -449,7 +449,7 @@ impl PluginPanel {
                 y -= CARD_GAP;
             }
             y += GAP;
-            p.fill(x0, y, inner, 1.0, 0.0, panel::DIVIDER);
+            p.fill(x0, y, inner, 1.0, 0.0, panel::divider());
             let centre = y + FOOT_H - 9.0;
             let link = Style::new(Face::Body, 14.0, panel::lighter(facts.accent, 0.36));
             let link_w = p.text("Plugin settings", x0, centre, &link);
@@ -499,10 +499,10 @@ fn paint_head(p: &mut Painter, facts: &Facts, x0: f32, y: f32) {
             colour,
         );
     }
-    let name = Style::new(Face::BodyBold, 17.0, INK);
+    let name = Style::new(Face::BodyBold, 17.0, ink());
     let name_w = p.text("Plugins", x0 + 2.0 * SQUARE + 2.0 + 12.0, centre, &name);
     if facts.installed > 0 {
-        let quiet = Style::new(Face::Body, 13.0, panel::HINT);
+        let quiet = Style::new(Face::Body, 13.0, panel::hint());
         p.text(
             &format!("{on} on"),
             x0 + 2.0 * SQUARE + 2.0 + 12.0 + name_w + 10.0,
@@ -584,7 +584,7 @@ fn back_height(shown: &Shown) -> f32 {
 /// A round quiet button at (`x`, `y`) with `icon` in it.
 fn round_button(p: &mut Painter, icon: &str, x: f32, y: f32) {
     panel::quiet_button(p, x, y, ROUND, ROUND, ROUND / 2.0, false);
-    p.icon(icon, x + 3.0, y + 3.0, 18.0, Some(panel::SECONDARY));
+    p.icon(icon, x + 3.0, y + 3.0, 18.0, Some(panel::secondary()));
 }
 
 /// One plugin's card showing its gauges, at (`x`, `y`) and `w` wide: its name and cog, its lines,
@@ -604,7 +604,7 @@ fn paint_front(
     let stale = shown.problem.is_some();
     let shade = |rgba: u32| if stale { card::dim(rgba) } else { rgba };
     let has_sections = shown.card.as_ref().is_some_and(has_choice);
-    let name = Style::new(Face::BodyBold, 15.0, INK);
+    let name = Style::new(Face::BodyBold, 15.0, ink());
     let name_room = if has_sections {
         inner - ROUND - 8.0
     } else {
@@ -643,7 +643,7 @@ fn paint_front(
         );
         return;
     };
-    let line = Style::new(Face::Body, 14.0, shade(panel::SECONDARY));
+    let line = Style::new(Face::Body, 14.0, shade(panel::secondary()));
     for text in &card.lines {
         p.text(
             &text::ellipsize(text, &line, inner),
@@ -662,7 +662,7 @@ fn paint_front(
             }
         };
         let centre = y + SECTION_HEAD_H / 2.0;
-        let name = Style::new(Face::BodyBold, 13.5, shade(INK));
+        let name = Style::new(Face::BodyBold, 13.5, shade(ink()));
         let name_w = p.text(
             &text::ellipsize(&section.name, &name, inner / 2.0),
             x0,
@@ -670,7 +670,7 @@ fn paint_front(
             &name,
         );
         if let Some(detail) = &section.detail {
-            let quiet = Style::new(Face::Body, 12.5, shade(panel::HINT));
+            let quiet = Style::new(Face::Body, 12.5, shade(panel::hint()));
             p.text(
                 &text::ellipsize(detail, &quiet, inner / 2.0 - 10.0),
                 x0 + name_w + 10.0,
@@ -681,7 +681,7 @@ fn paint_front(
         y += SECTION_HEAD_H;
         for gauge in &section.gauges {
             let centre = y + GAUGE_ROW_H / 2.0;
-            let label = Style::new(Face::Body, 13.0, shade(panel::SECONDARY));
+            let label = Style::new(Face::Body, 13.0, shade(panel::secondary()));
             p.text(
                 &text::ellipsize(&gauge.label, &label, 96.0),
                 x0,
@@ -720,7 +720,7 @@ fn paint_front(
                 &shade,
             );
             if let Some(left) = &gauge.resets_in {
-                let small = Style::new(Face::Body, 12.0, shade(panel::HINT));
+                let small = Style::new(Face::Body, 12.0, shade(panel::hint()));
                 let left = text::ellipsize(left, &small, 88.0);
                 p.text(
                     &left,
@@ -744,13 +744,13 @@ fn paint_front(
     }
     let hidden = hidden_count(shown);
     if hidden > 0 {
-        let quiet = Style::new(Face::Body, 12.5, panel::HINT);
+        let quiet = Style::new(Face::Body, 12.5, panel::hint());
         p.text(&format!("{hidden} hidden"), x0, y + NOTE_H / 2.0, &quiet);
         y += NOTE_H;
     }
     if !card.buttons.is_empty() {
         y += BUTTON_GAP;
-        let label = Style::new(Face::Body, 13.5, INK);
+        let label = Style::new(Face::Body, 13.5, ink());
         let mut at = x0;
         for button in &card.buttons {
             let bw = text::width(&button.label, &label) + 28.0;
@@ -787,7 +787,7 @@ fn paint_gauge(
     shade: &dyn Fn(u32) -> u32,
 ) {
     const H: f32 = 6.0;
-    p.fill(x, y, w, H, H / 2.0, shade(panel::TRACK));
+    p.fill(x, y, w, H, H / 2.0, shade(panel::track()));
     if let Some(through) = through.filter(|through| *through > 0.0) {
         let time = (facts.time & 0xffffff00) | TIME_ALPHA;
         p.fill(x, y, (w * through).max(H), H, H / 2.0, shade(time));
@@ -831,7 +831,7 @@ fn paint_back(
         Item::Back(shown.id.clone()),
         [x0, back_y, ROUND, ROUND, ROUND / 2.0],
     ));
-    let name = Style::new(Face::BodyBold, 15.0, INK);
+    let name = Style::new(Face::BodyBold, 15.0, ink());
     p.text(
         &text::ellipsize(
             &format!("{} shows", shown.name),
@@ -843,7 +843,7 @@ fn paint_back(
         &name,
     );
     y += NAME_H + 6.0;
-    let label = Style::new(Face::Body, 14.0, INK);
+    let label = Style::new(Face::Body, 14.0, ink());
     for section in shown.card.iter().flat_map(|card| &card.sections) {
         let on = !shown.hidden.contains(&section.name);
         let centre = y + CHOICE_H / 2.0;
@@ -861,7 +861,7 @@ fn paint_back(
             sw,
             sh,
             sh / 2.0,
-            if on { facts.accent } else { panel::QUIET_LIT },
+            if on { facts.accent } else { panel::quiet_lit() },
         );
         let knob = if on { sx + sw - sh + 3.0 } else { sx + 3.0 };
         p.fill(
@@ -873,7 +873,7 @@ fn paint_back(
             if on {
                 panel::ink_on(facts.accent)
             } else {
-                panel::SECONDARY
+                panel::secondary()
             },
         );
         shapes.push((
@@ -890,7 +890,7 @@ fn paint_back(
     }
     if has_time(shown) {
         y += 6.0;
-        let quiet = Style::new(Face::Body, 12.5, panel::HINT);
+        let quiet = Style::new(Face::Body, 12.5, panel::hint());
         let swatch = |p: &mut Painter, y: f32, colour: u32, said: &str| {
             p.fill(x0, y + KEY_H / 2.0 - 3.0, 18.0, 6.0, 3.0, colour);
             p.text(said, x0 + 28.0, y + KEY_H / 2.0, &quiet);
@@ -914,7 +914,7 @@ fn paint_back(
 fn meter_text(percent: u8, attention: u32) -> u32 {
     match percent {
         75.. => card::ink(percent, attention),
-        _ => panel::SECONDARY,
+        _ => panel::secondary(),
     }
 }
 
@@ -1051,10 +1051,10 @@ mod tests {
         Facts {
             installed: cards.len(),
             cards,
-            ring: panel::FOCUS,
+            ring: panel::focus(),
             time: 0x42d3ffff,
-            ahead: panel::AMBER,
-            accent: panel::ACCENT,
+            ahead: panel::amber(),
+            accent: panel::accent(),
             reduced_motion: true,
             key: "Super+Y".into(),
         }

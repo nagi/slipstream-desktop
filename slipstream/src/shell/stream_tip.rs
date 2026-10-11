@@ -123,14 +123,14 @@ fn rate(bytes_a_second: f32) -> String {
 fn paint_card(name: &str, line: Option<&str>, scale: f64) -> Option<paint::Painted> {
     let name = Line {
         text: name,
-        style: Style::new(Face::BodyBold, 15.0, panel::BRIGHT),
+        style: Style::new(Face::BodyBold, 15.0, panel::bright()),
         height: NAME_LINE,
     };
     let figures = line.map(|line| Line {
         text: line,
         style: Style {
             tabular: true,
-            ..Style::new(Face::Mono, 13.0, panel::PROSE)
+            ..Style::new(Face::Mono, 13.0, panel::prose())
         },
         height: FIGURES_LINE,
     });

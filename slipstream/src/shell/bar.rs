@@ -21,6 +21,7 @@ use smithay::{
 use crate::{
     icons,
     paint::{self, Painter},
+    palette,
     panel::{self, ink_on},
     plugins::card,
     status::Reading,
@@ -229,9 +230,13 @@ impl Bar {
     }
 }
 
-const INK: u32 = panel::PROSE;
+fn ink() -> u32 {
+    panel::prose()
+}
 /// The dot that says the screen is being shared. Red, and nothing else on the bar is.
-const LIVE: u32 = 0xff5a5aff;
+fn live() -> u32 {
+    palette::red(0xff5a5aff)
+}
 /// The alpha of the faint pills that say a state is on: Caps Lock, Awake, sharing.
 const PILL: u32 = 0x24;
 
@@ -254,7 +259,7 @@ fn paint(content: &Content, width: i32, scale: f64) -> Option<Painted> {
         targets: Vec::new(),
     };
     let wide = bar.wide;
-    bar.p.fill(0.0, 0.0, wide, TALL, 0.0, panel::CHIP | 0xe6);
+    bar.p.fill(0.0, 0.0, wide, TALL, 0.0, panel::chip() | 0xe6);
     // The line along the foot, broken where a docked pane's frame carries the bar on downwards.
     let span = content.dock.map(|(left, right)| {
         (
@@ -265,12 +270,12 @@ fn paint(content: &Content, width: i32, scale: f64) -> Option<Painted> {
     match span {
         Some((left, right)) => {
             bar.p
-                .fill(0.0, TALL - 1.0, left.max(0.0), 1.0, 0.0, panel::DIVIDER);
+                .fill(0.0, TALL - 1.0, left.max(0.0), 1.0, 0.0, panel::divider());
             let rest = (wide - right).max(0.0);
             bar.p
-                .fill(right, TALL - 1.0, rest, 1.0, 0.0, panel::DIVIDER);
+                .fill(right, TALL - 1.0, rest, 1.0, 0.0, panel::divider());
         }
-        None => bar.p.fill(0.0, TALL - 1.0, wide, 1.0, 0.0, panel::DIVIDER),
+        None => bar.p.fill(0.0, TALL - 1.0, wide, 1.0, 0.0, panel::divider()),
     }
     let x = paint_left(&mut bar, content);
     let right = paint_right(&mut bar, content);
@@ -320,7 +325,7 @@ impl Strip {
 fn paint_left(bar: &mut Strip, content: &Content) -> f32 {
     let wide = bar.wide;
     let mut x = 8.0;
-    bar.p.icon(icons::LOGO, x + 6.5, 9.5, 21.0, None);
+    bar.p.icon(&icons::logo(), x + 6.5, 9.5, 21.0, None);
     // The buttons in the corners reach out to the screen's side edges as well.
     bar.target(Target::Apps, 0.0, x + 34.0);
     x += 34.0 + 8.0;
@@ -344,9 +349,9 @@ fn paint_left(bar: &mut Strip, content: &Content) -> f32 {
         let color = if on {
             panel::lighter(content.ring, 1.0 / 3.0)
         } else if content.occupied.get(index).copied().unwrap_or(false) {
-            panel::PROSE
+            panel::prose()
         } else {
-            panel::PLACEHOLDER
+            panel::placeholder()
         };
         let style = Style::new(Face::Mono, 15.0, color);
         let label_w = text::width(&label, &style);
@@ -359,7 +364,7 @@ fn paint_left(bar: &mut Strip, content: &Content) -> f32 {
             bar.p.fill(x, 7.0, w, 26.0, 6.0, ring | 0x14);
         } else if content.elsewhere.get(index).copied().unwrap_or(false) {
             bar.p
-                .inset_bottom(x, 7.0, w, 26.0, 6.0, (panel::HINT & 0xffffff00) | 0xb0);
+                .inset_bottom(x, 7.0, w, 26.0, 6.0, (panel::hint() & 0xffffff00) | 0xb0);
         }
         if content.home == Some(index) {
             let home = (content.bullet & 0xffffff00) | 0x99;
@@ -371,7 +376,7 @@ fn paint_left(bar: &mut Strip, content: &Content) -> f32 {
     }
     x += OVERVIEW_GAP;
     bar.p
-        .icon(icons::OVERVIEW, x + 4.0, 9.0, 22.0, Some(panel::TERTIARY));
+        .icon(icons::OVERVIEW, x + 4.0, 9.0, 22.0, Some(panel::tertiary()));
     bar.target(Target::Overview, x, OVERVIEW_W);
     x += OVERVIEW_W + 8.0;
 
@@ -392,9 +397,9 @@ fn paint_left(bar: &mut Strip, content: &Content) -> f32 {
 fn clock_styles() -> (Style, Style) {
     let clock = Style {
         tabular: true,
-        ..Style::new(Face::Body, 16.0, panel::BRIGHT)
+        ..Style::new(Face::Body, 16.0, panel::bright())
     };
-    (clock, Style::new(Face::Body, 14.0, panel::TERTIARY))
+    (clock, Style::new(Face::Body, 14.0, panel::tertiary()))
 }
 
 /// The time and date's width, padding included.
@@ -413,9 +418,15 @@ const CHIP_PAD: f32 = 10.0;
 const SQUARE: f32 = 7.0;
 const SQUARE_GAP: f32 = 2.0;
 /// A square for a plugin that's off, and the chip's own fill and edge at rest.
-const SQUARE_OFF: u32 = 0xffffff29;
-const CHIP_FILL: u32 = 0xffffff0a;
-const CHIP_EDGE: u32 = 0xffffff1c;
+fn square_off() -> u32 {
+    palette::tone(0xffffff29)
+}
+fn chip_fill() -> u32 {
+    palette::tone(0xffffff0a)
+}
+fn chip_edge() -> u32 {
+    palette::tone(0xffffff1c)
+}
 
 /// The headline on the chip: its gauges and its text, and their style, warming to `attention`
 /// as a gauge runs out.
@@ -428,9 +439,9 @@ fn chip_glance(
         .gauges
         .iter()
         .max()
-        .map_or(INK, |percent| match percent {
+        .map_or(ink(), |percent| match percent {
             75.. => card::ink(*percent, attention),
-            _ => INK,
+            _ => ink(),
         });
     let style = Style {
         tabular: true,
@@ -443,7 +454,7 @@ fn chip_glance(
 fn chip_width(chip: &crate::plugins::Chip) -> f32 {
     let squares = 2.0 * SQUARE + SQUARE_GAP;
     // The colour makes no difference to the width.
-    let glance = chip_glance(chip, INK).map_or(0.0, |(glance, style)| {
+    let glance = chip_glance(chip, ink()).map_or(0.0, |(glance, style)| {
         let gauges = if glance.gauges.is_empty() {
             0.0
         } else {
@@ -494,7 +505,7 @@ fn paint_chip(bar: &mut Strip, chip: &crate::plugins::Chip, content: &Content, x
     } else if chip.attention {
         (attention | 0x1a, attention | 0xbf)
     } else {
-        (CHIP_FILL, CHIP_EDGE)
+        (chip_fill(), chip_edge())
     };
     bar.p.fill(x, CHIP_Y, w, CHIP_H, 6.0, fill);
     bar.p.border(x, CHIP_Y, w, CHIP_H, 6.0, 1.0, edge);
@@ -505,7 +516,7 @@ fn paint_chip(bar: &mut Strip, chip: &crate::plugins::Chip, content: &Content, x
     for index in 0..4 {
         let (column, row) = ((index % 2) as f32, (index / 2) as f32);
         let colour = if index >= shown {
-            (SQUARE_OFF & 0xffffff00) | 0x10
+            (square_off() & 0xffffff00) | 0x10
         } else if index < lit {
             // The last lit square carries the secondary colour, so the chip says which way to
             // look.
@@ -515,7 +526,7 @@ fn paint_chip(bar: &mut Strip, chip: &crate::plugins::Chip, content: &Content, x
                 content.ring
             }
         } else {
-            SQUARE_OFF
+            square_off()
         };
         bar.p.fill(
             x + CHIP_PAD + column * (SQUARE + SQUARE_GAP),
@@ -528,11 +539,12 @@ fn paint_chip(bar: &mut Strip, chip: &crate::plugins::Chip, content: &Content, x
     }
     if let Some((glance, style)) = chip_glance(chip, content.bullet) {
         let mut at = x + CHIP_PAD + squares + 8.0;
-        bar.p.fill(at, 13.0, 1.0, 14.0, 0.0, panel::EDGE);
+        bar.p.fill(at, 13.0, 1.0, 14.0, 0.0, panel::edge());
         at += 1.0 + 8.0;
         if !glance.gauges.is_empty() {
             let mut gauge = |y: f32, h: f32, percent: u8| {
-                bar.p.fill(at, y, GAUGE_W, h, h / 2.0, 0xffffff26);
+                bar.p
+                    .fill(at, y, GAUGE_W, h, h / 2.0, palette::tone(0xffffff26));
                 let filled = GAUGE_W * percent as f32 / 100.0;
                 if filled > 0.0 {
                     bar.p.fill(
@@ -560,9 +572,9 @@ fn paint_chip(bar: &mut Strip, chip: &crate::plugins::Chip, content: &Content, x
 /// clock, dimmed where the keyboard isn't.
 fn paint_title(bar: &mut Strip, content: &Content, x: f32, centre_x: f32) {
     let title_ink = if content.keyboard_here {
-        panel::TERTIARY
+        panel::tertiary()
     } else {
-        0x626b7cff
+        palette::tone(0x626b7cff)
     };
     let title = Style::new(Face::Body, 14.0, title_ink);
     let room = centre_x - 16.0 - x;
@@ -586,7 +598,7 @@ fn paint_right(bar: &mut Strip, content: &Content) -> f32 {
     } else {
         icons::BELL
     };
-    bar.p.icon(bell, right + 9.0, 11.0, 18.0, Some(INK));
+    bar.p.icon(bell, right + 9.0, 11.0, 18.0, Some(ink()));
     bar.target(Target::Bell, right, wide - right);
     // The unread badge, over the bell's top right corner.
     if content.unread > 0 {
@@ -608,7 +620,7 @@ fn paint_right(bar: &mut Strip, content: &Content) -> f32 {
         let ink = match (percent, charging) {
             (_, true) => content.ring,
             (..=15, false) => content.bullet,
-            _ => INK,
+            _ => ink(),
         };
         (
             icons::battery(percent, charging.then_some(content.ring)),
@@ -623,17 +635,17 @@ fn paint_right(bar: &mut Strip, content: &Content) -> f32 {
             icons::WIFI_OFF
         }
         .to_string(),
-        INK,
+        ink(),
     )];
     if status.bluetooth {
-        tray.push((icons::BLUETOOTH.to_string(), INK));
+        tray.push((icons::BLUETOOTH.to_string(), ink()));
     }
     let volume = if status.muted {
         icons::VOLUME_MUTED
     } else {
         icons::VOLUME
     };
-    tray.push((volume.to_string(), INK));
+    tray.push((volume.to_string(), ink()));
     let mut percent_w = 0.0;
     if let Some((icon, percent, style)) = &battery {
         tray.push((icon.clone(), u32::from_be_bytes(style.color)));
@@ -656,7 +668,7 @@ fn paint_right(bar: &mut Strip, content: &Content) -> f32 {
     if let Some(layout) = &content.layout {
         let style = Style {
             tracking: 0.06,
-            ..Style::new(Face::MonoBold, 12.0, INK)
+            ..Style::new(Face::MonoBold, 12.0, ink())
         };
         let w = 8.0 + text::width(layout, &style) + 8.0;
         right -= 4.0 + w;
@@ -687,7 +699,7 @@ fn paint_right(bar: &mut Strip, content: &Content) -> f32 {
     // While anything is shared: a red dot and the word, on a faint red pill, which stops every
     // share when clicked.
     if content.sharing {
-        let (x, w) = pill(bar, right, "SHARING", LIVE, Mark::Dot);
+        let (x, w) = pill(bar, right, "SHARING", live(), Mark::Dot);
         bar.target(Target::Sharing, x, w);
         right = x;
     }
@@ -748,9 +760,9 @@ mod tests {
             labels: (1..=5).map(|n| n.to_string()).collect(),
             hidden: Vec::new(),
             title: "Firefox".into(),
-            mode: Some(("BULLET TIME", panel::AMBER)),
+            mode: Some(("BULLET TIME", panel::amber())),
             ring: 0x42d3ffff,
-            bullet: panel::AMBER,
+            bullet: panel::amber(),
             status: Shown {
                 time: "17:24".into(),
                 date: "Fri 11 Sep".into(),

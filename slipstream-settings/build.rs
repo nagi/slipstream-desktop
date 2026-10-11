@@ -15,6 +15,7 @@ const PARTS: &[(&str, &[&str])] = &[
     (
         "Windows and tiling",
         &[
+            "raise",
             "main",
             "shell",
             "effects",
@@ -82,6 +83,7 @@ const PARTS: &[(&str, &[&str])] = &[
         "Drawing and text",
         &[
             "paint",
+            "palette",
             "text",
             "fallback",
             "icons",

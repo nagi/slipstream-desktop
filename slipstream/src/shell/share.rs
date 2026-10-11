@@ -580,7 +580,7 @@ mod tests {
             Act::Nothing,
             "nor shares the screen"
         );
-        let inks = (crate::panel::ACCENT, crate::panel::AMBER);
+        let inks = (crate::panel::accent(), crate::panel::amber());
         let (_, hits) = card::paint(&picker.card(0), inks, 1.0);
         let (x, y) = hits
             .iter()
@@ -591,8 +591,8 @@ mod tests {
             size: (1920, 1080).into(),
             scale: 1.0,
             time: 0.0,
-            accent: crate::panel::ACCENT,
-            attention: crate::panel::AMBER,
+            accent: crate::panel::accent(),
+            attention: crate::panel::amber(),
         };
         picker.on_screen.paint(picker.card(0), frame, card::paint);
         let px = crate::panel::DESIGN_PX as f64;

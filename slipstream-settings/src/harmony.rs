@@ -198,16 +198,19 @@ mod tests {
 
     #[test]
     fn the_first_theme_is_what_the_settings_start_with() {
+        // The settings name the colours, which without a theme are Slipstream's own.
         let first = THEMES[0];
-        assert_eq!(first.focus, slipstream_config::SELECTED_TILE);
-        assert_eq!(first.bullet, slipstream_config::BULLET_TIME);
-        assert_eq!(first.accent, slipstream_config::ACCENT);
+        let borders = slipstream_config::Borders::default();
+        assert_eq!(rgb(first.focus), borders.selected_tile_rgb(None));
+        assert_eq!(rgb(first.bullet), borders.bullet_time_rgb(None));
+        assert_eq!(rgb(first.accent), borders.accent_rgb(None));
     }
 
     #[test]
     fn slipstreams_amber_is_its_cyans_split_complement() {
-        let (bullet, _) = partners(rgb(slipstream_config::SELECTED_TILE));
-        let amber = rgb(slipstream_config::BULLET_TIME);
+        let borders = slipstream_config::Borders::default();
+        let (bullet, _) = partners(borders.selected_tile_rgb(None));
+        let amber = borders.bullet_time_rgb(None);
         assert!(apart(hue(bullet), hue(amber)) < 3.0, "{}", hex(bullet));
         assert!(
             (oklch(bullet).0 - oklch(amber).0).abs() < 0.05,

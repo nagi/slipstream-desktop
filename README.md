@@ -155,6 +155,7 @@ sh -c "$(curl -fsSL https://raw.githubusercontent.com/peterwalker78/slipstream-d
 - **Every screen in its place.** Arrange your screens in Settings the way they sit on your desk, give each its own workspaces, and shut the laptop lid to hand everything to the screen that's left.
 - **Games and virtual machines behave.** They can hold the mouse and every key, and one shortcut always takes it back.
 - **Light, for a desktop that looks like this.** Settings → About shows its Featherweight score: how light Slipstream is in real use beside other desktops, each one measured the same way.
+- **Your Omarchy theme, on the whole desktop.** On Omarchy, the bar, the panels, the rings, the streams and the living wallpapers follow the theme you've set, and change the moment you change it.
 - **The Linux tools you already have keep working.** Screenshot and recording tools like `grim` and `wf-recorder`, idle tools, colour-temperature tools - and nothing records your screen without asking you first, by name.
 
 [**The full list →**](guide/features.md) · [**Every key →**](guide/keys.md)

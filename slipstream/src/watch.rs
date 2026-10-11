@@ -1,8 +1,10 @@
 //! Follows changes on disk. The explorer's app list keeps in step with what's installed: every
 //! applications folder (Flatpak exports included) is watched, and any change there, an app
-//! installed, removed or updated, reads the apps and their icons again once the changes settle. The recent files list is read again when an app rewrites it. Settings apply as
-//! soon as the Settings app saves them, and a shortcut taken away from an app there stops working.
-//! Plugins added, removed or updated are looked at again.
+//! installed, removed or updated, reads the apps and their icons again once the changes settle.
+//! The recent files list is read again when an app rewrites it. Settings apply as soon as the
+//! Settings app saves them, and a shortcut taken away from an app there stops working. A followed
+//! Omarchy theme applies as soon as Omarchy sets it. Plugins added, removed or updated are looked
+//! at again.
 
 use std::{cell::Cell, mem::MaybeUninit, path::PathBuf, rc::Rc, time::Duration};
 
@@ -28,6 +30,8 @@ const RECENT_SETTLE: Duration = Duration::from_millis(200);
 const PLUGINS_SETTLE: Duration = Duration::from_millis(500);
 /// The Settings app renames a finished file into place, but editors may take a few writes.
 const SETTINGS_SETTLE: Duration = Duration::from_millis(100);
+/// Omarchy takes the old theme away, moves the new one in, and then writes its name.
+const THEME_SETTLE: Duration = Duration::from_millis(250);
 
 pub fn watch_apps(handle: &LoopHandle<'static, Slipstream>) {
     watch(
@@ -125,6 +129,24 @@ pub fn watch_shortcuts(handle: &LoopHandle<'static, Slipstream>) {
             })
         },
         |state| state.shortcuts_file_changed(),
+    );
+}
+
+/// The Omarchy theme: `omarchy theme set` renames the new theme into place in the folder Omarchy
+/// keeps the current one in, and writes its name beside it. Where there is no Omarchy there is no
+/// folder, and nothing to watch.
+pub fn watch_theme(handle: &LoopHandle<'static, Slipstream>) {
+    watch(
+        handle,
+        "the Omarchy theme changing",
+        vec![slipstream_config::theme::current_dir()],
+        THEME_SETTLE,
+        |event| {
+            event
+                .file_name()
+                .is_some_and(|name| matches!(name.to_bytes(), b"theme" | b"theme.name"))
+        },
+        |state| state.apply_theme(),
     );
 }
 

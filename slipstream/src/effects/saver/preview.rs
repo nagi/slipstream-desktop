@@ -14,7 +14,7 @@ use std::io::Write;
 use std::time::{Duration, Instant};
 
 use super::{
-    BACKGROUND, BLANK, Frame, GlyphCache, Grid, Layout, Look, Readings, TWEEN_LEVELS, epoch_now,
+    BLANK, Frame, GlyphCache, Grid, Inks, Layout, Look, Readings, TWEEN_LEVELS, epoch_now,
     layout, make, paint_cell, step_hz,
 };
 
@@ -224,9 +224,11 @@ impl Canvas {
     fn paint(&mut self, layout: &Layout, before: &Grid, latest: &Grid, along: f64) {
         let (width, _) = self.device;
         let full = self.shown.len() != latest.cells.len();
+        let inks = Inks::now();
         if full {
+            let [r, g, b] = inks.ground();
             for pixel in self.pixels.chunks_exact_mut(4) {
-                pixel.copy_from_slice(&[BACKGROUND[0], BACKGROUND[1], BACKGROUND[2], 255]);
+                pixel.copy_from_slice(&[r, g, b, 255]);
             }
             self.shown = vec![(BLANK, BLANK, TWEEN_LEVELS); latest.cells.len()];
         }
@@ -250,6 +252,7 @@ impl Canvas {
                         width,
                         layout,
                         &mut self.glyphs,
+                        &inks,
                         col,
                         row,
                         look,

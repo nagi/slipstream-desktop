@@ -152,7 +152,7 @@ pub fn one_line_centre(height: f64) -> f64 {
 
 /// The toast's words.
 fn prose() -> Style {
-    Style::new(Face::Body, 16.0, panel::PROSE)
+    Style::new(Face::Body, 16.0, panel::prose())
 }
 
 /// The room the words' lines have in a card `width` wide.
@@ -192,8 +192,8 @@ pub fn paint_card(
     let (dy, blur, shadow) = panel::NOTICE_SHADOW;
     p.shadow(x, y, width, height, radius, dy, blur, shadow);
     p.fill(x, y, width, height, radius, accent);
-    p.fill(x + 4.0, y, width - 4.0, height, radius - 3.0, panel::NOTICE);
-    p.border(x, y, width, height, radius, 1.0, panel::NOTICE_EDGE);
+    p.fill(x + 4.0, y, width - 4.0, height, radius - 3.0, panel::notice_fill());
+    p.border(x, y, width, height, radius, 1.0, panel::notice_edge());
     p.text(&title.to_uppercase(), x + PAD, y + 16.0 + 10.0, &heading);
     let top = y + 16.0 + 20.0 + 4.0;
     for (i, line) in lines.iter().enumerate() {
@@ -230,12 +230,12 @@ mod tests {
 
     #[test]
     fn a_long_message_grows_the_card_rather_than_overflowing() {
-        let short = paint("Gravity", "On.", panel::ACCENT, 1.25).unwrap();
+        let short = paint("Gravity", "On.", panel::accent(), 1.25).unwrap();
         let long = paint(
             "Already the centre",
             "Konsole can’t get any heavier, and this sentence goes on long enough to wrap twice \
              over in a card this narrow. Super+[ makes it lighter.",
-            panel::ACCENT,
+            panel::accent(),
             1.25,
         )
         .unwrap();

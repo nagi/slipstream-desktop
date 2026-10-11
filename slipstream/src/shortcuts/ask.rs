@@ -177,7 +177,7 @@ impl Ask {
                     title: String::new(),
                     note: Some(match row.trigger {
                         Some(trigger) => (trigger.label(), accent),
-                        None => ("left out".to_string(), panel::HINT),
+                        None => ("left out".to_string(), panel::hint()),
                     }),
                 })
                 .collect(),

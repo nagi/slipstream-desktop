@@ -18,7 +18,8 @@ use crate::{
     keys::App,
     launch,
     paint::{Painted, Painter},
-    panel::{self, DESIGN_PX, GAP, INK, PADDING},
+    palette,
+    panel::{self, DESIGN_PX, GAP, PADDING, ink},
     status::{self, Reading},
     text::{self, Face, Style},
 };
@@ -161,8 +162,8 @@ impl Default for Facts {
             night_light: false,
             reduced_motion: false,
             user: String::new(),
-            ring: crate::panel::FOCUS,
-            accent: crate::panel::ACCENT,
+            ring: crate::panel::focus(),
+            accent: crate::panel::accent(),
             key: String::new(),
             tiles: Vec::new(),
         }
@@ -557,7 +558,7 @@ fn paint_header(p: &mut Painter, look: &Look, x0: f32, y: f32, hits: &mut Hits) 
     let power_x = x0 + inner - 40.0;
     let lock_x = power_x - 8.0 - 40.0;
     let room = lock_x - 12.0 - x0;
-    let battery = Style::new(Face::Body, 16.0, INK);
+    let battery = Style::new(Face::Body, 16.0, ink());
     let mut text_x = x0;
     if let Some((percent, plugged)) = status.battery {
         p.icon(
@@ -565,7 +566,7 @@ fn paint_header(p: &mut Painter, look: &Look, x0: f32, y: f32, hits: &mut Hits) 
             x0,
             y + 3.0,
             18.0,
-            Some(INK),
+            Some(ink()),
         );
         text_x += 26.0;
     }
@@ -575,7 +576,7 @@ fn paint_header(p: &mut Painter, look: &Look, x0: f32, y: f32, hits: &mut Hits) 
         y + 12.0,
         &battery,
     );
-    let small = Style::new(Face::Body, 13.0, panel::HINT);
+    let small = Style::new(Face::Body, 13.0, panel::hint());
     let name_w = p.text(
         &text::ellipsize(&facts.user, &small, room - (text_x - x0)),
         text_x,
@@ -588,11 +589,11 @@ fn paint_header(p: &mut Painter, look: &Look, x0: f32, y: f32, hits: &mut Hits) 
         [x0 - 6.0, y + 1.0, header_w + 12.0, 40.0, 8.0],
     ));
     panel::quiet_button(p, lock_x, y + 1.0, 40.0, 40.0, 20.0, false);
-    p.icon(icons::LOCK, lock_x + 11.0, y + 12.0, 18.0, Some(INK));
+    p.icon(icons::LOCK, lock_x + 11.0, y + 12.0, 18.0, Some(ink()));
     hits.shapes
         .push((Control::Lock, [lock_x, y + 1.0, 40.0, 40.0, 20.0]));
     panel::quiet_button(p, power_x, y + 1.0, 40.0, 40.0, 20.0, look.power_menu);
-    p.icon(icons::POWER, power_x + 11.0, y + 12.0, 18.0, Some(INK));
+    p.icon(icons::POWER, power_x + 11.0, y + 12.0, 18.0, Some(ink()));
     hits.shapes
         .push((Control::Power, [power_x, y + 1.0, 40.0, 40.0, 20.0]));
 }
@@ -600,7 +601,7 @@ fn paint_header(p: &mut Painter, look: &Look, x0: f32, y: f32, hits: &mut Hits) 
 /// The power menu, opened from its button: a row of the ways out.
 fn paint_power_menu(p: &mut Painter, x0: f32, y: f32, hits: &mut Hits) {
     let inner = WIDTH - 2.0 * PADDING;
-    let label = Style::new(Face::Body, 14.0, INK);
+    let label = Style::new(Face::Body, 14.0, ink());
     let w = (inner - 3.0 * 8.0) / 4.0;
     for (i, control) in POWER_MENU.into_iter().enumerate() {
         let x = x0 + i as f32 * (w + 8.0);
@@ -634,9 +635,9 @@ fn paint_tiles(p: &mut Painter, facts: &Facts, x0: f32, y: f32, hits: &mut Hits)
         let x = x0 + (i % 2) as f32 * (tile_w + TILE_GAP);
         let top = y + (i / 2) as f32 * (TILE_H + TILE_GAP);
         let (on, detail) = tile(control, facts);
-        let fill = if on { facts.accent } else { panel::TILE };
+        let fill = if on { facts.accent } else { panel::tile() };
         p.fill(x, top, tile_w, TILE_H, panel::TILE_RADIUS, fill);
-        let ink = if on { panel::ink_on(fill) } else { INK };
+        let ink = if on { panel::ink_on(fill) } else { ink() };
         let icon = match control {
             Control::WiFi if !status.wifi => icons::WIFI_OFF,
             Control::WiFi => icons::WIFI,
@@ -666,7 +667,7 @@ fn paint_tiles(p: &mut Painter, facts: &Facts, x0: f32, y: f32, hits: &mut Hits)
         let detail_ink = if on {
             panel::faint_ink_on(fill)
         } else {
-            panel::TERTIARY
+            panel::tertiary()
         };
         let detail_style = Style::new(Face::Body, 12.5, detail_ink);
         p.text(
@@ -678,7 +679,7 @@ fn paint_tiles(p: &mut Painter, facts: &Facts, x0: f32, y: f32, hits: &mut Hits)
         // The chevron's zone, listed before its tile so a click there finds it first.
         if let Some(page) = page {
             let zone = x + tile_w - CHEVRON_W;
-            p.fill(zone, top + 14.0, 1.0, TILE_H - 28.0, 0.0, panel::DIVIDER);
+            p.fill(zone, top + 14.0, 1.0, TILE_H - 28.0, 0.0, panel::divider());
             p.icon(
                 icons::CHEVRON,
                 zone + (CHEVRON_W - 16.0) / 2.0,
@@ -706,14 +707,14 @@ fn paint_slider(
     let x0 = place.x + PADDING;
     let inner = WIDTH - 2.0 * PADDING;
     let centre = y + SLIDER_H / 2.0;
-    p.icon(icon, x0 + 6.0, centre - 9.0, 18.0, Some(INK));
+    p.icon(icon, x0 + 6.0, centre - 9.0, 18.0, Some(ink()));
     let track_x = x0 + 38.0;
     let track_w = x0 + inner - 6.0 - 46.0 - 14.0 - track_x;
     let filled = track_w * level.min(100) as f32 / 100.0;
-    p.fill(track_x, centre - 3.0, track_w, 6.0, 3.0, 0x3a3f4bff);
+    p.fill(track_x, centre - 3.0, track_w, 6.0, 3.0, palette::tone(0x3a3f4bff));
     let status = &facts.status;
     let muted = control == Control::Volume && status.muted;
-    let bar_ink = if muted { panel::HINT } else { facts.accent };
+    let bar_ink = if muted { panel::hint() } else { facts.accent };
     p.fill(track_x, centre - 3.0, filled, 6.0, 3.0, bar_ink);
     let knob = track_x + filled;
     p.shadow(
@@ -726,13 +727,13 @@ fn paint_slider(
         3.0,
         0x00000088,
     );
-    p.fill(knob - 8.0, centre - 8.0, 16.0, 16.0, 8.0, 0xffffffff);
+    p.fill(knob - 8.0, centre - 8.0, 16.0, 16.0, 8.0, palette::tone(0xffffffff));
     let value = if muted {
         "Muted".to_string()
     } else {
         format!("{level}%")
     };
-    let value_style = Style::new(Face::Mono, 13.0, panel::SECONDARY);
+    let value_style = Style::new(Face::Mono, 13.0, panel::secondary());
     let value_w = text::width(&value, &value_style);
     p.text(&value, x0 + inner - 6.0 - value_w, centre, &value_style);
     hits.targets
@@ -750,7 +751,7 @@ fn paint_slider(
 /// The footer: the way into the Settings app, and the keys that close the panel.
 fn paint_footer(p: &mut Painter, look: &Look, x0: f32, y: f32, hits: &mut Hits) {
     let inner = WIDTH - 2.0 * PADDING;
-    p.fill(x0, y, inner, 1.0, 0.0, panel::DIVIDER);
+    p.fill(x0, y, inner, 1.0, 0.0, panel::divider());
     let centre = y + FOOT_H - 9.0;
     let link = Style::new(Face::Body, 14.0, panel::lighter(look.facts.accent, 0.36));
     let link_w = p.text("All settings", x0, centre, &link);

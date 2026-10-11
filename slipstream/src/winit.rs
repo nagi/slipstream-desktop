@@ -97,7 +97,7 @@ pub fn init_winit(
                                     &mut framebuffer,
                                     0,
                                     &render::zoomed(&elements, view),
-                                    render::BACKGROUND,
+                                    render::background(),
                                 )
                                 .map(|result| result.states)
                                 .map(|states| (elements, states))

@@ -57,8 +57,19 @@ pub const CLOSE: &str = r#"<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>"#;
 pub const CHEVRON: &str = r#"<path d="M9.5 6l6 6-6 6"/>"#;
 pub const BACK: &str = r#"<path d="M14.5 6l-6 6 6 6"/>"#;
 pub const COG: &str = r#"<path d="M18.4 13L21.5 15.1L19.4 18.7L16.1 17.1L14.3 18.1L14.1 21.8L9.9 21.8L9.7 18.1L7.9 17.1L4.6 18.7L2.5 15.1L5.6 13L5.6 11L2.5 8.9L4.6 5.3L7.9 6.9L9.7 5.9L9.9 2.2L14.1 2.2L14.3 5.9L16.1 6.9L19.4 5.3L21.5 8.9L18.4 11z"/><circle cx="12" cy="12" r="2.8"/>"#;
-/// Two chevrons, amber and mint. Brings its own fills: draw it without ink.
-pub const LOGO: &str = r##"<path d="M2.5 5.5h9l5.5 6.5-5.5 6.5h-9L8 12z" fill="#ffb547"/><path d="M14 5.5h2.5l5.5 6.5-5.5 6.5H14l5.5-6.5z" fill="#3cf0c0"/>"##;
+/// Two chevrons, amber and mint, or a followed theme's highlight and green. Brings its own
+/// fills: draw it without ink.
+pub fn logo() -> String {
+    let hex = |rgba: u32| {
+        let [r, g, b, _] = rgba.to_be_bytes();
+        format!("#{r:02x}{g:02x}{b:02x}")
+    };
+    format!(
+        r#"<path d="M2.5 5.5h9l5.5 6.5-5.5 6.5h-9L8 12z" fill="{}"/><path d="M14 5.5h2.5l5.5 6.5-5.5 6.5H14l5.5-6.5z" fill="{}"/>"#,
+        hex(crate::panel::amber()),
+        hex(crate::panel::mint())
+    )
+}
 
 /// The battery, filled to `percent`. On a charger, `charging` holds the colour it's drawn in
 /// whatever the ink, with a lightning bolt through it, cut out of the outline so it reads at bar
@@ -194,7 +205,7 @@ mod tests {
         ] {
             assert!(coverage(body, Some(0xdfe4ecff)) > 20, "{body}");
         }
-        assert!(coverage(LOGO, None) > 200);
+        assert!(coverage(&logo(), None) > 200);
         assert!(coverage(&battery(50, None), Some(0xdfe4ecff)) > 20);
     }
 

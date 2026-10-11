@@ -9,7 +9,7 @@ use resvg::tiny_skia::Pixmap;
 
 use crate::{
     paint::Painter,
-    panel,
+    palette, panel,
     text::{self, Face, Style},
 };
 
@@ -141,7 +141,7 @@ pub fn lay_out(chips: &[Chip], x: f32, y: f32, room: f32) -> (Vec<[f32; 4]>, f32
 }
 
 fn name_style() -> Style {
-    Style::new(Face::Body, NAME_PX, panel::HINT)
+    Style::new(Face::Body, NAME_PX, panel::hint())
 }
 
 /// How the row is drawn: which chip the keyboard is on, which one's menu is open, and the one
@@ -166,8 +166,8 @@ pub fn paint(p: &mut Painter, chips: &[Chip], how: &Paint) {
             Some((at, t)) if at == i => {
                 let pulse = (t * std::f32::consts::PI).sin();
                 let fill = 0x12 + (pulse * (0x26 - 0x12) as f32) as u32;
-                p.fill(x, y, w, h, panel::ROW_RADIUS, 0xffffff00 | fill);
-                p.border(x, y, w, h, panel::ROW_RADIUS, 1.0, panel::EDGE);
+                p.fill(x, y, w, h, panel::ROW_RADIUS, palette::tone(0xffffff00) | fill);
+                p.border(x, y, w, h, panel::ROW_RADIUS, 1.0, panel::edge());
                 if !how.reduced_motion {
                     let ring = (how.ring & 0xffffff00) | (pulse * 0xcc as f32) as u32;
                     p.border(
@@ -198,7 +198,7 @@ pub fn paint(p: &mut Painter, chips: &[Chip], how: &Paint) {
         if chip.attention {
             // A dot on the icon's corner, ringed in the chip's own fill so it reads on any icon.
             let (dx, dy) = (icon_x + ICON - 3.0, icon_y - 2.0);
-            p.fill(dx - 1.5, dy - 1.5, 8.0, 8.0, 4.0, 0x1b1f29ff);
+            p.fill(dx - 1.5, dy - 1.5, 8.0, 8.0, 4.0, palette::tone(0x1b1f29ff));
             p.fill(dx, dy, 5.0, 5.0, 2.5, how.attention);
         }
         let name = text::ellipsize(&chip.name, &style, w - 2.0 * PAD_X + 1.0);

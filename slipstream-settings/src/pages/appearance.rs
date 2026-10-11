@@ -1,36 +1,225 @@
-//! Appearance: the colour scheme, Slipstream's three colours, motion and night light.
+//! Appearance: the theme Slipstream is drawn in, its three colours, motion and night light.
 
 use super::*;
 use crate::{harmony, picker::ColourButton};
 
+/// What the row that follows Omarchy's theme says: which theme the desktop is drawn in, or why
+/// none is.
+fn followed_text(settings: &Settings) -> String {
+    if !settings.appearance.follow_omarchy_theme {
+        return "Slipstream is drawn in its own colours, whatever theme Omarchy is showing."
+            .to_string();
+    }
+    match settings.appearance.theme() {
+        Some(theme) => format!(
+            "Slipstream is drawn in the theme, a {} one: its bar, panels, rings, streams and \
+             wallpapers, this window, and the colours apps are asked to take. It changes as \
+             soon as the theme does.",
+            if theme.light { "light" } else { "dark" }
+        ),
+        None => "Omarchy has no theme set whose colours Slipstream can read, so it is drawn in \
+                 its own."
+            .to_string(),
+    }
+}
+
+/// Omarchy's themes by the names it shows them under, from its own list. Empty where there is
+/// no Omarchy.
+fn omarchy_themes() -> Vec<String> {
+    std::process::Command::new("omarchy-theme-list")
+        .stdin(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .output()
+        .ok()
+        .filter(|listed| listed.status.success())
+        .map(|listed| {
+            String::from_utf8_lossy(&listed.stdout)
+                .lines()
+                .map(|name| name.trim().to_string())
+                .filter(|name| !name.is_empty())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Has Omarchy set the theme called `name`, as its own menu would. Omarchy recolours the
+/// terminal, the editor and the rest of what it looks after, and Slipstream follows the
+/// result. Its work goes on after this returns.
+fn set_omarchy_theme(name: &str) {
+    let started = std::process::Command::new("omarchy-theme-set")
+        .arg(name)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn();
+    match started {
+        // Waited for off the main thread, so it doesn't linger once it has finished.
+        Ok(mut setting) => {
+            std::thread::spawn(move || {
+                let _ = setting.wait();
+            });
+        }
+        Err(err) => eprintln!("slipstream-settings: couldn't run omarchy-theme-set: {err}"),
+    }
+}
+
+/// The page is built again whenever what it offers changes: the colours to choose from are the
+/// followed theme's own.
 pub(super) fn build(store: &Store) -> gtk::Widget {
-    let page = page(
-        "Appearance",
-        "What apps are coloured, what Slipstream marks things with, and how much it moves",
-    );
-    let colours = group(&page, "Colours");
-    let schemes = slipstream_config::ColourScheme::ALL;
-    let names: Vec<&str> = schemes.iter().map(|scheme| scheme.label()).collect();
-    let scheme = gtk::DropDown::from_strings(&names);
-    let chosen = store.get().appearance.colour_scheme;
-    scheme.set_selected(schemes.iter().position(|held| *held == chosen).unwrap_or(0) as u32);
-    let scheme_store = store.clone();
-    scheme.connect_selected_notify(move |scheme| {
-        if let Some(chosen) = schemes.get(scheme.selected() as usize).copied() {
-            scheme_store.change(move |settings| settings.appearance.colour_scheme = chosen);
+    let holder = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    holder.append(&appearance_page(store));
+    let offered = |settings: &Settings| {
+        (
+            settings.appearance.follow_omarchy_theme,
+            settings.appearance.theme(),
+        )
+    };
+    let shown = Rc::new(RefCell::new(offered(&store.get())));
+    crate::when_restyled({
+        let (store, holder) = (store.clone(), holder.downgrade());
+        move || {
+            let settings = slipstream_config::read(store.path()).unwrap_or_else(|_| store.get());
+            let now = offered(&settings);
+            if *shown.borrow() == now {
+                return;
+            }
+            shown.replace(now);
+            // Not from inside the control whose change brought this about.
+            let (store, holder) = (store.clone(), holder.clone());
+            gtk::glib::idle_add_local_once(move || {
+                let Some(holder) = holder.upgrade() else {
+                    return;
+                };
+                store.reload();
+                while let Some(old) = holder.first_child() {
+                    holder.remove(&old);
+                }
+                holder.append(&appearance_page(&store));
+            });
         }
     });
-    row(
-        &colours,
-        "Apps",
-        Some(
-            "Which one apps are asked for, and they change without restarting. Slipstream's own \
-             bar, panels and windows are dark either way, and an app that never asks the desktop \
-             keeps whatever colours it was set to.",
-        ),
-        &scheme,
+    holder.upcast()
+}
+
+fn appearance_page(store: &Store) -> gtk::Box {
+    let page = page(
+        "Appearance",
+        "The theme Slipstream is drawn in, what it marks things with, and how much it moves",
     );
-    self::colours(&colours, store);
+    let settings = store.get();
+    let theme = settings.appearance.theme();
+    // Only where there is an Omarchy to follow.
+    if slipstream_config::theme::current_dir().is_dir() {
+        let omarchy = group(&page, "Theme");
+        let themes = omarchy_themes();
+        if let (false, Some(theme)) = (themes.is_empty(), &theme) {
+            let names: Vec<&str> = themes.iter().map(String::as_str).collect();
+            let list = gtk::DropDown::from_strings(&names);
+            let current = theme.title();
+            let at = themes
+                .iter()
+                .position(|name| name.eq_ignore_ascii_case(&current));
+            list.set_selected(at.map_or(gtk::INVALID_LIST_POSITION, |at| at as u32));
+            list.connect_selected_notify(move |list| {
+                if let Some(name) = themes.get(list.selected() as usize)
+                    && !name.eq_ignore_ascii_case(&current)
+                {
+                    set_omarchy_theme(name);
+                }
+            });
+            row(
+                &omarchy,
+                "Omarchy theme",
+                Some(
+                    "Sets the theme through Omarchy, as its own menu does, so the terminal, the \
+                     editor and everything else Omarchy colours change with the desktop.",
+                ),
+                &list,
+            );
+        }
+        let follow = gtk::Switch::new();
+        follow.set_active(settings.appearance.follow_omarchy_theme);
+        let follow_store = store.clone();
+        follow.connect_active_notify(move |follow| {
+            let on = follow.is_active();
+            follow_store.change(|settings| settings.appearance.follow_omarchy_theme = on);
+            crate::retheme();
+        });
+        row(
+            &omarchy,
+            "Follow Omarchy's theme",
+            Some(&followed_text(&settings)),
+            &follow,
+        );
+    }
+
+    let colours = group(&page, "Colours");
+    match &theme {
+        // Under a theme the three are the theme's own colours, chosen by name so the choice goes
+        // with the next theme too.
+        Some(theme) => {
+            let choices = colour_choices(theme);
+            let borders = &settings.borders;
+            colour_row(
+                &colours,
+                store,
+                "Primary colour",
+                "Where the keyboard is: the ring around the focused window and in the panels, \
+                 and the workspace you're on. Also a battery that's charging, plugins that are \
+                 on, and what apps take for their accent.",
+                choices.clone(),
+                (&borders.selected_tile, borders.ring(Some(theme))),
+                |settings, chosen| settings.borders.selected_tile = chosen,
+            );
+            colour_row(
+                &colours,
+                store,
+                "Secondary colour",
+                "Bullet time, and whatever wants your attention: the notification count, Caps \
+                 Lock, a low battery, and apps and plugins asking to be looked at.",
+                choices.clone(),
+                (&borders.bullet_time, borders.secondary(Some(theme))),
+                |settings, chosen| settings.borders.bullet_time = chosen,
+            );
+            colour_row(
+                &colours,
+                store,
+                "Tertiary colour",
+                "What's on or chosen: switches, tiles and ticks, sliders, today in the calendar, \
+                 the text cursor, toasts and the button Enter presses.",
+                choices,
+                (&borders.accent, borders.highlight_colour(Some(theme))),
+                |settings, chosen| settings.borders.accent = chosen,
+            );
+        }
+        // A followed theme says whether it is dark or light. Without one it is chosen here, with
+        // Slipstream's own sets of three colours.
+        None => {
+            let schemes = slipstream_config::ColourScheme::ALL;
+            let names: Vec<&str> = schemes.iter().map(|scheme| scheme.label()).collect();
+            let scheme = gtk::DropDown::from_strings(&names);
+            let chosen = settings.appearance.colour_scheme;
+            scheme
+                .set_selected(schemes.iter().position(|held| *held == chosen).unwrap_or(0) as u32);
+            let scheme_store = store.clone();
+            scheme.connect_selected_notify(move |scheme| {
+                if let Some(chosen) = schemes.get(scheme.selected() as usize).copied() {
+                    scheme_store.change(move |settings| settings.appearance.colour_scheme = chosen);
+                }
+            });
+            row(
+                &colours,
+                "Apps",
+                Some(
+                    "Which one apps are asked for, and they change without restarting. \
+                     Slipstream's own bar, panels and windows are dark either way, and an app \
+                     that never asks the desktop keeps whatever colours it was set to.",
+                ),
+                &scheme,
+            );
+            self::colours(&colours, store);
+        }
+    }
     let motion = group(&page, "Motion");
     // The same name quick settings gives this switch.
     let reduced = gtk::Switch::new();
@@ -87,7 +276,7 @@ pub(super) fn build(store: &Store) -> gtk::Widget {
     );
 
     night_light(&page, store);
-    page.upcast()
+    page
 }
 
 /// Times offered for a night light schedule: every half hour.
@@ -239,9 +428,9 @@ impl Colours {
     fn current_of(settings: &Settings) -> Three {
         let borders = &settings.borders;
         [
-            borders.selected_tile_rgb(),
-            borders.bullet_time_rgb(),
-            borders.accent_rgb(),
+            borders.selected_tile_rgb(None),
+            borders.bullet_time_rgb(None),
+            borders.accent_rgb(None),
         ]
     }
 
@@ -457,6 +646,100 @@ fn colours(card: &gtk::Box, store: &Store) {
     );
 }
 
+/// A colour to choose: what the list calls it, what the settings file is given, and the colour.
+type Choice = (String, String, slipstream_config::theme::Rgb);
+
+/// The colours on offer under a followed theme: its own, chosen by name so the choice goes with
+/// the next theme too.
+fn colour_choices(theme: &slipstream_config::theme::Theme) -> Vec<Choice> {
+    slipstream_config::theme::PICKS
+        .iter()
+        .filter_map(|(name, label)| {
+            Some((
+                (*label).to_string(),
+                (*name).to_string(),
+                theme.colour(name)?,
+            ))
+        })
+        .collect()
+}
+
+/// Which of `choices` is in force: the one the file names (`chosen`), or failing that the one
+/// that is the colour in force (`current`), since two of a theme's names can be one colour. A
+/// colour that is none of them, a hand-edited one, joins the list as Custom rather than being
+/// silently swapped for another.
+fn with_current(
+    choices: &mut Vec<Choice>,
+    chosen: &str,
+    current: slipstream_config::theme::Rgb,
+) -> usize {
+    let named = choices
+        .iter()
+        .position(|(_, value, _)| value.eq_ignore_ascii_case(chosen.trim()));
+    named
+        .or_else(|| choices.iter().position(|(.., colour)| *colour == current))
+        .unwrap_or_else(|| {
+            let hex = slipstream_config::theme::hex(current);
+            choices.push(("Custom".to_string(), hex, current));
+            choices.len() - 1
+        })
+}
+
+/// A row that chooses one of `choices`, with a dot in the colour chosen. `chosen` is what the
+/// file says and `current` the colour that comes to.
+fn colour_row(
+    card: &gtk::Box,
+    store: &Store,
+    title: &str,
+    sub: &str,
+    mut choices: Vec<Choice>,
+    (chosen, current): (&str, slipstream_config::theme::Rgb),
+    write: fn(&mut Settings, String),
+) {
+    let selected = with_current(&mut choices, chosen, current);
+    let names: Vec<&str> = choices.iter().map(|(name, ..)| name.as_str()).collect();
+    let list = gtk::DropDown::from_strings(&names);
+    list.set_selected(selected as u32);
+
+    let shown = Rc::new(Cell::new(current));
+    let dot = gtk::DrawingArea::new();
+    dot.set_content_width(20);
+    dot.set_content_height(20);
+    dot.set_valign(gtk::Align::Center);
+    let painted = Rc::clone(&shown);
+    dot.set_draw_func(move |_, cairo, width, height| {
+        let [r, g, b] = painted.get().map(|channel| channel as f64 / 255.0);
+        let radius = (width.min(height) as f64) / 2.0 - 1.0;
+        cairo.arc(
+            width as f64 / 2.0,
+            height as f64 / 2.0,
+            radius,
+            0.0,
+            std::f64::consts::TAU,
+        );
+        cairo.set_source_rgb(r, g, b);
+        let _ = cairo.fill();
+    });
+
+    let store = store.clone();
+    let dot_to_redraw = dot.clone();
+    list.connect_selected_notify(move |list| {
+        let Some((_, chosen, colour)) = choices.get(list.selected() as usize) else {
+            return;
+        };
+        shown.set(*colour);
+        dot_to_redraw.queue_draw();
+        store.change(|settings| write(settings, chosen.clone()));
+        // This window is drawn in the same three colours.
+        crate::retheme();
+    });
+
+    let control = gtk::Box::builder().spacing(10).build();
+    control.append(&dot);
+    control.append(&list);
+    row(card, title, Some(sub), &control);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -474,5 +757,26 @@ mod tests {
         let mut three = Colours::current_of(&Settings::default());
         three[2] = slipstream_config::rgb("#123456").unwrap();
         assert_eq!(matching_theme(three), None);
+    }
+
+    #[test]
+    fn under_a_theme_the_colours_on_offer_are_the_themes_own_by_name() {
+        let text = "background = \"#1a1b26\"\nforeground = \"#a9b1d6\"\naccent = \"#7aa2f7\"\n\
+                    yellow = \"#e0af68\"\n";
+        let theme = slipstream_config::theme::parse(text, false).unwrap();
+        let mut choices = colour_choices(&theme);
+        assert_eq!(choices.len(), slipstream_config::theme::PICKS.len());
+        let borders = slipstream_config::Borders::default();
+        let ring = with_current(&mut choices, "#42d3ff", borders.ring(Some(&theme)));
+        assert_eq!(
+            choices[ring].1, "accent",
+            "what goes in the file is the name"
+        );
+        // This theme has no orange of its own, so its orange is its yellow: the name decides.
+        let yellow = borders.highlight_colour(Some(&theme));
+        let highlight = with_current(&mut choices, &borders.accent, yellow);
+        assert_eq!(choices[highlight].0, "Yellow");
+        assert_eq!(choices[highlight].2, [0xe0, 0xaf, 0x68]);
+        assert_eq!(choices.len(), slipstream_config::theme::PICKS.len());
     }
 }
