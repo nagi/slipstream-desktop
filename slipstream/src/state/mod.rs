@@ -113,6 +113,7 @@ pub use protocols::Protocols;
 mod docked;
 mod keyboard_focus;
 mod lifecycle;
+mod minimise_one;
 mod popped;
 mod raise;
 mod screens;
