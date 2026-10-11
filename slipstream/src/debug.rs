@@ -21,7 +21,7 @@
 //! go, for a drag), `drag:X1,Y1 X2,Y2` (a press, a drag and a release, as selecting text in a
 //! terminal does), `cycle` or `cycle:N` (Alt held, Tab pressed N times, then Alt let go), `tab`
 //! (one Tab with Alt held down, and kept held) and `letgo` (Alt let go after `tab`), `minimise`
-//! and `restore` (Super+M and Super+Shift+M), `dock` and `undock` (Super+O and Super+Shift+O), `float` (Super+Shift+V), `hideall` (Super+H: every window on the workspace
+//! and `restore` (Super+M and Super+Shift+M), `dock` and `undock` (Super+U and Super+Shift+U), `float` (Super+Shift+V), `hideall` (Super+H: every window on the workspace
 //! into the code rain, and the same ones back), `idle` (fade the UI out now) and `wake` (as any
 //! input would), `fade:F` (hold the fade to the wallpaper at F, 0 to 1), `slow:MS` (count each
 //! drawn frame as MS milliseconds, script times included; `slow:0` is real time again),
@@ -126,9 +126,9 @@ pub enum Step {
     Restore,
     /// Super+H: every window on this workspace into the code rain, and back.
     HideAll,
-    /// Super+O: the focused window up to the bar, or the docked pane's next size.
+    /// Super+U: the focused window up to the bar, or the docked pane's next size.
     Dock,
-    /// Super+Shift+O: the docked window back down among the windows.
+    /// Super+Shift+U: the docked window back down among the windows.
     Undock,
     /// Super+Shift+V: the focused window floats, or goes back into the tiling.
     Float,

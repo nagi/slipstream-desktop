@@ -17,8 +17,9 @@ Super+K shows this list inside Slipstream, whenever you forget one. Press Enter 
 | Super+R, Super+Shift+R | Turn the whole layout a quarter, clockwise or back |
 | Super+F | Fill the tiling area, and back, in tiling or gravity |
 | Super+M, Super+Shift+M | Minimise to a stream at the edge, bring back |
-| Super+O | Dock the window to the bar, in front of every workspace; again, its next size of three |
-| Super+Shift+O | Bring the docked window back down as a standard window |
+| Super+U | Dock the window to the bar, in front of every workspace; again, its next size of three |
+| Super+Shift+U | Bring the docked window back down as a standard window |
+| Super+O | Pop the window out: it floats, and follows its screen to every workspace; again, back into the tiling |
 | Super+H | Hide every window on the workspace; again, bring them back |
 | Super+T, Super+Alt+V | Float the window or tile it; switch between floating and tiled windows |
 | Super+D | Show the desktop, and back |

@@ -203,11 +203,11 @@ pub const LESSONS: [Lesson; 16] = [
     Lesson {
         chapter: 3,
         title: "Keep one window in view",
-        why: "A build, a call or a video is for watching, not working in. Super+O hangs the \
+        why: "A build, a call or a video is for watching, not working in. Super+U hangs the \
               window from the bar as a pane of glass, in front of every workspace. Super+Up from \
               the top row puts the keyboard in it; Super and any arrow brings it back out.",
         habit: Some("Always on top, for one window, on every desktop at once."),
-        keys: &["Super+O", "Super+Shift+O"],
+        keys: &["Super+U", "Super+Shift+U"],
         beats: 4,
         still: 0.5,
     },
@@ -1000,12 +1000,12 @@ pub fn scene(step: usize, t: f32) -> Scene {
                     windows[4].at = tween(tiled[0], small, b.moved);
                     windows[4].dock = b.moved;
                     scene = Scene::desk(windows, Some(4));
-                    scene.key = press("Super+O", &b);
+                    scene.key = press("Super+U", &b);
                 }
                 1 => {
                     windows[4].at = tween(small, medium, b.moved);
                     scene = Scene::desk(windows, Some(4));
-                    scene.key = press("Super+O", &b);
+                    scene.key = press("Super+U", &b);
                 }
                 2 => {
                     scene = Scene::desk(windows, Some(if b.pressed { 3 } else { 4 }));
@@ -1021,7 +1021,7 @@ pub fn scene(step: usize, t: f32) -> Scene {
                     scene = Scene::desk(windows, Some(if b.pressed { 4 } else { 3 }));
                     scene.camera = 1.0;
                     scene.bar_workspace = 1;
-                    scene.key = press("Super+Shift+O", &b);
+                    scene.key = press("Super+Shift+U", &b);
                 }
             }
             let strip = scene.windows[4].dock;

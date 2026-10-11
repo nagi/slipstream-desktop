@@ -82,6 +82,7 @@ impl Slipstream {
                 | Action::MoveToNextScreen
                 | Action::Maximise
                 | Action::ToggleFloating
+                | Action::Pop
         ) && self
             .focused_window()
             .is_some_and(|window| self.is_docked(&window))
@@ -138,6 +139,7 @@ impl Slipstream {
             Action::ClipboardHistory => self.toggle_history(),
             Action::Edit(edit) => self.edit_in_focused(edit),
             Action::ToggleFloating => self.toggle_floating(),
+            Action::Pop => self.pop_focused(),
             Action::SwitchFloatingFocus => self.switch_floating_focus(),
             Action::RunOrRaise(index) => self.run_or_raise(index),
             Action::SendTo(index) => self.send_to_raise_workspace(index),

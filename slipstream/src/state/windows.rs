@@ -11,6 +11,7 @@ impl Slipstream {
         if self.screens.is_empty() {
             return;
         }
+        self.follow_popped();
         // A screen that changed size moves its layer surfaces first, and so what they reserve.
         for output in self.space.outputs() {
             smithay::desktop::layer_map_for_output(output).arrange();

@@ -32,7 +32,7 @@ impl Slipstream {
         self.dock_rect(self.dock.as_ref()?.size)
     }
 
-    /// Super+O: the window with the keyboard goes up to the bar, taking the place of any docked
+    /// Super+U: the window with the keyboard goes up to the bar, taking the place of any docked
     /// there already. Once it is there, its next size.
     pub fn dock_focused(&mut self) {
         if self.lock.is_some() {
@@ -105,7 +105,7 @@ impl Slipstream {
         self.retile();
     }
 
-    /// Super+Shift+O: the docked window comes down from the bar and is a standard window again,
+    /// Super+Shift+U: the docked window comes down from the bar and is a standard window again,
     /// on the workspace on screen, with the keyboard.
     pub fn undock(&mut self) {
         if self.lock.is_some() {

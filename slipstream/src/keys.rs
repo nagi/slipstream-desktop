@@ -96,6 +96,9 @@ pub enum Action {
     Edit(Edit),
     /// Float the focused window, or put it back into the tiling.
     ToggleFloating,
+    /// Pop the focused window out to float on whichever workspace its screen shows, or put it
+    /// back into the tiling.
+    Pop,
     /// Move the keyboard between the floating windows and the tiles.
     SwitchFloatingFocus,
     /// Run or raise the `[[run-or-raise.app]]` at this index: go to its workspace and bring its
@@ -184,6 +187,7 @@ impl Action {
             Action::Edit(Edit::Cut) => "cut, in any app",
             Action::Edit(Edit::Paste) => "paste, in any app",
             Action::ToggleFloating => "float the window, or tile it",
+            Action::Pop => "pop the window out, to follow you",
             Action::SwitchFloatingFocus => "between floating and tiled windows",
             Action::RunOrRaise(_) => "go to an app, or start it",
             Action::SendTo(_) => "send window to an app's workspace",
@@ -206,6 +210,7 @@ impl Action {
             | Action::Undock
             | Action::Maximise
             | Action::ToggleFloating
+            | Action::Pop
             | Action::SwitchFloatingFocus
             | Action::Edit(_)
             | Action::RunOrRaise(_) => Group::AppsAndWindows,
@@ -492,10 +497,12 @@ pub fn defaults() -> Vec<Binding> {
         // key Super+Shift+M is. Super+H is free, and next to them on the keyboard.
         bind(mod_, Keysym::h, Action::HideAll),
         // A window docked to the bar as a pane of glass, and back with Shift as Super+M's
-        // restore is. Super+W closes, as on Omarchy, so this takes the O that Omarchy pops a
-        // window out with.
-        bind(mod_, Keysym::o, Action::Dock),
-        bind(mod_shift, Keysym::o, Action::Undock),
+        // restore is. Super+W closes and Super+O pops a window out, as on Omarchy, so the pane
+        // that goes up to the bar takes U.
+        bind(mod_, Keysym::u, Action::Dock),
+        bind(mod_shift, Keysym::u, Action::Undock),
+        // Omarchy's pop-out key: floating, and on every workspace its screen goes to.
+        bind(mod_, Keysym::o, Action::Pop),
         // Media keys (the Fn row on laptops) need no modifier, as on Windows.
         bind(
             Mods::default(),
@@ -947,17 +954,18 @@ mod tests {
     }
 
     #[test]
-    fn super_o_docks_a_window_and_with_shift_brings_it_back() {
+    fn super_u_docks_a_window_and_with_shift_brings_it_back() {
         let bindings = defaults();
         let super_shift = Mods {
             shift: true,
             ..SUPER
         };
-        assert_eq!(action_for(&bindings, SUPER, Keysym::o), Some(Action::Dock));
+        assert_eq!(action_for(&bindings, SUPER, Keysym::u), Some(Action::Dock));
         assert_eq!(
-            action_for(&bindings, super_shift, Keysym::o),
+            action_for(&bindings, super_shift, Keysym::u),
             Some(Action::Undock)
         );
+        assert_eq!(action_for(&bindings, SUPER, Keysym::o), Some(Action::Pop));
     }
 
     #[test]
