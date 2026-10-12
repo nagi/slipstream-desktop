@@ -57,6 +57,15 @@ impl Concentration {
         within(self.last_input, INPUT_OPENS) || within(self.last_asked, LAUNCH_OPENS)
     }
 
+    /// Whether a window was explicitly asked for: a desktop launch or an xdg-activation token
+    /// created for a user event (such as a file manager opening a file). This is a stronger signal
+    /// than `recently_asked`, which also counts any recent input, and means the window should tile
+    /// even if the user was typing when the request was made.
+    pub fn explicitly_asked(&self, now: Instant) -> bool {
+        self.last_asked
+            .is_some_and(|at| now.saturating_duration_since(at) < LAUNCH_OPENS)
+    }
+
     /// The keyboard went somewhere else, or you clicked or used a desktop key: whatever you were
     /// typing is over, and what comes next was asked for.
     pub fn end(&mut self) {

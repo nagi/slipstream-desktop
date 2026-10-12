@@ -372,7 +372,13 @@ impl Slipstream {
         }
         // A window you didn't ask for, or one that would take the keyboard while you type in
         // another app, pours into the code rain instead, and a toast says so.
+        // Exception: a window from an explicit launch or file-manager open (xdg-activation token
+        // with a serial) always tiles — whether it gets keyboard focus is decided below.
+        let now = std::time::Instant::now();
+        let explicitly_asked = self.concentration.explicitly_asked(now)
+            || self.fullscreen_on_map.contains(&window);
         if !self.fullscreen_on_screen()
+            && !explicitly_asked
             && !(self.asked_for(&window) && self.may_take_keyboard(&window, None))
         {
             self.pour_new(window);
