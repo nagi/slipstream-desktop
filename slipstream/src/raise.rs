@@ -129,6 +129,23 @@ pub fn pick<W: PartialEq + Clone>(
         .cloned()
 }
 
+/// The window a second press goes on to: the matching one after `focused` in the workspace's
+/// `windows`, round to the first again. None when `focused` isn't one of them or is the only one,
+/// so the press is a first press, for `pick`.
+pub fn next<W: PartialEq + Clone>(
+    windows: &[W],
+    matches: impl Fn(&W) -> bool,
+    focused: Option<&W>,
+) -> Option<W> {
+    let focused = focused.filter(|focused| matches(focused))?;
+    let at = windows.iter().position(|window| window == focused)?;
+    windows[at + 1..]
+        .iter()
+        .chain(&windows[..at])
+        .find(|window| matches(window))
+        .cloned()
+}
+
 /// A launch waiting for its window.
 #[derive(Debug, Clone)]
 struct Launch {
@@ -225,6 +242,31 @@ mod tests {
             "or on another workspace"
         );
         assert_eq!(pick(&windows, |w: &&str| w.is_empty(), None), None);
+    }
+
+    #[test]
+    fn a_second_press_goes_round_the_apps_windows() {
+        let windows = ["term-a", "chrome", "term-b", "term-c"];
+        let terminal = |w: &&str| w.starts_with("term");
+        assert_eq!(next(&windows, terminal, Some(&"term-a")), Some("term-b"));
+        assert_eq!(next(&windows, terminal, Some(&"term-b")), Some("term-c"));
+        assert_eq!(next(&windows, terminal, Some(&"term-c")), Some("term-a"));
+        assert_eq!(next(&windows, terminal, None), None);
+        assert_eq!(
+            next(&windows, terminal, Some(&"chrome")),
+            None,
+            "from another app's window it's a first press"
+        );
+        assert_eq!(
+            next(&windows, terminal, Some(&"term-d")),
+            None,
+            "and from another workspace"
+        );
+        assert_eq!(
+            next(&["term-a", "chrome"], terminal, Some(&"term-a")),
+            None,
+            "the only one stays"
+        );
     }
 
     #[test]

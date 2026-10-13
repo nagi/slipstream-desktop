@@ -41,13 +41,16 @@ impl Slipstream {
         Some((target, workspace))
     }
 
-    /// Goes to the app's workspace and brings its window there forward; failing that, one of its
-    /// windows minimised into the rain, which comes back there; failing that, starts it, and the
-    /// window it opens is put there whichever workspace is on screen when it appears.
+    /// Goes to the app's workspace and brings its window there forward, or the next of its windows
+    /// there when one already has the keyboard; failing that, one of its windows minimised into
+    /// the rain, which comes back there; failing that, starts it, and the window it opens is put
+    /// there whichever workspace is on screen when it appears.
     pub fn run_or_raise(&mut self, index: u8) {
         let Some((target, workspace)) = self.raise_workspace(index) else {
             return;
         };
+        // Pressed with one of its windows already forward: the press goes on to the next.
+        let focused = self.focused_window();
         self.switch_workspace(workspace);
         let matches = |window: &Window| {
             window.alive()
@@ -56,11 +59,9 @@ impl Slipstream {
                     .matches(window_app_id(window).as_deref(), &window_title(window))
         };
         let on_workspace = self.workspaces.get(workspace);
-        let found = raise::pick(
-            &on_workspace.windows(),
-            matches,
-            on_workspace.last_focus.as_ref(),
-        );
+        let windows = on_workspace.windows();
+        let found = raise::next(&windows, matches, focused.as_ref())
+            .or_else(|| raise::pick(&windows, matches, on_workspace.last_focus.as_ref()));
         if let Some(window) = found {
             self.focus_window(&window);
             return;
