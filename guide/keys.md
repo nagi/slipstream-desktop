@@ -111,7 +111,7 @@ In any panel or card, Esc backs out one level, Tab and the arrows move, Enter pr
 
 ## Run or raise
 
-One key per app: it goes to the app's own workspace and brings its window forward, or starts the app there if it isn't running. Only that workspace is searched, so the same app open somewhere else is left alone. A window the key started goes to the app's workspace even when it appears after you've moved on, and even when it comes from an app already running elsewhere, as a browser's or Ghostty's new windows do. Pressing the key again while the app is still starting waits for it rather than starting a second copy. If the app is minimised, it comes back onto its workspace.
+One key per app: it goes to the app's own workspace and brings its window forward, or starts the app there if it isn't running. Only that workspace is searched, so the same app open somewhere else is left alone. A window the key started goes to the app's workspace even when it appears after you've moved on, and even when it comes from an app already running elsewhere, as a browser's or Ghostty's new windows do. Pressing the key again while the app is still starting waits for it rather than starting a second copy. If the app is minimised, it comes back onto its workspace. With two or more of the app's windows on its workspace, pressing the key again while one has the keyboard goes on to the next, and round to the first again.
 
 The apps are listed in `~/.config/slipstream/settings.toml`, and a change applies as soon as the file is saved:
 
@@ -135,7 +135,7 @@ command = "emacsclient --alternate-editor= --create-frame"
 
 | Keys | What they do |
 |---|---|
-| The chord and an app's key | Go to the app's workspace and raise it, or start it there |
+| The chord and an app's key | Go to the app's workspace and raise it, or start it there; again, its next window there |
 | The chord, Shift and an app's key | Send the focused window to the app's workspace, and follow it |
 | The chord and 1–0 | Go to a workspace by its number |
 | The chord, Shift and 1–0 | Send the focused window to a workspace by its number |
