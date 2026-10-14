@@ -28,6 +28,8 @@ enum KeyUse {
     Centre(Keysym, bool),
     /// A key for the plugin panel, and whether Shift is held.
     Plugins(Keysym, bool),
+    /// A key for the agents panel, likewise.
+    Agents(Keysym, bool),
     /// A key for the way out, while its card is taking them all.
     Exit(Keysym),
     /// A key for the share picker, with Shift for Shift+Tab.
@@ -203,7 +205,7 @@ impl Slipstream {
         let pictures = matches!(action, Action::Screenshot { .. });
         for panel in self.panels_mut() {
             if panel.is_open()
-                && action != panel.binding()
+                && panel.binding() != Some(action)
                 && !pictures
                 && !(media && panel.stays_for_media())
             {
@@ -698,6 +700,9 @@ impl Slipstream {
         if self.plugin_panel.is_open() {
             return bound().or(Some(KeyUse::Plugins(key, mods.shift)));
         }
+        if self.agents.is_open() {
+            return bound().or(Some(KeyUse::Agents(key, mods.shift)));
+        }
         // Bullet time takes every key but the screenshot's, so it can be captured as it is.
         if self.bullet.is_some() {
             let screenshot =
@@ -736,6 +741,7 @@ impl Slipstream {
             KeyUse::Quick(key, shift) => self.quick_key(key, shift),
             KeyUse::Centre(key, shift) => self.centre_key(key, shift),
             KeyUse::Plugins(key, shift) => self.plugin_key(key, shift),
+            KeyUse::Agents(key, shift) => self.agents_key(key, shift),
             KeyUse::Exit(key) => self.exit_key(key),
             KeyUse::Offer(key) => self.offer_key(key),
             KeyUse::Connect(key) => self.connect_key(key),

@@ -379,6 +379,7 @@ pub fn bar_click(target: bar::Target) -> BarClick {
         | bar::Target::Clock
         | bar::Target::Tray
         | bar::Target::Plugins
+        | bar::Target::Agents
         | bar::Target::Dock
         // A module's click can open an app, which the overview would hide.
         | bar::Target::Bell => BarClick::Leave,
@@ -733,6 +734,7 @@ mod tests {
             bar::Target::Clock,
             bar::Target::Tray,
             bar::Target::Plugins,
+            bar::Target::Agents,
             bar::Target::Bell,
         ] {
             assert_eq!(bar_click(panel), BarClick::Leave, "{panel:?}");

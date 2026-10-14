@@ -211,6 +211,7 @@ fn bar_content(
         layout: state.layout_label(),
         plugins: state.plugins.chip(&state.plugins.shown()),
         plugins_open: state.plugin_panel.is_open(),
+        agents: state.agents_icon(),
         // The pane hangs from the bar of the screen the streams are on.
         dock: state
             .docked_on_show()
@@ -297,6 +298,15 @@ fn card_elements(
         );
         state.finish_chip_launch(now);
         state.centre.finish_menu_choice(now);
+    }
+    if state.agents.is_open() {
+        let facts = state.agents_facts();
+        elements.extend(
+            state
+                .agents
+                .element(renderer, size.w, scale, now, facts)
+                .map(OutputElement::Memory),
+        );
     }
     if state.history.is_open() {
         let ring = state.panel_ring();

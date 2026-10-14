@@ -277,6 +277,15 @@ impl Slipstream {
             }
             return true;
         }
+        // So does the agents panel.
+        if self.agents.is_open() {
+            if let Some(pos) = at
+                && pressed
+            {
+                self.agents_click(pos.x, pos.y);
+            }
+            return true;
+        }
         // The key list: a click outside closes it.
         if self.sheet.is_open() {
             if let Some(pos) = at {

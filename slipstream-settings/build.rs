@@ -110,6 +110,7 @@ const PARTS: &[(&str, &[&str])] = &[
     (
         "Bar, quick settings and notifications",
         &[
+            "agents",
             "shell/bar",
             "plugins",
             "shell/plugin_panel",

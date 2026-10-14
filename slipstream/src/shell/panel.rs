@@ -371,8 +371,9 @@ pub trait Panel {
     fn close(&mut self);
     /// Paints its text again next frame: a face for characters it lacked has landed.
     fn forget_painted_text(&mut self);
-    /// The binding that opens and closes it, which therefore doesn't close it on the way.
-    fn binding(&self) -> Action;
+    /// The binding that opens and closes it, which therefore doesn't close it on the way. A
+    /// panel with no key of its own closes for every one.
+    fn binding(&self) -> Option<Action>;
     /// Whether volume, brightness and media keys leave it open, showing the change there or
     /// keeping a half-typed query.
     fn stays_for_media(&self) -> bool;
@@ -390,8 +391,8 @@ macro_rules! panel {
             fn forget_painted_text(&mut self) {
                 <$panel>::forget_painted_text(self)
             }
-            fn binding(&self) -> Action {
-                $binding
+            fn binding(&self) -> Option<Action> {
+                Some($binding)
             }
             fn stays_for_media(&self) -> bool {
                 $stays
@@ -407,24 +408,45 @@ panel!(Centre, Action::NotificationCentre, stays_for_media: false);
 panel!(Sheet, Action::ShortcutSheet, stays_for_media: true);
 panel!(History, Action::ClipboardHistory, stays_for_media: true);
 
+/// The agents panel opens from the bar alone, and any key's action closes it.
+impl Panel for crate::agents::Agents {
+    fn is_open(&self) -> bool {
+        crate::agents::Agents::is_open(self)
+    }
+    fn close(&mut self) {
+        crate::agents::Agents::close(self)
+    }
+    fn forget_painted_text(&mut self) {
+        crate::agents::Agents::forget_painted_text(self)
+    }
+    fn binding(&self) -> Option<Action> {
+        None
+    }
+    fn stays_for_media(&self) -> bool {
+        false
+    }
+}
+
 impl Slipstream {
     /// Every panel, open or not.
-    pub fn panels(&self) -> [&dyn Panel; 6] {
+    pub fn panels(&self) -> [&dyn Panel; 7] {
         [
             &self.explorer,
             &self.quick,
             &self.plugin_panel,
+            &self.agents,
             &self.centre,
             &self.sheet,
             &self.history,
         ]
     }
 
-    pub fn panels_mut(&mut self) -> [&mut dyn Panel; 6] {
+    pub fn panels_mut(&mut self) -> [&mut dyn Panel; 7] {
         [
             &mut self.explorer,
             &mut self.quick,
             &mut self.plugin_panel,
+            &mut self.agents,
             &mut self.centre,
             &mut self.sheet,
             &mut self.history,

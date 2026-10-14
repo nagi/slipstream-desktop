@@ -82,6 +82,9 @@ pub struct Content {
     pub plugins: Option<crate::plugins::Chip>,
     /// The plugin panel is open from this bar.
     pub plugins_open: bool,
+    /// The agents icon beside the clock, when some AI coding tool has usage to show; `true` when
+    /// one of its allowances is nearly used up.
+    pub agents: Option<bool>,
     /// Where the frame of a pane hanging from this bar meets it, when one does: the frame's
     /// left and right edges, in logical pixels from the screen's left. The bar has no lower edge
     /// between them, where it runs on down into the frame, and keeps room for the pane's slot.
@@ -132,6 +135,8 @@ pub enum Target {
     Layout,
     /// Beside the workspaces: bullet time, as Windows' Task View button.
     Overview,
+    /// Right of the clock: how much the AI coding tools have been used.
+    Agents,
     /// The docked window's slot.
     Dock,
     /// The plugin chip beside the clock.
@@ -492,6 +497,20 @@ fn paint_centre(bar: &mut Strip, content: &Content) -> (f32, f32) {
     if let Some(chip) = &content.plugins {
         paint_chip(bar, chip, content, centre_x + centre_w + CHIP_GAP, chip_w);
     }
+    // Right of the clock and the chip: the agents' icon, warmed when an allowance is nearly used
+    // up. It hangs off the block rather than moving the clock.
+    let mut block_w = block_w;
+    if let Some(alarming) = content.agents {
+        let x = centre_x + block_w + AGENTS_GAP;
+        let ink = if alarming {
+            panel::hot()
+        } else {
+            panel::tertiary()
+        };
+        bar.p.icon(icons::AGENTS, x + 4.0, 9.0, 22.0, Some(ink));
+        bar.target(Target::Agents, x, AGENTS_W);
+        block_w += AGENTS_GAP + AGENTS_W;
+    }
     (centre_x, block_w)
 }
 
@@ -736,6 +755,10 @@ fn pill(bar: &mut Strip, right: f32, word: &str, colour: u32, mark: Mark) -> (f3
     (x, w)
 }
 
+/// The agents icon's width, and the gap before it, in the bar's units.
+const AGENTS_W: f32 = 30.0;
+const AGENTS_GAP: f32 = 2.0;
+
 /// How wide the docked window's slot is, in the bar's units.
 const DOCK_SLOT: f32 = 132.0;
 
@@ -778,6 +801,7 @@ mod tests {
             layout: None,
             plugins: None,
             plugins_open: false,
+            agents: None,
             dock: None,
         }
     }
@@ -1140,6 +1164,38 @@ mod tests {
             fifth.loc.x - (second.loc.x + second.size.w) < 10.0,
             "side by side"
         );
+    }
+
+    #[test]
+    fn the_agents_icon_sits_right_of_the_clock_and_only_with_usage_to_show() {
+        let area = |content: &Content, wanted: Target| {
+            let (_, targets) = paint_plain(content, 1536, 1.25).unwrap();
+            targets
+                .into_iter()
+                .find(|(target, _)| *target == wanted)
+                .map(|(_, area)| area)
+        };
+        assert_eq!(area(&content(), Target::Agents), None, "no agents yet");
+        for alarming in [false, true] {
+            let shown = Content {
+                agents: Some(alarming),
+                ..content()
+            };
+            let clock = area(&shown, Target::Clock).unwrap();
+            // The plugin chip, when there is one, sits between them.
+            let before = area(&shown, Target::Plugins).unwrap_or(clock);
+            let icon = area(&shown, Target::Agents).expect("an icon to click");
+            assert!(
+                icon.loc.x >= before.loc.x + before.size.w,
+                "right of the clock"
+            );
+            assert!(icon.loc.x - (before.loc.x + before.size.w) < 8.0, "beside it");
+            let bar = Bar {
+                targets: paint_plain(&shown, 1536, 1.25).unwrap().1,
+                ..Bar::default()
+            };
+            assert_eq!(bar.target_at(icon.loc.x + 2.0, 16.0), Some(Target::Agents));
+        }
     }
 
     #[test]

@@ -97,6 +97,7 @@
 //! Missing keys take their defaults and unknown ones are ignored, so an older compositor still
 //! reads a newer file.
 
+pub mod agents;
 pub mod battery;
 pub mod card;
 pub mod command;
