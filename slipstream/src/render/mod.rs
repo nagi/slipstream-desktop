@@ -410,12 +410,6 @@ pub fn output_elements(
     let mut over_windows = Vec::new();
     // Notifications pop up at the top right, unless a window fills the screen.
     if first_output && ui > 0.0 && !state.fullscreen_on(active) {
-        // Under the docked pane, when it hangs in their corner of this screen.
-        state.notices.popup_drop = state
-            .docked_on_show()
-            .filter(|_| rain_output)
-            .and_then(|_| state.docked_rect())
-            .map_or(0.0, |pane| crate::dock::frame(pane).h as f64);
         let (popups, expired) =
             state
                 .notices
