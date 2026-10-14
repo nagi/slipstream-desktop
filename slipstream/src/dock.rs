@@ -60,6 +60,21 @@ impl Size {
         }
     }
 
+    /// As the layout record writes it.
+    pub fn label(self) -> &'static str {
+        match self {
+            Size::Small => "small",
+            Size::Medium => "medium",
+            Size::Large => "large",
+        }
+    }
+
+    pub fn from_label(label: &str) -> Option<Size> {
+        [Size::Small, Size::Medium, Size::Large]
+            .into_iter()
+            .find(|size| size.label() == label)
+    }
+
     /// The share of the tiling area the pane takes, across and down.
     fn share(self) -> (f64, f64) {
         match self {

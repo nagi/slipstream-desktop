@@ -94,6 +94,10 @@ pub struct Win {
     pub focused: bool,
     #[serde(skip_serializing_if = "is_false")]
     pub in_rain: bool,
+    /// The pane's size, when it was docked to the bar. It is written as in the rain too, which is
+    /// where it goes back to if it can't go up to the bar again.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub docked: Option<String>,
     /// "centre", "orbit" or "distant", when gravity was on for its workspace.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub gravity: Option<String>,
@@ -390,6 +394,14 @@ mod tests {
                     app: "com.discordapp.discord".into(),
                     slot: 0,
                     in_rain: true,
+                    ..Win::default()
+                },
+                Win {
+                    app: "org.kde.konsole".into(),
+                    slot: 1,
+                    in_rain: true,
+                    docked: Some("large".into()),
+                    resume: Some("agent attach 7".into()),
                     ..Win::default()
                 },
             ],

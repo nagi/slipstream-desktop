@@ -181,6 +181,7 @@ impl Slipstream {
                     slot,
                     focused: focused.as_ref() == Some(window),
                     in_rain: false,
+                    docked: None,
                     gravity: workspace
                         .gravity
                         .is_on()
@@ -225,7 +226,7 @@ impl Slipstream {
             }
         }
         // A docked window has no place in any workspace's tree: it is kept as one more in the
-        // rain, so its app is opened again and is a click from being brought back.
+        // rain, with the pane's size, and goes back up to the bar from there.
         if let Some(docked) = &self.dock
             && let Some(app) = window_app_id(&docked.window)
         {
@@ -235,6 +236,7 @@ impl Slipstream {
                 workspace: None,
                 slot: self.rain.streams.len(),
                 in_rain: true,
+                docked: Some(docked.size.label().to_string()),
                 resume: session.as_ref().map(|session| session.command.clone()),
                 directory: session
                     .as_ref()
@@ -479,8 +481,8 @@ impl Slipstream {
         }
     }
 
-    /// The last of it, once the windows have landed or the wait is up: gravity, the code rain,
-    /// the workspace that was in front, and finally focus.
+    /// The last of it, once the windows have landed or the wait is up: gravity, the code rain, the
+    /// docked pane, the workspace that was in front, and finally focus.
     pub(super) fn finish_restore(&mut self) {
         let Some(plan) = self.restoring.take() else {
             return;
@@ -494,6 +496,9 @@ impl Slipstream {
         // Quietly: a toast per stream would bury the desktop you just asked for.
         for window in plan.to_minimise() {
             self.minimise(&window);
+        }
+        if let Some((window, size)) = plan.to_dock() {
+            self.dock_window(&window, size);
         }
         let active = plan.active();
         if active != self.active_workspace() {

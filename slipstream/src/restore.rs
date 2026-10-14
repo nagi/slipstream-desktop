@@ -14,6 +14,7 @@
 //! returning one. Pure logic, generic over the window type, so all of it is unit-tested.
 
 use crate::{
+    dock::Size,
     gravity::{Gravity, Rung},
     layout::Shape,
     session,
@@ -90,6 +91,8 @@ pub struct Place {
     /// Its rung on gravity's ladder, if gravity was on for its workspace.
     pub rung: Option<Rung>,
     pub pinned: bool,
+    /// The pane's size, for the window that was docked to the bar.
+    pub docked: Option<Size>,
 }
 
 /// Where a window that has just claimed its place belongs.
@@ -189,6 +192,11 @@ impl<W: Clone + PartialEq> Plan<W> {
                 focused: win.focused,
                 rung: win.gravity.as_deref().and_then(Rung::from_label),
                 pinned: win.pinned,
+                docked: win
+                    .docked
+                    .as_deref()
+                    .and_then(Size::from_label)
+                    .filter(|_| workspace.is_none()),
             });
         }
         let taken = vec![None; places.len()];
@@ -343,11 +351,19 @@ impl<W: Clone + PartialEq> Plan<W> {
             .places
             .iter()
             .enumerate()
-            .filter(|(_, place)| place.workspace.is_none())
+            .filter(|(_, place)| place.workspace.is_none() && place.docked.is_none())
             .filter_map(|(i, place)| self.taken[i].clone().map(|window| (place.slot, window)))
             .collect();
         rain.sort_by_key(|(slot, _)| *slot);
         rain.into_iter().map(|(_, window)| window).collect()
+    }
+
+    /// The window that was docked to the bar, if it came back, and the size its pane was.
+    pub fn to_dock(&self) -> Option<(W, Size)> {
+        self.places.iter().enumerate().find_map(|(i, place)| {
+            let size = place.docked?;
+            Some((self.taken[i].clone()?, size))
+        })
     }
 
     /// The window that had focus, if it came back.
@@ -634,6 +650,54 @@ mod tests {
         let mut plan = plan(&record);
         plan.claim("firefox", &"firefox", None, 1.0);
         assert!(!plan.gravity(0).is_on());
+    }
+
+    #[test]
+    fn a_docked_window_goes_back_up_to_the_bar_at_its_size() {
+        let record = record(
+            vec![
+                Win {
+                    in_rain: true,
+                    workspace: None,
+                    slot: 0,
+                    ..win("firefox", 1, 0)
+                },
+                Win {
+                    in_rain: true,
+                    workspace: None,
+                    slot: 1,
+                    docked: Some("medium".into()),
+                    ..win("org.kde.konsole", 1, 1)
+                },
+            ],
+            vec![],
+        );
+        let mut plan = plan(&record);
+        plan.claim("firefox", &"firefox", None, 1.0);
+        plan.claim("org.kde.konsole", &"org.kde.konsole", None, 1.0);
+        assert_eq!(
+            plan.to_minimise(),
+            ["firefox"],
+            "the docked one isn't poured away"
+        );
+        assert_eq!(plan.to_dock(), Some(("org.kde.konsole", Size::Medium)));
+    }
+
+    #[test]
+    fn a_pane_size_that_cant_be_read_leaves_the_window_in_the_rain() {
+        let record = record(
+            vec![Win {
+                in_rain: true,
+                workspace: None,
+                docked: Some("enormous".into()),
+                ..win("org.kde.konsole", 1, 0)
+            }],
+            vec![],
+        );
+        let mut plan = plan(&record);
+        plan.claim("org.kde.konsole", &"org.kde.konsole", None, 1.0);
+        assert_eq!(plan.to_minimise(), ["org.kde.konsole"]);
+        assert_eq!(plan.to_dock(), None);
     }
 
     #[test]

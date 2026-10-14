@@ -53,7 +53,7 @@ impl Slipstream {
 
     /// Docks `window`, which is on a workspace, at `size`, or brings the pane it already has to
     /// `size`. Whatever was docked before comes down beside where `window` was.
-    fn dock_window(&mut self, window: &Window, size: Size) {
+    pub(super) fn dock_window(&mut self, window: &Window, size: Size) {
         let Some(rect) = self.dock_rect(size) else {
             return;
         };
