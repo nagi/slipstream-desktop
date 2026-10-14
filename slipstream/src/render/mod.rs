@@ -1841,6 +1841,7 @@ fn bar_content(
         meter: crate::status::held(&state.meter)
             .as_ref()
             .map(|reading| crate::meter::shown(reading, &state.settings.meter)),
+        agents: state.agents_icon(),
         // The pane hangs from the bar of the screen the streams are on.
         dock: state
             .docked_on_show()
@@ -1911,6 +1912,15 @@ fn card_elements(
         if let Some(app_id) = state.centre.take_launch(now) {
             state.activate_background_app(&app_id);
         }
+    }
+    if state.agents.is_open() {
+        let facts = state.agents_facts();
+        elements.extend(
+            state
+                .agents
+                .element(renderer, size.w, scale, now, facts)
+                .map(OutputElement::Memory),
+        );
     }
     if state.history.is_open() {
         let ring = state.panel_ring();

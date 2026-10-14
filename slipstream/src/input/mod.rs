@@ -60,6 +60,7 @@ impl Slipstream {
             || self.history.is_open()
             || self.quick.is_open()
             || self.centre.is_open()
+            || self.agents.is_open()
             || self.bullet.is_some()
             || self.share.is_some()
             || self.snip.is_some()

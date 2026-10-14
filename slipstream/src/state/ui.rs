@@ -60,6 +60,7 @@ impl Slipstream {
         }
         self.notices.forget_painted_text();
         self.centre.forget_painted_text();
+        self.agents.forget_painted_text();
         self.explorer.forget_painted_text();
         self.quick.forget_painted_text();
         self.sheet.forget_painted_text();
@@ -143,6 +144,7 @@ impl Slipstream {
             || self.explorer.is_open()
             || self.quick.is_open()
             || self.centre.is_open()
+            || self.agents.is_open()
             || self.bullet.is_some()
             // The ask card waits as long as it takes; the wallpaper mustn't swallow it. The
             // offer at login is the same, and so is a layout still coming back.

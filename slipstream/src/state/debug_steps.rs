@@ -273,6 +273,21 @@ impl Slipstream {
                     self.centre_key(key, shift);
                 }
                 debug::Step::CentreClick(x, y) => self.centre_click(x, y),
+                debug::Step::Agents => self.toggle_agents(),
+                debug::Step::AgentsKey(_) | debug::Step::AgentsClick(..)
+                    if !self.agents.is_open() =>
+                {
+                    tracing::info!("debug step ignored: panel closed");
+                }
+                debug::Step::AgentsKey(name) => {
+                    let (shift, name) = match name.strip_prefix("shift+") {
+                        Some(rest) => (true, rest),
+                        None => (false, name.as_str()),
+                    };
+                    let key = xkb::keysym_from_name(name, xkb::KEYSYM_NO_FLAGS);
+                    self.agents_key(key, shift);
+                }
+                debug::Step::AgentsClick(x, y) => self.agents_click(x, y),
                 debug::Step::Notify(app, summary, body, actions) => {
                     self.notification_arrived(crate::notify::Incoming {
                         id: crate::notify::next_id(),

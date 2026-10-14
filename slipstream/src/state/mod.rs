@@ -304,6 +304,10 @@ pub struct Slipstream {
     pub user: String,
     /// The notification centre (Super+N).
     pub centre: crate::centre::Centre,
+    /// The agents panel, from the bar's icon beside the clock.
+    pub agents: crate::agents::Agents,
+    /// The AI coding tools with usage to show, kept current off the main thread.
+    pub agent_usage: Arc<Mutex<Vec<slipstream_config::agents::Agent>>>,
     /// The shortcut sheet (Super+K).
     pub sheet: crate::sheet::Sheet,
     /// Night light's warmth and schedule (`nightlight.rs`).
@@ -719,6 +723,8 @@ impl Slipstream {
             quick: Default::default(),
             user: crate::quick::user_name(),
             centre: Default::default(),
+            agents: Default::default(),
+            agent_usage: crate::agents::start(),
             sheet: Default::default(),
             notices: Default::default(),
             toast: Toast::new(false),
@@ -826,6 +832,7 @@ impl Slipstream {
         self.notices.reduced_motion = on;
         self.quick.reduced_motion = on;
         self.centre.reduced_motion = on;
+        self.agents.reduced_motion = on;
         if let Some(exit) = self.exit.as_mut() {
             exit.reduced_motion = on;
         }
@@ -1183,6 +1190,7 @@ impl Slipstream {
             bar::Target::Apps => self.toggle_explorer(),
             bar::Target::Tray | bar::Target::Meter => self.toggle_quick_settings(),
             bar::Target::Clock | bar::Target::Bell => self.toggle_notification_centre(),
+            bar::Target::Agents => self.toggle_agents(),
             bar::Target::Overview => self.toggle_bullet_time(),
             bar::Target::Dock => self.dock_clicked(),
             bar::Target::Awake => self.set_awake(false),

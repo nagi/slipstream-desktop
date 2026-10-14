@@ -26,6 +26,8 @@ enum KeyUse {
     Quick(Keysym, bool),
     /// A key for the notification centre, and whether Shift is held.
     Centre(Keysym, bool),
+    /// A key for the agents panel, likewise.
+    Agents(Keysym, bool),
     /// A key for the way out, while its card is taking them all.
     Exit(Keysym),
     /// A key for the share picker, with Shift for Shift+Tab.
@@ -169,6 +171,7 @@ impl Slipstream {
         let panel_open = self.explorer.is_open()
             || self.quick.is_open()
             || self.centre.is_open()
+            || self.agents.is_open()
             || self.sheet.is_open()
             || self.history.is_open();
         if action == Action::Close && panel_open {
@@ -189,6 +192,9 @@ impl Slipstream {
         }
         if self.centre.is_open() && action != Action::NotificationCentre {
             self.centre.close();
+        }
+        if self.agents.is_open() {
+            self.agents.close();
         }
         if self.explorer.is_open() && !media && action != Action::Explorer {
             self.explorer.close();
@@ -527,6 +533,14 @@ impl Slipstream {
                     }
                     return FilterResult::Intercept(Some(KeyUse::Centre(key, mods.shift)));
                 }
+                // And the agents panel.
+                if pressed && state.agents.is_open() {
+                    state.suppressed_keys.push(key);
+                    if let Some(action) = keys::action_for(&state.bindings, mods, key) {
+                        return FilterResult::Intercept(Some(KeyUse::Action(action)));
+                    }
+                    return FilterResult::Intercept(Some(KeyUse::Agents(key, mods.shift)));
+                }
                 // Bullet time takes every key too.
                 if pressed && state.bullet.is_some() {
                     state.suppressed_keys.push(key);
@@ -588,6 +602,7 @@ impl Slipstream {
             Some(Some(KeyUse::Bullet(key, mods))) => self.bullet_key(key, mods),
             Some(Some(KeyUse::Quick(key, shift))) => self.quick_key(key, shift),
             Some(Some(KeyUse::Centre(key, shift))) => self.centre_key(key, shift),
+            Some(Some(KeyUse::Agents(key, shift))) => self.agents_key(key, shift),
             Some(Some(KeyUse::Exit(key))) => self.exit_key(key),
             Some(Some(KeyUse::Offer(key))) => self.offer_key(key),
             Some(Some(KeyUse::Connect(key))) => self.connect_key(key),

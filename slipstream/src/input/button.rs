@@ -26,6 +26,7 @@ impl Slipstream {
         } else if self.explorer.is_open()
             || self.quick.is_open()
             || self.centre.is_open()
+            || self.agents.is_open()
             || self.sheet.is_open()
             || self.history.is_open()
         {
@@ -208,6 +209,14 @@ impl Slipstream {
                 self.quick_click(pos.x, pos.y);
             } else if button_state == ButtonState::Released {
                 self.quick.release();
+            }
+            return;
+        }
+
+        // So does the agents panel.
+        if self.agents.is_open() {
+            if let Some(pos) = pressed_at {
+                self.agents_click(pos.x, pos.y);
             }
             return;
         }

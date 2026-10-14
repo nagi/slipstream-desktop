@@ -286,14 +286,15 @@ pub fn opening(since: f64, reduced_motion: bool) -> (f32, f64) {
 }
 
 impl Slipstream {
-    /// Closes the explorer, quick settings, the notification centre and the shortcut sheet, before
-    /// another opens.
+    /// Closes the explorer, quick settings, the notification centre, the agents panel, the
+    /// clipboard history and the shortcut sheet, before another opens.
     pub fn close_panels(&mut self) {
         if self.explorer.is_open() {
             self.explorer.close();
         }
         self.quick.close();
         self.centre.close();
+        self.agents.close();
         self.sheet.close();
         self.history.close();
     }

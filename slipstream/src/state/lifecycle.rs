@@ -666,6 +666,7 @@ impl Slipstream {
         self.explorer.close();
         self.quick.close();
         self.centre.close();
+        self.agents.close();
         self.share = Some(Picker::new(
             choices,
             rows,
