@@ -101,7 +101,10 @@ impl Slipstream {
             // The space holds the real position for input; the drawing glides there, except
             // while a gap is dragged, when the tiles keep up with the pointer.
             self.motion.place(&window, r, now);
-            if matches!(self.drag, Some(crate::grabs::Drag::Gap { .. })) {
+            if matches!(
+                self.drag,
+                Some(crate::grabs::Drag::Gap { .. } | crate::grabs::Drag::Tiles { .. })
+            ) {
                 self.motion.jump(&window, r);
             }
             self.put_in_space(&window, r);
