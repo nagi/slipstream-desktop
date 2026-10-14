@@ -7,11 +7,12 @@
 //! Each notification also carries where it came from: the sending process and the processes it
 //! was started under, read from the kernel while the sender is still waiting for its reply. That
 //! is how a notification from `notify-send` in a terminal finds the terminal's window, which an
-//! app ID alone never could.
+//! app ID alone never could. A program working away from the terminal attached to it, which no
+//! window is above, names that terminal's process with the `sender-pid` hint instead.
 
 use std::{
     collections::HashMap,
-    os::fd::AsFd,
+    os::{fd::AsFd, unix::fs::MetadataExt},
     path::Path,
     sync::{
         Mutex, OnceLock,
@@ -173,7 +174,14 @@ impl Server {
                 .map(Sound::File)
                 .or_else(|| text("sound-name").map(Sound::Name)),
             suppress_sound: flag("suppress-sound"),
-            origin: origin(connection, &header).await,
+            origin: joined(
+                origin(connection, &header).await,
+                hints
+                    .get("sender-pid")
+                    .and_then(|value| pid_hint(value))
+                    .map(|pid| named(Path::new("/proc"), pid))
+                    .unwrap_or_default(),
+            ),
         };
         self.send(Event::Notify(Box::new(incoming)));
         id
@@ -254,6 +262,52 @@ async fn origin(connection: &zbus::Connection, header: &Header<'_>) -> Vec<u32> 
         return Vec::new();
     }
     chain
+}
+
+/// The pid in a `sender-pid` hint. libnotify sends it as a 64-bit integer; other senders pick
+/// their own width, so any integer that could be a process other than init is taken.
+fn pid_hint(value: &Value) -> Option<u32> {
+    let pid = match value {
+        Value::I64(pid) => u32::try_from(*pid).ok(),
+        Value::U64(pid) => u32::try_from(*pid).ok(),
+        Value::I32(pid) => u32::try_from(*pid).ok(),
+        Value::U32(pid) => Some(*pid),
+        _ => None,
+    }?;
+    (pid > 1).then_some(pid)
+}
+
+/// The process a `sender-pid` hint names and its ancestors, nearest first, if it is one of this
+/// user's and still running once they've been read. libnotify names the sender itself; a program
+/// that sends for a process elsewhere names that one.
+fn named(proc: &Path, pid: u32) -> Vec<u32> {
+    let Some(pidfd) = crate::capture::pidfd_open(pid) else {
+        return Vec::new();
+    };
+    // SAFETY: getuid has no failure mode.
+    let ours = std::fs::metadata(proc.join(pid.to_string()))
+        .is_ok_and(|meta| meta.uid() == unsafe { libc::getuid() });
+    if !ours {
+        return Vec::new();
+    }
+    let chain = lineage(proc, pid);
+    if !crate::capture::still_running(pidfd) {
+        return Vec::new();
+    }
+    chain
+}
+
+/// Where a notification came from: the sender's own tree, which the bus vouches for, then the tree
+/// a hint names, which nothing does. A window is looked for in that order, so a hint only counts
+/// when no window is above the sender, and can never take a notification from the window it was
+/// sent under.
+fn joined(mut own: Vec<u32>, named: Vec<u32>) -> Vec<u32> {
+    for pid in named {
+        if !own.contains(&pid) {
+            own.push(pid);
+        }
+    }
+    own
 }
 
 /// How far up the process tree to look. Terminals, shells and the tools they run nest a handful
@@ -631,6 +685,34 @@ mod tests {
         process(502, 501);
         assert_eq!(lineage(&proc, 501), [501, 502]);
         std::fs::remove_dir_all(proc).unwrap();
+    }
+
+    #[test]
+    fn a_notification_sent_away_from_its_terminal_finds_it_after_the_senders_own_tree() {
+        // A session in the background (40, 30) and the terminal attached to it (300, 200, 100).
+        assert_eq!(
+            joined(vec![40, 30], vec![300, 200, 100]),
+            [40, 30, 300, 200, 100]
+        );
+        // libnotify names the sender itself: nothing is added twice.
+        assert_eq!(
+            joined(vec![300, 200, 100], vec![300, 200, 100]),
+            [300, 200, 100]
+        );
+        // No hint, or one that couldn't be read: the sender's own tree as it was.
+        assert_eq!(joined(vec![300, 200], Vec::new()), [300, 200]);
+    }
+
+    #[test]
+    fn a_sender_pid_hint_is_read_at_any_integer_width() {
+        assert_eq!(pid_hint(&Value::I64(4242)), Some(4242));
+        assert_eq!(pid_hint(&Value::U64(4242)), Some(4242));
+        assert_eq!(pid_hint(&Value::I32(4242)), Some(4242));
+        assert_eq!(pid_hint(&Value::U32(4242)), Some(4242));
+        assert_eq!(pid_hint(&Value::I64(-5)), None, "not a process");
+        assert_eq!(pid_hint(&Value::I64(1)), None, "init is never a window's");
+        assert_eq!(pid_hint(&Value::I64(1 << 40)), None, "too large for a pid");
+        assert_eq!(pid_hint(&Value::from("4242")), None, "text isn't a pid");
     }
 
     #[test]
