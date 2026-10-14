@@ -156,7 +156,7 @@ agent_pid() {
     walk_pid=$PPID
     found=
     while [ "${walk_pid:-0}" -gt 1 ]; do
-        if [ "$(cat "/proc/$walk_pid/comm" 2>/dev/null)" = "$1" ]; then
+        if is_agent "$1" "$walk_pid"; then
             if [ -z "$found" ]; then
                 found=$walk_pid
             else
@@ -168,6 +168,18 @@ agent_pid() {
         walk_pid=$(sed 's/.*) //' "/proc/$walk_pid/stat" 2>/dev/null | cut -d' ' -f2)
     done
     [ -n "$found" ] && printf '%s' "$found" && return 0
+    return 1
+}
+
+# Whether process `$2` is agent `$1`: called that, or running a versioned copy of it from a
+# terminal. Claude runs a background session straight from its versions folder, so the process
+# is named after the version. The host above it, which keeps the session's terminal, has none of
+# its own and isn't counted, or the session would look like a subagent.
+is_agent() {
+    [ "$(cat "/proc/$2/comm" 2>/dev/null)" = "$1" ] && return 0
+    case $(readlink "/proc/$2/exe" 2>/dev/null) in
+    */"$1"/versions/*) case $(readlink "/proc/$2/fd/0" 2>/dev/null) in /dev/pts/*) return 0 ;; esac ;;
+    esac
     return 1
 }
 
