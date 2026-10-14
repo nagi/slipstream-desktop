@@ -12,6 +12,11 @@
 # desktop. The notification is sent from inside the agent's own process tree, which lets a server
 # that looks (Slipstream does) tie it to the terminal window it came from.
 #
+# A session started with `keep` runs in the background, attached to the terminal it was started
+# in, so it carries on when the window closes or you log out. That terminal is outside the
+# session's process tree, so its notifications name it with the sender-pid hint, and it leaves
+# Slipstream a note that attaches the window to the session again at the next login.
+#
 # The same hooks say whether the agent is working, for a desktop that shows it: Slipstream draws a
 # trace on its faded wallpaper for each agent with a note in $XDG_RUNTIME_DIR/slipstream/working.
 # The note is there from a start to a finish, and not while the agent is waiting on you. It says
@@ -22,6 +27,8 @@
 #   agent-notify status             what's configured, wired and listening
 #   agent-notify test [--long]      send a sample notification
 #   agent-notify usage [--refresh]  plan limits used, as JSON for a desktop meter (see Usage limits)
+#   agent-notify keep claude [ARGS] start a session in the background, attached to this terminal;
+#                                   alias claude='agent-notify keep claude' makes it the default
 #   agent-notify hook AGENT EVENT   what the hooks run; EVENT is start, finish, attention,
 #                                   working (the agent has carried on after waiting on you), or
 #                                   waiting (the agent has dispatched a subagent and is waiting)
@@ -100,16 +107,23 @@ is_number() {
 BUS_DEST=org.freedesktop.Notifications
 BUS_PATH=/org/freedesktop/Notifications
 
-# notify REPLACES_ID URGENCY SOUND SUMMARY BODY: sends a notification and prints its id. URGENCY
-# is 0-2; SOUND is a sound theme name, or empty for none.
+# notify REPLACES_ID URGENCY SOUND SUMMARY BODY [WINDOW]: sends a notification and prints its id.
+# URGENCY is 0-2; SOUND is a sound theme name, or empty for none; WINDOW is the process of the
+# terminal the session is in, when that isn't above this one.
 notify() {
     notify_replace=$1 notify_urgency=$2 notify_sound=$3 notify_summary=$4 notify_body=$5
+    notify_window=${6:-}
     is_number "$notify_replace" || notify_replace=0
     if have busctl; then
         if [ -n "$notify_sound" ]; then
-            set -- 2 urgency y "$notify_urgency" sound-name s "$notify_sound"
+            set -- urgency y "$notify_urgency" sound-name s "$notify_sound"
         else
-            set -- 2 urgency y "$notify_urgency" suppress-sound b true
+            set -- urgency y "$notify_urgency" suppress-sound b true
+        fi
+        if is_number "$notify_window"; then
+            set -- 3 "$@" sender-pid x "$notify_window"
+        else
+            set -- 2 "$@"
         fi
         busctl --user --timeout=5 -- call "$BUS_DEST" "$BUS_PATH" "$BUS_DEST" Notify 'susssasa{sv}i' \
             "$notify_app" "$notify_replace" utilities-terminal "$notify_summary" "$notify_body" \
@@ -127,6 +141,9 @@ notify() {
             set -- "$@" -h "string:sound-name:$notify_sound"
         else
             set -- "$@" -h boolean:suppress-sound:true
+        fi
+        if is_number "$notify_window"; then
+            set -- "$@" -h "int:sender-pid:$notify_window"
         fi
         notify-send "$@" -- "$notify_summary" "$notify_body" 2>/dev/null
     fi
@@ -436,11 +453,73 @@ hook() {
     else
         urgency=1 sound=
     fi
-    id=$(notify "$previous" "$urgency" "$sound" "$summary" "$body")
+    # A session kept running in the background has no window above it: name the terminal attached
+    # to it, if that is still the attach client `keep` left.
+    window=
+    window_file=$STATE/$agent-${session%%-*}.window
+    if [ -r "$window_file" ]; then
+        read -r window <"$window_file"
+        if ! is_number "$window" || [ "$(cat "/proc/$window/comm" 2>/dev/null)" != "$agent" ]; then
+            window=
+        fi
+    fi
+    id=$(notify "$previous" "$urgency" "$sound" "$summary" "$body" "$window")
     if is_number "$id"; then
         printf '%s\n' "$id" >"$id_file"
     fi
     exit 0
+}
+
+# ---------------------------------------------------------------------------------------------
+# Keeping a session running
+
+# Claude Code's subcommands, which aren't sessions and run as they are.
+CLAUDE_COMMANDS="agents attach auth auto-mode doctor gateway import install kill logs mcp plugin
+plugins purge respawn rm setup-token stop ultrareview update upgrade"
+
+# keep_attach AGENT ID: attaches this terminal to a background session, reopening it if it has
+# stopped. This process becomes the attach client, so it is left as the session's window for its
+# notifications, and as the note that attaches the window again at the next login: the layout
+# record looks for notes under the window's shell, which the session itself isn't.
+keep_attach() {
+    mkdir -p "$STATE" && chmod 700 "$STATE"
+    printf '%s\n' "$$" >"$STATE/$1-$2.window"
+    if [ -n "${XDG_RUNTIME_DIR:-}" ] && mkdir -p "$XDG_RUNTIME_DIR/slipstream/resume" 2>/dev/null; then
+        printf "'%s' keep %s attach %s\n" "$self" "$1" "$2" >"$XDG_RUNTIME_DIR/slipstream/resume/$$"
+    fi
+    exec "$1" attach "$2"
+}
+
+# keep AGENT [ARGS...]: starts a session in the background and attaches this terminal to it. Only
+# Claude Code runs one; any other agent, and anything that isn't an interactive session (print
+# mode, a subcommand, no terminal), runs as it is.
+keep() {
+    keep_agent=$1
+    shift
+    if [ "$keep_agent" != claude ] || [ ! -t 0 ] || [ ! -t 1 ]; then
+        exec "$keep_agent" "$@"
+    fi
+    if [ "${1:-}" = attach ] && [ $# -eq 2 ]; then
+        keep_attach claude "$2"
+    fi
+    for keep_word in $CLAUDE_COMMANDS; do
+        if [ "${1:-}" = "$keep_word" ]; then
+            exec claude "$@"
+        fi
+    done
+    for keep_arg; do
+        case $keep_arg in
+            -p | --print | --bg | --background | -h | --help | -v | --version) exec claude "$@" ;;
+        esac
+    done
+    # Claude won't start a background session in a folder it hasn't been trusted in yet: then it
+    # runs as usual, and asks.
+    keep_id=$(claude --bg "$@" </dev/null 2>/dev/null |
+        sed -n 's/^ *claude attach \([0-9A-Za-z_-]\{1,80\}\) .*/\1/p' | head -n 1)
+    if [ -z "$keep_id" ]; then
+        exec claude "$@"
+    fi
+    keep_attach claude "$keep_id"
 }
 
 # ---------------------------------------------------------------------------------------------
@@ -1052,6 +1131,11 @@ case ${1:-} in
     test)
         shift
         sample "$@"
+        ;;
+    keep)
+        [ $# -ge 2 ] || exec sed -n '2,/^$/s/^# \{0,1\}//p' "$0"
+        shift
+        keep "$@"
         ;;
     *)
         sed -n '2,/^$/s/^# \{0,1\}//p' "$0"

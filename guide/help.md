@@ -75,6 +75,27 @@ At the next login that terminal is started in the folder its shell was in and ru
 - **The conversation, not the work in progress.** What comes back is whatever the agent's own command reopens. Anything it was in the middle of running is not carried on.
 - **Where it is kept.** The command, the folder, the shell and the agent's search path go in the layout record, `~/.local/state/slipstream/session.toml`, which is deleted when you turn **Remember the layout** off. Nothing else of the agent's environment is kept.
 
+## Keeping an AI agent working while you're logged out
+
+Slipstream has no AI in it. This is for people who run an AI coding agent of their own in a terminal, and whose agent can run a session in the background with a terminal attached to it. Then logging out doesn't have to stop it: the agent carries on while you're away, and at the next login the terminal comes back in the same place, attached to the same session, still working or showing what it did.
+
+It's what a terminal multiplexer is usually for, without the multiplexer. You keep the terminal you like, with its own keys, look and scrollback, and Slipstream's workspaces and tiling arrange the windows, the way they do for everything else.
+
+**On its own it does nothing.** It works only if you have installed an agent that can run in the background, and it uses the same note as [bringing a session back](#bringing-an-ai-agents-session-back), with a line that attaches rather than reopens. Leave the note from the process that does the attaching, since that is the one in the window; the session itself isn't:
+
+```sh
+echo "my-agent attach $SESSION_ID" > "$XDG_RUNTIME_DIR/slipstream/resume/$ATTACHING_PID"
+```
+
+A session working in the background has no window above it, so to have its notifications take you to its terminal, send them with the `sender-pid` hint set to the attaching process. Slipstream only looks at the hint when the process that sent the notification has no window of its own.
+
+`extras/agent-notify keep` does all of this for an agent that can work in the background; `extras/agent-notify --help` says which, and how to make it the way your agent always starts.
+
+- **Logging out, not shutting down.** After a restart nothing is still running, and the same note reopens the session instead: the conversation comes back, not the work in progress.
+- **Some distributions stop everything at logout.** Where logind's `KillUserProcesses` is on, nothing you started outlives your login, and logging out is like a restart.
+- **A sleeping laptop sleeps.** With the lid closed, everything is paused, your agent included.
+- **Only the agent is kept.** Anything else running in that terminal, and every other window, closes at logout as it always has.
+
 ## Seeing an AI agent at work from across the room
 
 Slipstream has no AI in it. This is for people who set an AI coding agent of their own going and step away: once the desktop has faded to the wallpaper, every open agent session has a small oscilloscope trace at the top right, under whatever the agent says to call it. There is one trace for each open session, however many are running.
