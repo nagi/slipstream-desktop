@@ -454,12 +454,12 @@ hook() {
         urgency=1 sound=
     fi
     # A session kept running in the background has no window above it: name the terminal attached
-    # to it, if that is still the attach client `keep` left.
+    # to it, if that is still the process `keep` left there.
     window=
     window_file=$STATE/$agent-${session%%-*}.window
     if [ -r "$window_file" ]; then
         read -r window <"$window_file"
-        if ! is_number "$window" || [ "$(cat "/proc/$window/comm" 2>/dev/null)" != "$agent" ]; then
+        if ! is_number "$window" || [ "$(cat "/proc/$window/comm" 2>/dev/null)" != agent-notify ]; then
             window=
         fi
     fi
@@ -478,16 +478,30 @@ CLAUDE_COMMANDS="agents attach auth auto-mode doctor gateway import install kill
 plugins purge respawn rm setup-token stop ultrareview update upgrade"
 
 # keep_attach AGENT ID: attaches this terminal to a background session, reopening it if it has
-# stopped. This process becomes the attach client, so it is left as the session's window for its
-# notifications, and as the note that attaches the window again at the next login: the layout
-# record looks for notes under the window's shell, which the session itself isn't.
+# stopped. This process stays under the window's shell while it does, so it is left as the
+# session's window for its notifications, and as the note that attaches the window again at the
+# next login: the layout record looks for notes under the window's shell, which the session isn't.
+#
+# Closing the window or logging out hangs this process up with it, and the session carries on.
+# Leaving the session in the window (detaching, or quitting the agent view) stops it, as quitting
+# the agent does anywhere else: its conversation is kept, and attaching opens it again.
 keep_attach() {
     mkdir -p "$STATE" && chmod 700 "$STATE"
     printf '%s\n' "$$" >"$STATE/$1-$2.window"
     if [ -n "${XDG_RUNTIME_DIR:-}" ] && mkdir -p "$XDG_RUNTIME_DIR/slipstream/resume" 2>/dev/null; then
         printf "'%s' keep %s attach %s\n" "$self" "$1" "$2" >"$XDG_RUNTIME_DIR/slipstream/resume/$$"
     fi
-    exec "$1" attach "$2"
+    trap 'exit 0' HUP TERM
+    "$1" attach "$2"
+    # A hung-up terminal can still be closing round us: only stop for one that's still there.
+    if ! stty size >/dev/null 2>&1; then
+        exit 0
+    fi
+    # Extra presses of the key that detached mustn't cut the stop short, or close the shell.
+    trap '' INT
+    "$1" stop "$2" >/dev/null 2>&1
+    rm -f "$STATE/$1-$2.window" "${XDG_RUNTIME_DIR:-}/slipstream/resume/$$"
+    exit 0
 }
 
 # keep AGENT [ARGS...]: starts a session in the background and attaches this terminal to it. Only
