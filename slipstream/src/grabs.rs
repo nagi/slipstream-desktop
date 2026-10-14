@@ -40,6 +40,12 @@ pub enum Drag {
         path: Vec<bool>,
         from: f32,
     },
+    /// A tiled window being resized by Super and a right drag: the gaps along its sides that
+    /// the pointer moves, each with the ratio its split had at the start.
+    Tiles {
+        workspace: usize,
+        ends: Vec<(Divider, f32)>,
+    },
     /// A window being dragged onto another tile: the one under the pointer, and whether Esc
     /// called it off.
     Swap {
@@ -114,7 +120,7 @@ impl Slipstream {
 
     /// A left press at `pos`: on a gap it starts a resize, and with Super held on a tiled window
     /// it starts a swap, or on a floating one moves it. A right press with Super held on a
-    /// floating window resizes it by its nearest corner. Whether the press was taken, in which
+    /// window resizes it by its nearest corner (a tiled one by the gaps beside that corner). Whether the press was taken, in which
     /// case a grab now has the pointer (or, under gravity, a toast said why not) and no client is
     /// to get it.
     pub fn start_drag(
@@ -129,7 +135,9 @@ impl Slipstream {
             return false;
         }
         if button == BTN_RIGHT {
-            return super_held && self.start_corner_resize(pos, button, serial);
+            return super_held
+                && (self.start_corner_resize(pos, button, serial)
+                    || self.start_tiled_resize(pos, button, serial));
         }
         if button != BTN_LEFT {
             return false;
@@ -224,6 +232,110 @@ impl Slipstream {
         }
         self.set_cursor_override(Some(cursor));
         true
+    }
+
+    /// Super and a right press at `pos`: the tiled window there is resized by the gaps along the
+    /// sides of the corner nearest the pointer, as Omarchy does. Whether it was.
+    fn start_tiled_resize(
+        &mut self,
+        pos: Point<f64, Logical>,
+        button: u32,
+        serial: Serial,
+    ) -> bool {
+        if self.pointer_blocked() || self.seat.get_pointer().unwrap().is_grabbed() {
+            return false;
+        }
+        let Some((window, _)) = self.window_under(pos) else {
+            return false;
+        };
+        if self.workspaces.is_floating(&window) || self.is_fullscreen(&window) {
+            return false;
+        }
+        let Some(workspace) = self.workspaces.find(&window) else {
+            return false;
+        };
+        let Some(geo) = self.space.element_geometry(&window) else {
+            return false;
+        };
+        let Some(index) = self.screen_at(pos) else {
+            return false;
+        };
+        let Some(area) = self.screen_area(index) else {
+            return false;
+        };
+        let ws = self.workspaces.get(workspace);
+        if self.fullscreen_on(workspace) || ws.maximised.is_some() || ws.gravity.is_on() {
+            return false;
+        }
+        let left = pos.x < geo.loc.x as f64 + geo.size.w as f64 / 2.0;
+        let top = pos.y < geo.loc.y as f64 + geo.size.h as f64 / 2.0;
+        let (x0, y0) = (geo.loc.x, geo.loc.y);
+        let (x1, y1) = (x0 + geo.size.w, y0 + geo.size.h);
+        // A gap belongs to the window when it lies against the side nearest the pointer and
+        // runs alongside the window.
+        const NEAR: i32 = 16;
+        let mut ends: Vec<(Divider, f32)> = Vec::new();
+        for divider in ws.layout.dividers(area, &min_size) {
+            let s = divider.strip;
+            let touches = if divider.vertical {
+                let edge = if left { x0 } else { x1 };
+                let against = if left { s.x + s.w } else { s.x };
+                (against - edge).abs() <= NEAR && s.y < y1 && s.y + s.h > y0
+            } else {
+                let edge = if top { y0 } else { y1 };
+                let against = if top { s.y + s.h } else { s.y };
+                (against - edge).abs() <= NEAR && s.x < x1 && s.x + s.w > x0
+            };
+            if !touches || ends.iter().any(|(d, _)| d.vertical == divider.vertical) {
+                continue;
+            }
+            if let Some(from) = ws.layout.ratio_of(&divider.path) {
+                ends.push((divider, from));
+            }
+        }
+        if ends.is_empty() {
+            return false;
+        }
+        let cursor = match (left, top) {
+            (true, true) => CursorIcon::NwResize,
+            (false, true) => CursorIcon::NeResize,
+            (true, false) => CursorIcon::SwResize,
+            (false, false) => CursorIcon::SeResize,
+        };
+        tracing::info!(gaps = ends.len(), "resizing a tiled window");
+        self.focus_window(&window);
+        self.drag = Some(Drag::Tiles { workspace, ends });
+        self.set_cursor_override(Some(cursor));
+        let pointer = self.seat.get_pointer().unwrap();
+        let start = GrabStartData {
+            focus: None,
+            button,
+            location: pos,
+        };
+        pointer.set_grab(self, TileGrab { start }, serial, Focus::Clear);
+        true
+    }
+
+    /// The pointer is at `at` while a tiled window is resized: each gap follows it.
+    fn drag_tiles(&mut self, at: Point<f64, Logical>) {
+        let Some(Drag::Tiles { workspace, ends }) = &self.drag else {
+            return;
+        };
+        let workspace = *workspace;
+        let ratios: Vec<(Vec<bool>, f32)> = ends
+            .iter()
+            .map(|(divider, _)| {
+                let along = if divider.vertical { at.x } else { at.y };
+                (divider.path.clone(), divider.ratio_at(along))
+            })
+            .collect();
+        let layout = &mut self.workspaces.get_mut(workspace).layout;
+        for (path, ratio) in ratios {
+            if layout.ratio_of(&path) != Some(ratio) {
+                layout.set_ratio(&path, ratio);
+                self.drag_retile_due = true;
+            }
+        }
     }
 
     /// Takes the pointer to move floating `window`, from `pos`. Whether it did.
@@ -413,6 +525,11 @@ impl Slipstream {
                 tracing::info!(?ratio, "gap drag ended");
                 self.retile();
             }
+            Some(Drag::Tiles { .. }) => {
+                self.drag_retile_due = false;
+                tracing::info!("tiled resize ended");
+                self.retile();
+            }
             Some(Drag::Swap { .. }) => tracing::info!("window drag ended"),
             Some(Drag::Move { .. } | Drag::Resize { .. }) => {
                 self.drag_retile_due = false;
@@ -437,6 +554,17 @@ impl Slipstream {
                     .get_mut(workspace)
                     .layout
                     .set_ratio(&path, from);
+            }
+            Some(Drag::Tiles { workspace, ends }) => {
+                let workspace = *workspace;
+                let ends: Vec<_> = ends
+                    .iter()
+                    .map(|(d, from)| (d.path.clone(), *from))
+                    .collect();
+                let layout = &mut self.workspaces.get_mut(workspace).layout;
+                for (path, from) in ends {
+                    layout.set_ratio(&path, from);
+                }
             }
             Some(Drag::Swap { cancelled, .. }) => *cancelled = true,
             // A floating window stays where the drag has got it to.
@@ -478,6 +606,11 @@ impl Slipstream {
 struct GapGrab {
     start: GrabStartData<Slipstream>,
     divider: Divider,
+}
+
+/// Resizing a tiled window with Super and a right drag.
+pub struct TileGrab {
+    start: GrabStartData<Slipstream>,
 }
 
 /// Dragging a window onto another tile with Super held.
@@ -642,6 +775,12 @@ pointer_grab!(
         let along = if grab.divider.vertical { at.x } else { at.y };
         data.drag_gap(workspace, &grab.divider, along);
     },
+    released: |_| {}
+);
+
+pointer_grab!(
+    TileGrab,
+    motion: |_, data, at| data.drag_tiles(at),
     released: |_| {}
 );
 
