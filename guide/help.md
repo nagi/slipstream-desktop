@@ -95,6 +95,7 @@ A session working in the background has no window above it, so to have its notif
 - **Some distributions stop everything at logout.** Where logind's `KillUserProcesses` is on, nothing you started outlives your login, and logging out is like a restart.
 - **A sleeping laptop sleeps.** With the lid closed, everything is paused, your agent included.
 - **Only the agent is kept.** Anything else running in that terminal, and every other window, closes at logout as it always has.
+- **Close the window to leave it working.** With `extras/agent-notify keep`, closing the window or logging out leaves the session running; quitting the agent in its window ends the session, as quitting it anywhere else does, and its conversation is kept.
 
 ## Seeing an AI agent at work from across the room
 
