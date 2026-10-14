@@ -378,6 +378,7 @@ pub fn bar_click(target: bar::Target) -> BarClick {
         | bar::Target::Clock
         | bar::Target::Tray
         | bar::Target::Meter
+        | bar::Target::Agents
         | bar::Target::Dock
         | bar::Target::Bell => BarClick::Leave,
     }
@@ -731,6 +732,7 @@ mod tests {
             bar::Target::Clock,
             bar::Target::Tray,
             bar::Target::Meter,
+            bar::Target::Agents,
             bar::Target::Bell,
         ] {
             assert_eq!(bar_click(panel), BarClick::Leave, "{panel:?}");

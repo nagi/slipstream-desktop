@@ -31,7 +31,8 @@
 //! bar's buttons included), `quick` (Super+A), `qkey:NAME` (a key in quick settings, by xkb name
 //! with optional `shift+`), `qclick:X,Y` (a click while quick settings is open, in logical pixels
 //! on the screen), `centre`, `ckey:NAME` and `cclick:X,Y` (the same for the notification centre,
-//! Super+N), `notify:APP|TITLE|BODY` (a notification, as if an app had sent one; a fourth field
+//! Super+N), `agents`, `akey:NAME` and `aclick:X,Y` (the same for the agents panel, from the
+//! bar's icon beside the clock), `notify:APP|TITLE|BODY` (a notification, as if an app had sent one; a fourth field
 //! `id=Label,id=Label` adds action buttons), `critical:APP|TITLE|BODY` (a critical one, which
 //! wakes the faded UI), `osd:KIND` (the volume or brightness display, drawn without changing
 //! anything), `wallpaper:ID` (show one living-wallpaper variation now, by its id in the settings
@@ -158,6 +159,10 @@ pub enum Step {
     Centre,
     CentreKey(String),
     CentreClick(f64, f64),
+    /// The agents panel, from the bar's icon beside the clock, its keys and its clicks.
+    Agents,
+    AgentsKey(String),
+    AgentsClick(f64, f64),
     /// App, title, body, and action buttons as identifier and label.
     Notify(String, String, String, Vec<(String, String)>),
     /// A critical notification: app, title, body.
@@ -419,6 +424,12 @@ impl Script {
                         let (x, y) = point(at)?;
                         Step::CentreClick(x, y)
                     }
+                    ("agents", None) => Step::Agents,
+                    ("akey", Some(name)) => Step::AgentsKey(name.to_string()),
+                    ("aclick", Some(at)) => {
+                        let (x, y) = point(at)?;
+                        Step::AgentsClick(x, y)
+                    }
                     ("notify", Some(text)) => {
                         let mut fields = text.splitn(4, '|');
                         let app = fields.next()?.to_string();
@@ -612,6 +623,7 @@ mod tests {
             Step::Key("Return".into()),
             Step::QuickClick(10.0, 10.0),
             Step::CentreClick(10.0, 10.0),
+            Step::AgentsClick(10.0, 10.0),
             Step::BulletKey("Return".into()),
             Step::Click(10.0, 10.0),
         ] {

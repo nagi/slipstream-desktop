@@ -58,6 +58,12 @@ The report has sections, each with meters:
 
 The bar shows a small gauge for each section: its first meter as the thick bar, with the percentage beside it, and its second as the thin bar underneath. The gauge turns amber at 75% and orange at 90%. Quick settings lists every meter, with the time left until each starts over (`resets` is in seconds since the Unix epoch). `detail`, `note`, `stale` and `resets` are optional. A section marked `stale` is dimmed, and so is everything if the command fails, times out after 30 seconds, or prints something unreadable. The last good report stays on show in the meantime.
 
+## The agents panel
+
+On [Omarchy](https://omarchy.org), a small sparkle appears on the bar, right of the clock, once an AI coding tool of yours has usage to show: Claude Code, Codex or Fireworks, whichever Omarchy's `omarchy-agent-usage-update` finds. Click it for a panel on the tool: the plan it runs on, how much of each allowance is used and when it starts over, a prepaid account's credit, the tokens spent each day of the last week (today in full, with its prompts and sessions), and the busiest models with their input, output and cache split. The sparkle turns orange when an allowance is 90% used or credit is nearly gone, and nothing shows at all on a machine that has never run an agent.
+
+With more than one tool there is a chip for each: click one, or press **←** and **→** (or **H** and **L**, or **Tab**). **R** or **Enter** brings the numbers up to date, and **Esc** closes it. Slipstream runs Omarchy's updater itself, every quarter of an hour and when the panel opens, and shows whatever is in `~/.local/state/omarchy/agents/usage/`. A collector that writes its record there is a new tool in the panel, as it is in Omarchy's own.
+
 ## Following an Omarchy theme
 
 On [Omarchy](https://omarchy.org), Slipstream is drawn in the theme Omarchy is showing, and changes the moment you change it: with `omarchy theme set`, Omarchy's own theme menu, or **Settings → Appearance → Omarchy theme**, which sets it through Omarchy so your terminal and editor change too. Nothing needs setting up, and on any other distribution nothing changes: Slipstream is drawn in its own colours.

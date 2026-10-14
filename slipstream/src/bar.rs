@@ -69,6 +69,9 @@ pub struct Content {
     pub awake: bool,
     /// What the meter's command last reported, when there is a meter.
     pub meter: Option<meter::Reading>,
+    /// The agents icon beside the clock, when some AI coding tool has usage to show; `true` when
+    /// one of its allowances is nearly used up.
+    pub agents: Option<bool>,
     /// Where the frame of a pane hanging from this bar meets it, when one does: the frame's
     /// left and right edges, in logical pixels from the screen's left. The bar has no lower edge
     /// between them, where it runs on down into the frame, and keeps room for the pane's slot.
@@ -119,6 +122,8 @@ pub enum Target {
     Overview,
     /// The meter beside the tray, whose details are in quick settings.
     Meter,
+    /// Right of the clock: how much the AI coding tools have been used.
+    Agents,
     /// The docked window's slot.
     Dock,
 }
@@ -347,6 +352,17 @@ fn paint(content: &Content, width: i32, scale: f64) -> Option<(Pixmap, Targets)>
         &date,
     );
     target(Target::Clock, centre_x, centre_w);
+    // Right of the clock: the agents' icon, warmed when an allowance is nearly used up.
+    if let Some(alarming) = content.agents {
+        let x = centre_x + centre_w + AGENTS_GAP;
+        let ink = if alarming {
+            meter::ink(90)
+        } else {
+            panel::tertiary()
+        };
+        p.icon(icons::AGENTS, x + 4.0, 9.0, 22.0, Some(ink));
+        target(Target::Agents, x, AGENTS_W);
+    }
 
     // The title of this screen's window fills what's left of the left column, dimmed where the
     // keyboard isn't.
@@ -541,13 +557,23 @@ fn paint(content: &Content, width: i32, scale: f64) -> Option<(Pixmap, Targets)>
     // painted here. A bar too narrow to keep it clear of the clock goes without.
     if span.is_some() {
         let x = right - 8.0 - DOCK_SLOT;
-        if x >= centre_x + centre_w + 8.0 {
+        let clear = centre_x + centre_w + 8.0;
+        let clear = if content.agents.is_some() {
+            clear + AGENTS_GAP + AGENTS_W
+        } else {
+            clear
+        };
+        if x >= clear {
             target(Target::Dock, x, DOCK_SLOT);
         }
     }
 
     Some((p.pixmap, targets))
 }
+
+/// The agents icon's width, and the gap before it, in the bar's units.
+const AGENTS_W: f32 = 30.0;
+const AGENTS_GAP: f32 = 2.0;
 
 /// How wide the docked window's slot is, in the bar's units.
 const DOCK_SLOT: f32 = 132.0;
@@ -616,6 +642,7 @@ mod tests {
             caps_lock: false,
             awake: false,
             meter: None,
+            agents: None,
             dock: None,
         }
     }
@@ -922,6 +949,36 @@ mod tests {
             fifth.loc.x - (second.loc.x + second.size.w) < 10.0,
             "side by side"
         );
+    }
+
+    #[test]
+    fn the_agents_icon_sits_right_of_the_clock_and_only_with_usage_to_show() {
+        let area = |content: &Content, wanted: Target| {
+            let (_, targets) = paint(content, 1536, 1.25).unwrap();
+            targets
+                .into_iter()
+                .find(|(target, _)| *target == wanted)
+                .map(|(_, area)| area)
+        };
+        assert_eq!(area(&content(), Target::Agents), None, "no agents yet");
+        for alarming in [false, true] {
+            let shown = Content {
+                agents: Some(alarming),
+                ..content()
+            };
+            let clock = area(&shown, Target::Clock).unwrap();
+            let icon = area(&shown, Target::Agents).expect("an icon to click");
+            assert!(
+                icon.loc.x >= clock.loc.x + clock.size.w,
+                "right of the clock"
+            );
+            assert!(icon.loc.x - (clock.loc.x + clock.size.w) < 8.0, "beside it");
+            let bar = Bar {
+                targets: paint(&shown, 1536, 1.25).unwrap().1,
+                ..Bar::default()
+            };
+            assert_eq!(bar.target_at(icon.loc.x + 2.0, 16.0), Some(Target::Agents));
+        }
     }
 
     #[test]
