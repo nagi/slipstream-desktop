@@ -6,10 +6,10 @@
 //! The wait comes from the settings file (`fade-after-secs`, 120 seconds by default; 0 never fades)
 //! and can change while Slipstream runs.
 //!
-//! The same input also counts towards locking the screen by itself (`[lock] after-idle-mins`, off by
-//! default). That wait is wall time since the last input, so bullet time can't stretch it, and
-//! only Awake, a fullscreen window or an app asking for the screen to stay awake holds it off, and nor does an open panel or card, since neither is a
-//! sign anyone is there.
+//! The same input also counts towards locking the screen by itself (`[lock] after-idle-mins`,
+//! off by default). That wait is wall time since the last input, so bullet time can't stretch
+//! it. Only Awake, a fullscreen window or an app asking for the screen to stay awake holds it
+//! off; an open panel or card doesn't, since neither is a sign anyone is there.
 
 use crate::motion::REDUCED_FADE;
 use std::time::{Duration, Instant};

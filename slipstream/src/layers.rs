@@ -24,7 +24,10 @@ use smithay::{
     },
     desktop::{LayerSurface, PopupKind, WindowSurfaceType, layer_map_for_output},
     output::Output,
-    reexports::wayland_server::{Client, DisplayHandle, protocol::wl_output::WlOutput},
+    reexports::wayland_server::{
+        Client, DisplayHandle,
+        protocol::{wl_output::WlOutput, wl_surface::WlSurface},
+    },
     utils::{Logical, Point, Rectangle, Scale},
     wayland::{
         compositor::with_states,
@@ -39,20 +42,14 @@ use smithay::{
 };
 
 use crate::{
-    Slipstream, capture::Peer, focus::KeyboardFocus, layout::Rect, render::OutputElement,
-    state::ClientState,
+    Slipstream, focus::KeyboardFocus, layout::Rect, render::OutputElement, state::ClientState,
 };
 
-/// Whether a connecting client may draw layer surfaces, from `capture::unsandboxed_peer`'s look at
-/// its process: only with proof that it is outside any sandbox.
-pub fn client_may_draw(peer: Option<&Peer>) -> bool {
-    peer.is_some()
-}
-
+/// Only a client proven to be outside any sandbox may draw layer surfaces.
 fn may_draw(client: &Client) -> bool {
     client
         .get_data::<ClientState>()
-        .is_some_and(|state| state.may_draw_layers)
+        .is_some_and(|state| state.unsandboxed)
 }
 
 pub fn state(display: &DisplayHandle) -> WlrLayerShellState {
@@ -126,10 +123,7 @@ impl WlrLayerShellHandler for Slipstream {
 impl Slipstream {
     /// A commit on a layer surface: its screen's layers are placed again, a first commit is
     /// answered with its size, and the tiling and the keyboard follow any change.
-    pub fn layer_commit(
-        &mut self,
-        surface: &smithay::reexports::wayland_server::protocol::wl_surface::WlSurface,
-    ) {
+    pub fn layer_commit(&mut self, surface: &WlSurface) {
         let Some(output) = self
             .space
             .outputs()
@@ -146,7 +140,7 @@ impl Slipstream {
             states
                 .data_map
                 .get::<LayerSurfaceData>()
-                .is_some_and(|data| data.lock().unwrap().initial_configure_sent)
+                .is_some_and(|data| data.lock().is_ok_and(|data| data.initial_configure_sent))
         });
         {
             let mut map = layer_map_for_output(&output);
@@ -162,7 +156,7 @@ impl Slipstream {
 
     /// After a layer surface came, went or changed: retile if a reserved strip moved, and hand
     /// the keyboard to a surface that asks for it outright, or back from one that's gone.
-    pub fn layers_changed(&mut self) {
+    fn layers_changed(&mut self) {
         let zones: Vec<(String, Rectangle<i32, Logical>)> = self
             .space
             .outputs()
@@ -198,9 +192,7 @@ impl Slipstream {
     }
 
     /// Whether the keyboard is on a layer surface, and which.
-    pub fn keyboard_layer(
-        &self,
-    ) -> Option<smithay::reexports::wayland_server::protocol::wl_surface::WlSurface> {
+    pub fn keyboard_layer(&self) -> Option<WlSurface> {
         let focus = self.seat.get_keyboard()?.current_focus()?;
         let KeyboardFocus::Wayland(surface) = focus else {
             return None;
@@ -257,7 +249,7 @@ impl Slipstream {
     }
 
     /// Gives the keyboard to a layer surface.
-    pub fn focus_layer(&mut self, layer: &LayerSurface) {
+    fn focus_layer(&mut self, layer: &LayerSurface) {
         if let Some(window) = self.focused_window() {
             crate::state::deactivate(&window);
         }
@@ -289,14 +281,14 @@ impl Slipstream {
 
     /// The layer surface drawn at `pos` on the given layers, front to back, and where its surface
     /// starts in global coordinates.
-    pub fn layer_under(
+    fn layer_under(
         &self,
         pos: Point<f64, Logical>,
         layers: &[Layer],
     ) -> Option<(LayerSurface, Point<f64, Logical>)> {
         let output = self.space.output_under(pos).next()?.clone();
         let origin = self.space.output_geometry(&output)?.loc;
-        if !self.layers_shown_on(&output) {
+        if !self.layers_shown() {
             return None;
         }
         let covered = self.fullscreen_on_output(&output);
@@ -325,7 +317,7 @@ impl Slipstream {
 
     /// Layer surfaces are hidden while bullet time is out or the desktop has faded to the
     /// wallpaper. The lock draws nothing of anyone's.
-    fn layers_shown_on(&self, _output: &Output) -> bool {
+    fn layers_shown(&self) -> bool {
         self.lock.is_none() && self.bullet.is_none() && !self.idle.is_faded()
     }
 

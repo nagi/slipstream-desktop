@@ -5,9 +5,10 @@
 //! text console with `loginctl unlock-session ID`, naming this session: without an ID, loginctl
 //! unlocks the console's own session, and says nothing. The log names the ID at startup
 //! (`logind: this session's lock and sleep`), and `loginctl list-sessions` lists it.
-//! `loginctl unlock-sessions` unlocks every session, with an administrator's password. Slipstream tells it whether the session
-//! is locked (`SetLockedHint`), and holds a delay inhibitor for sleep, so it can lock and draw the
-//! lock before the machine goes down: it wakes up locked.
+//! `loginctl unlock-sessions` unlocks every session, with an administrator's password.
+//! Slipstream tells logind whether the session is locked (`SetLockedHint`), and holds a delay
+//! inhibitor for sleep, so it can lock and draw the lock before the machine goes down: it wakes
+//! up locked.
 //!
 //! All of it is on threads of its own, each blocking on the system bus, and every signal comes back
 //! to the event loop through a channel. A signal only counts when logind itself sent it: any

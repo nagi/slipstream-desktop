@@ -117,16 +117,17 @@ pub enum Asking {
     },
 }
 
-/// How long a card raised by a program ignores the keyboard.
+/// How long the card ignores keys and clicks after it appears.
 ///
-/// It appears unprompted — a script in the background can put it there — and a key already on
-/// its way to whatever was focused must never land on it as an answer.
+/// It can appear unprompted — any app can ask the portal to share, and a script in the background
+/// can ask to record — and an Enter or a click already on its way to whatever was focused must
+/// never land on it as an answer.
 const DEAF: f64 = 1.5;
 
 /// The card, while an app waits for an answer.
 pub struct Picker {
     pub asking: Asking,
-    /// Keys before this are ignored, for a card nobody asked to see.
+    /// Keys and clicks before this are ignored.
     deaf_until: f64,
     choices: Vec<Choice>,
     /// What each row says: the name, and what it is.
@@ -160,7 +161,7 @@ impl Picker {
     ) -> Self {
         Self {
             asking: Asking::Portal,
-            deaf_until: 0.0,
+            deaf_until: now + DEAF,
             choices,
             rows,
             selected: 0,
@@ -193,7 +194,6 @@ impl Picker {
         ];
         Self {
             asking: Asking::Capture { program, exe },
-            deaf_until: now + DEAF,
             ..Self::new(Vec::new(), rows, None, now, reduced_motion)
         }
     }
@@ -203,8 +203,7 @@ impl Picker {
         self.selected == 1
     }
 
-    /// A key, at wall time `now`. A card nobody asked to see ignores keys for its first moment:
-    /// `DEAF`, above.
+    /// A key, at wall time `now`. Ignored for the card's first moment: `DEAF`, above.
     pub fn key(&mut self, sym: Keysym, shift: bool, now: f64) -> Act {
         if now < self.deaf_until {
             return Act::Nothing;
@@ -261,8 +260,12 @@ impl Picker {
     }
 
     /// A click on a row chooses it; a click on a chosen row, or on Share, shares it. Beside the
-    /// card nothing happens, as on the other cards that ask a question.
-    pub fn click(&mut self, x: f64, y: f64) -> Act {
+    /// card nothing happens, as on the other cards that ask a question. Ignored, like a key, for
+    /// the card's first moment.
+    pub fn click(&mut self, x: f64, y: f64, now: f64) -> Act {
+        if now < self.deaf_until {
+            return Act::Nothing;
+        }
         match self.hit(x, y) {
             Some(Button::Go) => Act::Share,
             Some(Button::Stay) => Act::Cancel,
@@ -595,18 +598,36 @@ pub fn choose() -> i32 {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
 
-    /// The card that asks about a program appears unprompted — a script in the background can
-    /// put it there — so a key already on its way must not answer it.
+    /// The card can appear unprompted — any app can ask the portal, a script in the background
+    /// can ask to record — so a key or a click already on its way must not answer it.
     #[test]
     fn a_card_nobody_asked_for_is_deaf_at_first() {
-        let mut picker = Picker::for_capture("grim".into(), "/usr/bin/grim".into(), 100.0, false);
+        let mut capture = Picker::for_capture("grim".into(), "/usr/bin/grim".into(), 100.0, false);
         assert_eq!(
-            picker.key(Keysym::Return, false, 100.1),
+            capture.key(Keysym::Return, false, 100.1),
             Act::Nothing,
             "a keystroke already in flight does not allow it"
         );
-        assert_eq!(picker.key(Keysym::Return, false, 100.0 + DEAF), Act::Share);
+        assert_eq!(capture.key(Keysym::Return, false, 100.0 + DEAF), Act::Share);
+
+        let mut picker = picker(2);
+        assert_eq!(
+            picker.key(Keysym::Return, false, 0.1),
+            Act::Nothing,
+            "nor shares the screen"
+        );
+        let (_, hits) = card::paint(&picker.card(0), 1.0);
+        let (x, y) = hits
+            .iter()
+            .find(|hit| hit.which == Button::Go)
+            .expect("a Share button")
+            .centre();
+        picker.hits = hits;
+        let (x, y) = (x as f64 * DESIGN_PX as f64, y as f64 * DESIGN_PX as f64);
+        assert_eq!(picker.click(x, y, 0.1), Act::Nothing, "a click either");
+        assert_eq!(picker.click(x, y, DEAF), Act::Share);
     }
 
     #[test]
@@ -637,7 +658,6 @@ mod tests {
             "the lasting answer names it too"
         );
     }
-    use super::*;
 
     fn picker(count: usize) -> Picker {
         let choices = (0..count)
@@ -684,13 +704,13 @@ mod tests {
     #[test]
     fn arrows_wrap_and_the_list_scrolls_with_them() {
         let mut picker = picker(12);
-        assert_eq!(picker.key(Keysym::Up, false, 0.0), Act::Nothing);
+        assert_eq!(picker.key(Keysym::Up, false, DEAF), Act::Nothing);
         assert_eq!(picker.selected, 11, "up from the first wraps to the last");
         assert_eq!(picker.top, 12 - VISIBLE, "and the last is in view");
-        picker.key(Keysym::Down, false, 0.0);
+        picker.key(Keysym::Down, false, DEAF);
         assert_eq!((picker.selected, picker.top), (0, 0));
-        assert_eq!(picker.key(Keysym::Return, false, 0.0), Act::Share);
-        assert_eq!(picker.key(Keysym::Escape, false, 0.0), Act::Cancel);
+        assert_eq!(picker.key(Keysym::Return, false, DEAF), Act::Share);
+        assert_eq!(picker.key(Keysym::Escape, false, DEAF), Act::Cancel);
     }
 
     #[test]
@@ -699,7 +719,7 @@ mod tests {
             let (ours, mut theirs) = UnixStream::pair().expect("a socket pair");
             let mut picker = picker(3);
             picker.reply = Some(ours);
-            picker.key(Keysym::Down, false, 0.0);
+            picker.key(Keysym::Down, false, DEAF);
             picker.answer(share);
             let mut got = String::new();
             theirs.read_to_string(&mut got).unwrap();
@@ -761,6 +781,6 @@ mod tests {
 
     #[test]
     fn a_click_beside_the_card_shares_nothing() {
-        assert_eq!(picker(2).click(3.0, 3.0), Act::Nothing);
+        assert_eq!(picker(2).click(3.0, 3.0, DEAF), Act::Nothing);
     }
 }

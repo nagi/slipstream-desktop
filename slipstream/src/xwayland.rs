@@ -206,9 +206,8 @@ impl XwmHandler for Slipstream {
         }
     }
 
-    // Tiled windows aren't dragged or resized by their title bars.
     /// An X11 app's own title bar or edge, on a floating window: it moves or resizes with the
-    /// pointer, as a Wayland app's does.
+    /// pointer, as a Wayland app's does. A tiled window stays in its tile.
     fn resize_request(&mut self, _xwm: XwmId, surface: X11Surface, button: u32, edges: ResizeEdge) {
         use smithay::reexports::wayland_protocols::xdg::shell::server::xdg_toplevel::ResizeEdge as Edge;
         let Some((window, location)) = self.x11_floating_press(&surface) else {
@@ -360,11 +359,9 @@ impl Slipstream {
             return None;
         }
         let pointer = self.seat.get_pointer()?;
-        if pointer.is_grabbed() {
-            // Its click grab is the only one expected; a drag of ours is already under way.
-            if self.drag.is_some() {
-                return None;
-            }
+        // Its click grab is the only one expected; a drag of ours is already under way.
+        if pointer.is_grabbed() && self.drag.is_some() {
+            return None;
         }
         Some((window, pointer.current_location()))
     }

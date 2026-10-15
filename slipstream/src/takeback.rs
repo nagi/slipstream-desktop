@@ -16,8 +16,10 @@ use smithay::{
     reexports::wayland_server::{Resource, Weak, protocol::wl_surface::WlSurface},
     utils::{Logical, Point},
     wayland::{
-        compositor::get_parent, keyboard_shortcuts_inhibit::KeyboardShortcutsInhibitorSeat,
-        pointer_constraints::with_pointer_constraint, seat::WaylandFocus,
+        compositor::get_parent,
+        keyboard_shortcuts_inhibit::KeyboardShortcutsInhibitorSeat,
+        pointer_constraints::{PointerConstraint, with_pointer_constraint},
+        seat::WaylandFocus,
     },
 };
 
@@ -29,7 +31,7 @@ use crate::{
 
 /// What a window has taken, for its toast.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Taken {
+enum Taken {
     Pointer,
     Shortcuts,
 }
@@ -44,7 +46,7 @@ pub struct TakeBack {
 impl TakeBack {
     /// Whether `taken` from the window whose surface is `root` still needs its toast, marking it
     /// told either way.
-    pub fn first_time(&mut self, root: &WlSurface, taken: Taken) -> bool {
+    fn first_time(&mut self, root: &WlSurface, taken: Taken) -> bool {
         self.told.retain(|(surface, _)| surface.upgrade().is_ok());
         let seen = self
             .told
@@ -56,14 +58,14 @@ impl TakeBack {
         !seen
     }
 
-    pub fn is_refused(&self, root: &WlSurface) -> bool {
+    fn is_refused(&self, root: &WlSurface) -> bool {
         self.refused
             .as_ref()
             .and_then(|surface| surface.upgrade().ok())
             .is_some_and(|surface| surface == *root)
     }
 
-    pub fn refuse(&mut self, root: Option<&WlSurface>) {
+    fn refuse(&mut self, root: Option<&WlSurface>) {
         self.refused = root.map(|root| root.downgrade());
     }
 }
@@ -117,16 +119,12 @@ impl Slipstream {
                 return None;
             }
             Some(match &*constraint {
-                smithay::wayland::pointer_constraints::PointerConstraint::Locked(_) => {
-                    Constraint::Locked
-                }
-                smithay::wayland::pointer_constraints::PointerConstraint::Confined(confined) => {
-                    Constraint::Confined {
-                        region: confined.region().cloned(),
-                        origin,
-                        surface: surface.clone(),
-                    }
-                }
+                PointerConstraint::Locked(_) => Constraint::Locked,
+                PointerConstraint::Confined(confined) => Constraint::Confined {
+                    region: confined.region().cloned(),
+                    origin,
+                    surface: surface.clone(),
+                },
             })
         })
     }
@@ -262,25 +260,24 @@ impl Slipstream {
             );
             return;
         }
-        let pointer = self.seat.get_pointer().unwrap();
         let mut held = false;
-        if let Some(focus) = pointer.current_focus() {
-            if let Some(surface) = focus.wl_surface() {
-                if root_of(&surface) == root {
-                    with_pointer_constraint(&surface, &pointer, |constraint| {
-                        if let Some(constraint) = constraint.filter(|c| c.is_active()) {
-                            held = true;
-                            constraint.deactivate();
-                        }
-                    });
+        if let Some(pointer) = self.seat.get_pointer()
+            && let Some(focus) = pointer.current_focus()
+            && let Some(surface) = focus.wl_surface()
+            && root_of(&surface) == root
+        {
+            with_pointer_constraint(&surface, &pointer, |constraint| {
+                if let Some(constraint) = constraint.filter(|c| c.is_active()) {
+                    held = true;
+                    constraint.deactivate();
                 }
-            }
+            });
         }
-        if let Some(inhibitor) = self.seat.keyboard_shortcuts_inhibitor_for_surface(&root) {
-            if inhibitor.is_active() {
-                held = true;
-                inhibitor.inactivate();
-            }
+        if let Some(inhibitor) = self.seat.keyboard_shortcuts_inhibitor_for_surface(&root)
+            && inhibitor.is_active()
+        {
+            held = true;
+            inhibitor.inactivate();
         }
         if held {
             self.takeback.refuse(Some(&root));

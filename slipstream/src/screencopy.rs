@@ -71,6 +71,10 @@ pub struct FrameData {
     /// makes the description a lie, and the frame is failed rather than filled from the new one.
     described: Size<i32, Physical>,
     with_cursor: bool,
+    /// Whether the program may have this frame: set when its buffer is described, which happens
+    /// only once it is allowed. A copy asked for before then, while a card is still asking about
+    /// it, is refused rather than filled.
+    allowed: AtomicBool,
     /// Whether a copy has been asked for already: the protocol says asking twice is an error.
     /// Atomic because a client's own data has to be shareable between threads.
     used: AtomicBool,
@@ -88,9 +92,15 @@ enum Verdict {
     No,
 }
 
-/// Tells a client what buffer to make. Sent once a frame is allowed, which may be now or once a
-/// card has been answered.
-fn describe_buffer(frame: &ZwlrScreencopyFrameV1, region: Rectangle<i32, Physical>) {
+/// Allows a frame and tells its client what buffer to make. Sent once the program is allowed,
+/// which may be now or once a card has been answered.
+fn describe_buffer(frame: &ZwlrScreencopyFrameV1) {
+    let Some(data) = frame.data::<FrameData>() else {
+        frame.failed();
+        return;
+    };
+    data.allowed.store(true, Ordering::Relaxed);
+    let region = data.region;
     // Four bytes a pixel, packed, which is what the renderer hands back and what
     // `copy_region_into` writes. A client may choose a wider stride of its own.
     frame.buffer(
@@ -161,6 +171,14 @@ impl Screencopy {
         self.asked_about.iter().any(|(waiting, _)| waiting == exe)
     }
 
+    /// How many frames are held for a program while it is asked about.
+    fn held_for(&self, exe: &Path) -> usize {
+        self.asked_about
+            .iter()
+            .filter(|(waiting, _)| waiting == exe)
+            .count()
+    }
+
     /// The frames held for `exe`, taken off the queue.
     fn answered(&mut self, exe: &Path) -> Vec<ZwlrScreencopyFrameV1> {
         let (mine, rest) = std::mem::take(&mut self.asked_about)
@@ -222,7 +240,6 @@ impl Dispatch<ZwlrScreencopyManagerV1, ()> for Slipstream {
                 output,
                 Some(Rectangle::new((x, y).into(), (width, height).into())),
             ),
-            zwlr_screencopy_manager_v1::Request::Destroy => return,
             _ => return,
         };
         state.begin_screencopy(client, data_init, frame, with_cursor, &output, region);
@@ -242,7 +259,6 @@ impl Dispatch<ZwlrScreencopyFrameV1, FrameData> for Slipstream {
         let (buffer, with_damage) = match request {
             zwlr_screencopy_frame_v1::Request::Copy { buffer } => (buffer, false),
             zwlr_screencopy_frame_v1::Request::CopyWithDamage { buffer } => (buffer, true),
-            zwlr_screencopy_frame_v1::Request::Destroy => return,
             _ => return,
         };
         if data.used.swap(true, Ordering::Relaxed) {
@@ -250,6 +266,17 @@ impl Dispatch<ZwlrScreencopyFrameV1, FrameData> for Slipstream {
                 zwlr_screencopy_frame_v1::Error::AlreadyUsed,
                 "this frame has been copied already",
             );
+            return;
+        }
+        // A frame whose buffer was never described has not been allowed: its program is still
+        // being asked about, or was refused. The client could guess the buffer from the screen's
+        // size, so the copy itself is what has to be refused.
+        if !data.allowed.load(Ordering::Relaxed) {
+            state
+                .screencopy
+                .asked_about
+                .retain(|(_, held)| held != resource);
+            resource.failed();
             return;
         }
         // Nothing is captured behind the lock, and a frame that arrives while it is up is
@@ -308,6 +335,10 @@ impl Dispatch<ZwlrScreencopyFrameV1, FrameData> for Slipstream {
         _data: &FrameData,
     ) {
         state.screencopy.waiting.retain(|it| it.frame != *resource);
+        state
+            .screencopy
+            .asked_about
+            .retain(|(_, held)| held != resource);
     }
 }
 
@@ -325,8 +356,8 @@ impl Slipstream {
     ) {
         let (verdict, place) = self.judge_screencopy(client, output, region);
         let Some((output, region, size)) = place else {
-            // Refused outright: an inert frame, told so at once. `used` starts spent, so a copy
-            // on it does nothing rather than reaching for a screen it was never given.
+            // Refused outright: an inert frame, told so at once. It is never allowed, so a copy
+            // on it is failed rather than reaching for a screen it was never given.
             let frame = data_init.init(
                 frame,
                 FrameData {
@@ -334,7 +365,8 @@ impl Slipstream {
                     region: Rectangle::default(),
                     described: Size::default(),
                     with_cursor,
-                    used: AtomicBool::new(true),
+                    allowed: AtomicBool::new(false),
+                    used: AtomicBool::new(false),
                 },
             );
             frame.failed();
@@ -347,15 +379,19 @@ impl Slipstream {
                 region,
                 described: size,
                 with_cursor,
+                allowed: AtomicBool::new(false),
                 used: AtomicBool::new(false),
             },
         );
         match verdict {
-            Verdict::Allowed => describe_buffer(&frame, region),
+            Verdict::Allowed => describe_buffer(&frame),
             // Held: the client is told nothing until the card is answered, so it simply waits.
             Verdict::Ask { program, exe } => {
                 if !self.screencopy.already_asking(&exe) {
                     self.ask_about_capture(program, exe.clone());
+                } else if self.screencopy.held_for(&exe) >= PENDING_PER_CLIENT {
+                    frame.failed();
+                    return;
                 }
                 self.screencopy.asked_about.push((exe, frame));
             }
@@ -393,10 +429,7 @@ impl Slipstream {
             "a program may record the screen"
         );
         for frame in held {
-            match frame.data::<FrameData>() {
-                Some(data) => describe_buffer(&frame, data.region),
-                None => frame.failed(),
-            }
+            describe_buffer(&frame);
         }
     }
 
@@ -430,21 +463,30 @@ impl Slipstream {
         if verdict == Verdict::No {
             return nowhere;
         }
-        let (Some(output), ()) = (Output::from_resource(output), ()) else {
+        let Some(output) = Output::from_resource(output) else {
             return nowhere;
         };
         let Some(size) = screen_size(&output) else {
             return nowhere;
         };
         // The region arrives in the screen's logical pixels and may be anywhere; the protocol
-        // says to clip it to the screen rather than complain about it.
+        // says to clip it to the screen rather than complain about it. Clipped again in the
+        // screen's own pixels, since rounding at a fractional scale can reach one past its edge.
         let scale = output.current_scale().fractional_scale();
+        let screen = Rectangle::from_size(size);
         let region = match region {
-            None => Rectangle::from_size(size),
+            None => screen,
             Some(asked) => {
                 let whole = Rectangle::from_size(size.to_f64().to_logical(scale).to_i32_round());
-                match asked.intersection(whole) {
-                    Some(clipped) => clipped.to_f64().to_physical(scale).to_i32_round(),
+                let clipped = asked.intersection(whole).and_then(|clipped| {
+                    clipped
+                        .to_f64()
+                        .to_physical(scale)
+                        .to_i32_round()
+                        .intersection(screen)
+                });
+                match clipped {
+                    Some(clipped) => clipped,
                     None => return nowhere,
                 }
             }

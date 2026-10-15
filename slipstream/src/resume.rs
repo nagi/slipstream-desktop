@@ -17,7 +17,8 @@
 
 use std::{
     fs,
-    os::unix::fs::MetadataExt,
+    io::Read,
+    os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt},
     path::{Path, PathBuf},
     time::UNIX_EPOCH,
 };
@@ -63,13 +64,18 @@ pub fn notes_about(kind: &str) -> Option<PathBuf> {
         .then(|| runtime.join("slipstream").join(kind))
 }
 
-/// Makes the notes folders, so an agent has somewhere to write without making them itself.
+/// Makes the notes folders, so an agent has somewhere to write without making them itself. They
+/// are this user's alone: a note is a command that will be run.
 pub fn make_notes_dir() {
     for dir in [notes_dir(), crate::working::notes_dir()]
         .into_iter()
         .flatten()
     {
-        if let Err(err) = fs::create_dir_all(&dir) {
+        if let Err(err) = fs::DirBuilder::new()
+            .recursive(true)
+            .mode(0o700)
+            .create(&dir)
+        {
             tracing::debug!(path = %dir.display(), "couldn't make a folder for agents' notes: {err}");
         }
     }
@@ -199,8 +205,14 @@ fn tree(proc: &Path, pid: u32) -> Vec<u32> {
 /// started. Process ids come round again, and a note outliving its writer mustn't be taken for
 /// the word of whatever has the number now.
 fn note(proc: &Path, notes: &Path, pid: u32, uid: u32, ticks: u64) -> Option<String> {
-    let path = notes.join(pid.to_string());
-    let meta = fs::symlink_metadata(&path).ok()?;
+    // Never through a link and never waiting on a FIFO, and the checks are on the file opened, so
+    // nothing swapped in after them is read.
+    let file = fs::File::options()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_NOCTTY)
+        .open(notes.join(pid.to_string()))
+        .ok()?;
+    let meta = file.metadata().ok()?;
     if !meta.is_file() || meta.uid() != uid || meta.len() > LONGEST_NOTE {
         return None;
     }
@@ -209,9 +221,12 @@ fn note(proc: &Path, notes: &Path, pid: u32, uid: u32, ticks: u64) -> Option<Str
     if written.as_secs() + 2 < started(proc, pid, ticks)? {
         return None;
     }
-    let text = fs::read_to_string(&path).ok()?;
+    // One byte past the limit, to tell a note that grew since it was measured.
+    let mut text = String::new();
+    file.take(LONGEST_NOTE + 1).read_to_string(&mut text).ok()?;
     let line = text.trim();
-    (!line.is_empty() && !line.chars().any(char::is_control)).then(|| line.to_string())
+    (text.len() as u64 <= LONGEST_NOTE && !line.is_empty() && !line.chars().any(char::is_control))
+        .then(|| line.to_string())
 }
 
 /// When `pid` started, in seconds since the epoch: the boot time plus how long after it.

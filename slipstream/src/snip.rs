@@ -47,8 +47,8 @@ const DIM: f32 = 0.5;
 const FLIGHT: f64 = 0.42;
 /// With reduced motion the chosen part just fades.
 const REDUCED_FLIGHT: f64 = 0.08;
-/// Logical pixels per design pixel (`panel::DESIGN_PX`), which the fragment grid is sized in.
-const DESIGN_PX: f64 = 0.8;
+/// Logical pixels per design pixel, which the fragment grid is sized in.
+const DESIGN_PX: f64 = panel::DESIGN_PX as f64;
 
 /// A snip while it's being chosen.
 pub struct Snip {
@@ -282,18 +282,21 @@ impl Slipstream {
         self.act_on_snip(act);
     }
 
+    /// Where the screen being snipped sits in the layout.
+    fn snip_origin(&self, snip: &Snip) -> Point<f64, Logical> {
+        self.space
+            .outputs()
+            .find(|output| output.name() == snip.output)
+            .and_then(|output| self.space.output_geometry(output))
+            .map_or_else(Point::default, |geo| geo.loc.to_f64())
+    }
+
     /// A pointer button while snipping: true when the snip took it.
     pub fn snip_button(&mut self, button: u32, pressed: bool) -> bool {
         let Some(snip) = self.snip.as_ref() else {
             return false;
         };
-        let origin = self
-            .space
-            .outputs()
-            .find(|output| output.name() == snip.output)
-            .and_then(|output| self.space.output_geometry(output))
-            .map_or_else(Point::default, |geo| geo.loc.to_f64());
-        let at = self.pointer_location() - origin;
+        let at = self.pointer_location() - self.snip_origin(snip);
         let act = match self.snip.as_mut().and_then(|snip| snip.frozen.as_mut()) {
             Some(frozen) => frozen.button(button == 0x110, pressed, at),
             None => Act::Nothing,
@@ -306,12 +309,7 @@ impl Slipstream {
         let Some(snip) = self.snip.as_ref() else {
             return;
         };
-        let origin = self
-            .space
-            .outputs()
-            .find(|output| output.name() == snip.output)
-            .and_then(|output| self.space.output_geometry(output))
-            .map_or_else(Point::default, |geo| geo.loc.to_f64());
+        let origin = self.snip_origin(snip);
         if let Some(frozen) = self.snip.as_mut().and_then(|snip| snip.frozen.as_mut()) {
             frozen.moved(pos - origin);
         }

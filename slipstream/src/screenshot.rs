@@ -10,7 +10,10 @@
 use std::{
     fs,
     io::{self, Write},
-    os::fd::{AsRawFd, OwnedFd},
+    os::{
+        fd::{AsRawFd, OwnedFd},
+        unix::fs::OpenOptionsExt,
+    },
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -33,13 +36,10 @@ pub const PNG: &str = "image/png";
 pub const FLASH_ALPHA: f32 = 0.25;
 pub const FLASH: f64 = 0.12;
 
-/// A screenshot waiting for its screen's next frame.
+/// A screenshot of a whole screen, waiting for that screen's next frame.
 pub struct Request {
     /// The output whose frame serves it.
     pub output: String,
-    /// The part of the screen to keep, in logical pixels from its corner; the whole screen when
-    /// `None`.
-    pub crop: Option<Rectangle<f64, Logical>>,
 }
 
 /// A screenshot's outcome, back on the event loop.
@@ -152,7 +152,8 @@ pub(crate) fn to_pixels(rect: Rectangle<f64, Logical>, scale: f64) -> Rectangle<
     Rectangle::new((x0, y0).into(), (x1 - x0, y1 - y0).into())
 }
 
-/// Crops, encodes and writes one screenshot, never over an earlier one taken the same second.
+/// Crops, encodes and writes one screenshot, never over an earlier one taken the same second, nor
+/// through a link left in its place. Readable by its owner only, as the screen it shows was.
 fn save(
     pixels: &[u8],
     size: Size<i32, Physical>,
@@ -174,9 +175,18 @@ fn save(
         } else {
             folder.join(format!("{stem}_{n}.png"))
         };
-        match fs::File::options().write(true).create_new(true).open(&file) {
+        let opened = fs::File::options()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(&file);
+        match opened {
             Ok(mut out) => {
-                out.write_all(&png).map_err(|err| err.to_string())?;
+                if let Err(err) = out.write_all(&png) {
+                    // Half a picture is no picture.
+                    let _ = fs::remove_file(&file);
+                    return Err(err.to_string());
+                }
                 tracing::info!(path = %file.display(), "screenshot saved");
                 return Ok(png);
             }
@@ -212,8 +222,8 @@ pub fn send_bytes(bytes: impl FnOnce() -> Vec<u8> + Send + 'static, fd: OwnedFd)
 }
 
 impl Slipstream {
-    /// Print (`window` false) or Super+Shift+S (`window` true): asks the focused screen's next
-    /// frame for a picture, cropped to the focused window for the second.
+    /// Print (`window` false) asks the focused screen's next frame for a picture; Super+Shift+S
+    /// (`window` true) starts a snip instead.
     pub fn take_screenshot(&mut self, window: bool) {
         // Nothing is pictured while locked.
         if self.lock.is_some() {
@@ -227,11 +237,9 @@ impl Slipstream {
             self.start_snip();
             return;
         }
-        let crop = None;
-        tracing::info!(window, "screenshot asked for");
+        tracing::info!("screenshot asked for");
         self.screenshot_requests.push(Request {
             output: output.name(),
-            crop,
         });
     }
 
@@ -275,8 +283,8 @@ impl Slipstream {
         if !self.clock.reduced_motion {
             self.flash = Some((name, self.wall()));
         }
-        for request in mine {
-            self.save_screenshot(pixels.clone(), size, request.crop, scale);
+        for _ in mine {
+            self.save_screenshot(pixels.clone(), size, None, scale);
         }
     }
 

@@ -9,10 +9,9 @@
 //! programs learn to stop. Ours is kept by the output's name, so a screen unplugged and plugged
 //! back in is not still claimed by a control nobody holds.
 //!
-//! Offered to every client, as wlroots compositors do. A gamma ramp can make a screen unreadable,
-//! which is a nuisance, but it reveals nothing and it is undone the moment the client lets go.
-//! Screen *capture* is the one that gives a client something it can keep, and that is behind a
-//! consent card (`screencopy.rs`) rather than a filter.
+//! Offered only to clients outside a sandbox, as layer shell is. A gamma ramp reveals nothing and
+//! is undone the moment the client lets go, but it can make a screen unreadable, which no
+//! sandboxed app has reason to do.
 
 use std::{
     collections::HashMap,
@@ -76,6 +75,12 @@ impl GlobalDispatch<ZwlrGammaControlManagerV1, ()> for Slipstream {
         data_init: &mut DataInit<'_, Self>,
     ) {
         data_init.init(resource, ());
+    }
+
+    fn can_view(client: Client, _global_data: &()) -> bool {
+        client
+            .get_data::<crate::state::ClientState>()
+            .is_some_and(|state| state.unsandboxed)
     }
 }
 
@@ -191,7 +196,7 @@ impl Slipstream {
     }
 }
 
-/// Reads a client's gamma table: `size` red, then green, then blue, as little-endian `u16`.
+/// Reads a client's gamma table: `size` red, then green, then blue, as native-endian `u16`.
 ///
 /// **Never blocks.** The fd is whatever the client passed, which may be a pipe it never writes
 /// to, and a compositor that waits on one has stopped. It is read non-blocking, once: a table

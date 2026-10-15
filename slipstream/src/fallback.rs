@@ -473,6 +473,11 @@ fn load(path: &Path) -> Option<Face<'static>> {
                     tracing::warn!(path = %path.display(), "couldn't read a fallback font: {err}")
                 })
                 .ok()?;
+            // Checked before leaking, so a file that isn't a font isn't kept for good.
+            if let Err(err) = Face::parse(&bytes, 0) {
+                tracing::warn!(path = %path.display(), "couldn't read a fallback font: {err}");
+                return None;
+            }
             Box::leak(bytes.into_boxed_slice())
         }
     };
@@ -497,8 +502,13 @@ fn load(path: &Path) -> Option<Face<'static>> {
 /// only another user could shrink it under the mapping, and package updates replace a file rather
 /// than rewrite it. The mapping is never undone, since the face lives as long as the compositor.
 fn map(path: &Path) -> Option<&'static [u8]> {
-    use std::os::unix::fs::MetadataExt;
-    let file = File::open(path).ok()?;
+    use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
+    // Non-blocking, so a FIFO under a font's name can't hold the open up.
+    let file = File::options()
+        .read(true)
+        .custom_flags(libc::O_NONBLOCK | libc::O_NOCTTY)
+        .open(path)
+        .ok()?;
     let metadata = file.metadata().ok()?;
     // SAFETY: getuid has no failure mode.
     let ours = metadata.uid() == unsafe { libc::getuid() };
