@@ -47,23 +47,14 @@ pub(super) fn lock_elements(
         let pointer = state.pointer_location();
         if output_geo.to_f64().contains(pointer) {
             let pos = pointer - output_geo.loc.to_f64();
-            let (buffer, hotspot) = cursor.image(
-                CursorIcon::Default.name(),
-                scale.x,
-                state.start_time.elapsed(),
-            );
-            match MemoryRenderBufferRenderElement::from_buffer(
+            elements.extend(themed_pointer(
                 renderer,
-                (pos - hotspot).to_physical(scale),
-                &buffer,
-                None,
-                None,
-                None,
-                Kind::Cursor,
-            ) {
-                Ok(element) => elements.push(OutputElement::Memory(element)),
-                Err(err) => tracing::warn!("couldn't draw the pointer: {err:?}"),
-            }
+                cursor,
+                CursorIcon::Default.name(),
+                pos,
+                scale,
+                state.start_time.elapsed(),
+            ));
         }
     }
     if state.screens.focused_output().as_ref() == Some(output) {
@@ -86,20 +77,12 @@ pub(super) fn lock_elements(
     let shown = state.lock.as_ref().map_or(1.0, |lock| lock.shown(wall));
     elements.push(veil(chrome, output_geo.size, scale, shown));
     if let Some(index) = state.screens.index_of(output) {
-        let readings = {
-            let status = state.status.lock().unwrap();
-            crate::saver::Readings {
-                time: status.time.clone(),
-                date: status.date.clone(),
-                place: state
-                    .screens
-                    .get(index)
-                    .map(|screen| state.workspaces.label(screen.workspace))
-                    .unwrap_or_default(),
-                battery: status.battery,
-            }
-        };
-        saver.set_readings(&readings);
+        let place = state
+            .screens
+            .get(index)
+            .map(|screen| state.workspaces.label(screen.workspace))
+            .unwrap_or_default();
+        saver.set_readings(&saver_readings(state, place));
         elements.extend(
             saver
                 .element(

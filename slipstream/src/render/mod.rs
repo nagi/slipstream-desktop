@@ -113,6 +113,8 @@ impl std::fmt::Debug for OutputElement {
     }
 }
 
+/// Everything on `output`, front to back. `cursor` is `None` when a host desktop draws the
+/// pointer (nested).
 pub fn output_elements(
     state: &mut Slipstream,
     renderer: &mut GlesRenderer,
@@ -262,21 +264,15 @@ pub fn output_elements(
                     elements.extend(tree);
                 }
                 CursorImageStatus::Named(icon) => {
-                    let (buffer, hotspot) =
-                        cursor.image(icon.name(), scale.x, state.start_time.elapsed());
-                    let location = (pos - hotspot).to_physical(scale);
-                    match MemoryRenderBufferRenderElement::from_buffer(
+                    let time = state.start_time.elapsed();
+                    elements.extend(themed_pointer(
                         renderer,
-                        location,
-                        &buffer,
-                        None,
-                        None,
-                        None,
-                        Kind::Cursor,
-                    ) {
-                        Ok(element) => elements.push(OutputElement::Memory(element)),
-                        Err(err) => tracing::warn!("couldn't draw the pointer: {err:?}"),
-                    }
+                        cursor,
+                        icon.name(),
+                        pos,
+                        scale,
+                        time,
+                    ));
                 }
             }
         }
@@ -757,13 +753,6 @@ pub fn output_elements(
         .tags
         .retain(|(window, _, at)| now - at < TAG_SHOWN && window.alive());
     let mut dimmed = 0;
-    // Windows drawn here that the space doesn't hold get frame callbacks too (`drawn_off_space`).
-    for (window, ..) in &windows {
-        if state.space.element_geometry(window).is_none() && !state.drawn_off_space.contains(window)
-        {
-            state.drawn_off_space.push(window.clone());
-        }
-    }
     // Two tiles passing through each other, drawn as panes after the rest (`pane::Pass`).
     let passing = state
         .pass
@@ -782,8 +771,9 @@ pub fn output_elements(
     } else {
         Vec::new()
     };
-    // The deck's windows are drawn wherever they live, so they keep drawing too.
-    for window in &in_deck {
+    // Windows drawn here that the space doesn't hold get frame callbacks too (`drawn_off_space`),
+    // the deck's among them: they are drawn wherever they live, so they keep drawing.
+    for window in windows.iter().map(|(window, _)| window).chain(&in_deck) {
         if state.space.element_geometry(window).is_none() && !state.drawn_off_space.contains(window)
         {
             state.drawn_off_space.push(window.clone());
@@ -1368,7 +1358,6 @@ pub fn output_elements(
                 &mut chrome,
                 renderer,
                 &mut deck,
-                output,
                 output_geo,
                 scale.x,
                 now,
@@ -1670,17 +1659,7 @@ pub fn output_elements(
         let glow = 0.45 + 0.55 * (1.0 - ui);
         // Slowed for bullet time, a wallpaper step lasts many frames, so it tweens between them.
         let tween = state.clock.in_bullet_time();
-        // The clock, the date, the workspace and the battery, for variations that show them.
-        let readings = {
-            let status = state.status.lock().unwrap();
-            crate::saver::Readings {
-                time: status.time.clone(),
-                date: status.date.clone(),
-                place: state.workspaces.label(active),
-                battery: status.battery,
-            }
-        };
-        saver.set_readings(&readings);
+        saver.set_readings(&saver_readings(state, state.workspaces.label(active)));
         // A trace for each agent at work, over the wallpaper once the desktop has gone.
         elements.extend(
             state
@@ -1824,14 +1803,10 @@ fn bar_content(
             .map(|index| state.workspaces.label(index))
             .collect(),
         title,
-        mode: state.bullet.as_ref().map(|_| {
-            let channel = |value: f32| (value.clamp(0.0, 1.0) * 255.0).round() as u32;
-            let [r, g, b] = state.bullet_rgb;
-            (
-                "BULLET TIME",
-                (channel(r) << 24) | (channel(g) << 16) | (channel(b) << 8) | 0xff,
-            )
-        }),
+        mode: state
+            .bullet
+            .as_ref()
+            .map(|_| ("BULLET TIME", opaque(state.bullet_rgb))),
         status: bar::Shown::of(&state.status.lock().unwrap()),
         do_not_disturb: state.settings.notifications.do_not_disturb,
         unread: state.notices.unread(),
@@ -1858,7 +1833,6 @@ fn bar_content(
 /// settings, notifications, clipboard history, the key list, Alt+Tab's flat switcher (when the deck
 /// isn't drawn), gravity's arrangements, the low battery card, the new screen card, the offer at
 /// login, the share picker and the way out.
-#[allow(clippy::too_many_arguments)]
 fn card_elements(
     state: &mut Slipstream,
     renderer: &mut GlesRenderer,
@@ -1948,77 +1922,99 @@ fn card_elements(
         );
     }
     // The low battery card, above everything but the lock.
-    if state.battery.card.is_some() {
-        let mut card = state.battery.card.take();
-        if let Some(card) = card.as_mut() {
-            elements.extend(
-                card.element(renderer, size, scale, wall)
-                    .map(OutputElement::Memory),
-            );
-        }
-        state.battery.card = card;
+    if let Some(card) = state.battery.card.as_mut() {
+        elements.extend(
+            card.element(renderer, size, scale, wall)
+                .map(OutputElement::Memory),
+        );
     }
     // The card asking what a screen never seen here should show. Drawn where the keyboard is, as
     // the other cards are: that is the screen being looked at when the lead goes in.
-    if state.connect.is_some() {
-        let mut connect = state.connect.take();
-        if let Some(connect) = connect.as_mut() {
-            elements.extend(
-                connect
-                    .element(renderer, size, scale, wall)
-                    .map(OutputElement::Memory),
-            );
-        }
-        state.connect = connect;
+    if let Some(connect) = state.connect.as_mut() {
+        elements.extend(
+            connect
+                .element(renderer, size, scale, wall)
+                .map(OutputElement::Memory),
+        );
     }
     // The offer at login, above everything else it is asking about.
-    if state.offer.is_some() {
-        let mut offer = state.offer.take();
-        if let Some(offer) = offer.as_mut() {
-            elements.extend(
-                offer
-                    .element(renderer, size, scale, wall)
-                    .map(OutputElement::Memory),
-            );
-        }
-        state.offer = offer;
+    if let Some(offer) = state.offer.as_mut() {
+        elements.extend(
+            offer
+                .element(renderer, size, scale, wall)
+                .map(OutputElement::Memory),
+        );
     }
     // The share picker, on the screen the keyboard is on: the app waiting for it is usually the
     // one being looked at.
-    if state.share.is_some() {
-        let [r, g, b] = state
-            .ring_rgb
-            .map(|c| (c.clamp(0.0, 1.0) * 255.0).round() as u8);
-        let ring = u32::from_be_bytes([r, g, b, 0xff]);
-        let mut share = state.share.take();
-        if let Some(share) = share.as_mut() {
-            elements.extend(
-                share
-                    .element(renderer, size, scale, wall, ring)
-                    .map(OutputElement::Memory),
-            );
-        }
-        state.share = share;
+    let ring = opaque(state.ring_rgb);
+    if let Some(share) = state.share.as_mut() {
+        elements.extend(
+            share
+                .element(renderer, size, scale, wall, ring)
+                .map(OutputElement::Memory),
+        );
     }
     // The way out: the ask card in the middle of the screen, or the slim one while the apps are
     // closing. It draws whatever else is up, and the fade to black goes over everything below.
-    if state.exit.is_some() {
-        let ring = state.panel_ring();
-        let mut exit = state.exit.take();
-        if let Some(exit) = exit.as_mut() {
-            elements.extend(
-                exit.element(renderer, size, scale, wall, ring)
-                    .map(OutputElement::Memory),
-            );
-        }
-        state.exit = exit;
+    let ring = state.panel_ring();
+    if let Some(exit) = state.exit.as_mut() {
+        elements.extend(
+            exit.element(renderer, size, scale, wall, ring)
+                .map(OutputElement::Memory),
+        );
     }
     elements
 }
 
+/// The cursor theme's shape `name` with its hotspot at `pos`, `time` into its animation.
+fn themed_pointer(
+    renderer: &mut GlesRenderer,
+    cursor: &mut Cursor,
+    name: &str,
+    pos: Point<f64, Logical>,
+    scale: Scale<f64>,
+    time: Duration,
+) -> Option<OutputElement> {
+    let (buffer, hotspot) = cursor.image(name, scale.x, time);
+    match MemoryRenderBufferRenderElement::from_buffer(
+        renderer,
+        (pos - hotspot).to_physical(scale),
+        &buffer,
+        None,
+        None,
+        None,
+        Kind::Cursor,
+    ) {
+        Ok(element) => Some(OutputElement::Memory(element)),
+        Err(err) => {
+            tracing::warn!("couldn't draw the pointer: {err:?}");
+            None
+        }
+    }
+}
+
+/// The clock, the date and the battery for the wallpaper's variations that show them, with
+/// `place` naming the workspace on screen.
+fn saver_readings(state: &Slipstream, place: String) -> crate::saver::Readings {
+    let status = state.status.lock().unwrap();
+    crate::saver::Readings {
+        time: status.time.clone(),
+        date: status.date.clone(),
+        place,
+        battery: status.battery,
+    }
+}
+
+/// `rgb`, opaque, packed as `0xrrggbbaa` for the painter.
+fn opaque(rgb: [f32; 3]) -> u32 {
+    let [r, g, b] = rgb.map(|c| (c.clamp(0.0, 1.0) * 255.0).round() as u8);
+    u32::from_be_bytes([r, g, b, 0xff])
+}
+
 /// Whether `window` has been sent a size it hasn't acked and drawn yet.
 fn awaiting_size(window: &Window) -> bool {
-    use smithay::wayland::{compositor::with_states, shell::xdg::XdgToplevelSurfaceData};
+    use smithay::wayland::shell::xdg::XdgToplevelSurfaceData;
     let Some(toplevel) = window.toplevel() else {
         return false;
     };

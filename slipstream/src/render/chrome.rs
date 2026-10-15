@@ -6,8 +6,8 @@ use super::*;
 /// A painted surface: the scale it was painted at, its buffer, and its size in logical pixels.
 pub(super) type Painted = (f64, MemoryRenderBuffer, Size<i32, Logical>);
 
-/// What Slipstream draws itself: the bar, the focus ring, and the key hint on an empty
-/// workspace. The buffers live between frames, so damage tracking redraws only changes.
+/// One screen's buffers for what Slipstream draws itself. They live between frames, so damage
+/// tracking redraws only changes.
 pub struct Chrome {
     pub bar: Bar,
     pub(super) ring: [SolidColorBuffer; 4],
@@ -273,7 +273,7 @@ pub(super) fn tag_motion(age: f64, reduced_motion: bool) -> (f64, f64) {
 
 /// A rung's tag: its name in amber, and the ladder beside it as a row of pips with this rung's
 /// filled, so where the window is on the ladder reads at a glance. Laid out in design pixels.
-pub(super) fn paint_tag(rung: Rung, scale: f64) -> Option<(Pixmap, Size<i32, Logical>)> {
+fn paint_tag(rung: Rung, scale: f64) -> Option<(Pixmap, Size<i32, Logical>)> {
     const PIP: f32 = 7.0;
     const PIP_GAP: f32 = 4.0;
     const INK: u32 = panel::DARK;
@@ -325,52 +325,52 @@ pub(super) fn shift_for_workspace(
 /// The prompt on an empty workspace: where to find every key, and nothing else, so the wallpaper
 /// stays clear at the one moment it is all there is to look at. Super+/ lists every key, so the
 /// empty workspace only has to say so.
-pub(super) const TIPS_TEXT: &str = "Keyboard tips";
+const TIPS_TEXT: &str = "Keyboard tips";
 
-pub(super) const TIPS_KEY: &str = "Super+/";
+const TIPS_KEY: &str = "Super+/";
 
 /// Under the pill: how to get the tour, which nothing else says. Quieter than the pill, because
 /// it is the second thing to read, not a second pill. Its words either side of its keycap.
-pub(super) const TIPS_UNDER: (&str, &str) = ("then", "for the tour");
+const TIPS_UNDER: (&str, &str) = ("then", "for the tour");
 
-pub(super) const TIPS_UNDER_KEY: &str = "⏎";
+const TIPS_UNDER_KEY: &str = "⏎";
 
-pub(super) const TIPS_UNDER_GAP: f32 = 10.0;
+const TIPS_UNDER_GAP: f32 = 10.0;
 
-pub(super) const TIPS_UNDER_H: f32 = paint::KEYCAP_H;
+const TIPS_UNDER_H: f32 = paint::KEYCAP_H;
 
-pub(super) const TIPS_UNDER_SPACE: f32 = 6.0;
+const TIPS_UNDER_SPACE: f32 = 6.0;
 
 /// Where it floats: this far down the screen, so it sits in the lower third clear of the
 /// wallpaper's logo, and drifts this far either side of that over `TIPS_DRIFT` seconds.
-pub(super) const TIPS_DOWN: f64 = 0.72;
+const TIPS_DOWN: f64 = 0.72;
 
-pub(super) const TIPS_FLOAT_PX: f64 = 4.0;
+const TIPS_FLOAT_PX: f64 = 4.0;
 
-pub(super) const TIPS_DRIFT: f64 = 5.0;
+const TIPS_DRIFT: f64 = 5.0;
 
 /// How far its glow breathes, and over how long.
-pub(super) const TIPS_DIM: f32 = 0.15;
+const TIPS_DIM: f32 = 0.15;
 
-pub(super) const TIPS_BREATH: f64 = 4.0;
+const TIPS_BREATH: f64 = 4.0;
 
 /// The pill: its height, the padding at its ends, and the gap between the words and the key.
-pub(super) const TIPS_H: f32 = 34.0;
+const TIPS_H: f32 = 34.0;
 
-pub(super) const TIPS_PAD: f32 = 16.0;
+const TIPS_PAD: f32 = 16.0;
 
-pub(super) const TIPS_GAP: f32 = 12.0;
+const TIPS_GAP: f32 = 12.0;
 
 /// The glow: how many rings are drawn around the pill, how far apart, and the colour they fade
 /// out from. Painted once into the buffer; only its opacity moves.
-pub(super) const TIPS_RINGS: i32 = 7;
+const TIPS_RINGS: i32 = 7;
 
-pub(super) const TIPS_RING_STEP: f32 = 1.6;
+const TIPS_RING_STEP: f32 = 1.6;
 
-pub(super) const TIPS_GLOW: u32 = panel::MINT;
+const TIPS_GLOW: u32 = panel::MINT;
 
 /// Room around the docked pane for its frame and the shadow, in logical pixels.
-pub(super) const DOCK_MARGIN: i32 = 64;
+const DOCK_MARGIN: i32 = 64;
 /// How round the frame's two lower corners are.
 const DOCK_RADIUS: f32 = 7.0;
 
@@ -378,29 +378,20 @@ const DOCK_RADIUS: f32 = 7.0;
 /// the bar's own material round the pane, edged with the bar's line down its sides and under
 /// its foot, and the shadow the piece casts. Nothing is painted where the window goes, nor above
 /// the frame's top, which is the bar's lower edge.
-pub(super) fn paint_dock_frame(size: (i32, i32), scale: f64) -> Option<paint::Painted> {
+fn paint_dock_frame(size: (i32, i32), scale: f64) -> Option<paint::Painted> {
     let logical = Size::<i32, Logical>::from((size.0 + 2 * DOCK_MARGIN, size.1 + 2 * DOCK_MARGIN));
-    let device = (
-        (logical.w as f64 * scale).round().max(1.0) as i32,
-        (logical.h as f64 * scale).round().max(1.0) as i32,
-    );
-    let mut p = Painter::new(device.0 as u32, device.1 as u32, scale as f32)?;
-    let m = DOCK_MARGIN as f32;
-    let edge = crate::dock::FRAME as f32;
-    let (w, h) = (size.0 as f32, size.1 as f32);
-    // Drawn from well above the pane, so the corners rounded off are the lower two.
-    let (x, y) = (m - edge, m - 2.0 * DOCK_RADIUS);
-    let (wide, tall) = (w + 2.0 * edge, h + edge + 2.0 * DOCK_RADIUS);
-    p.shadow(x, y, wide, tall, DOCK_RADIUS, 10.0, 40.0, 0x00000040);
-    p.fill(x, y, wide, tall, DOCK_RADIUS, panel::CHIP | 0xe6);
-    p.border(x, y, wide, tall, DOCK_RADIUS, 1.0, panel::DIVIDER);
-    p.clear(0.0, 0.0, logical.w as f32, m - edge);
-    p.clear(m, m, w, h);
-    Some(paint::Painted {
-        buffer: paint::buffer(&p.pixmap),
-        logical,
-        device,
-        scale,
+    paint::Painted::new(logical, scale, |p| {
+        let m = DOCK_MARGIN as f32;
+        let edge = crate::dock::FRAME as f32;
+        let (w, h) = (size.0 as f32, size.1 as f32);
+        // Drawn from well above the pane, so the corners rounded off are the lower two.
+        let (x, y) = (m - edge, m - 2.0 * DOCK_RADIUS);
+        let (wide, tall) = (w + 2.0 * edge, h + edge + 2.0 * DOCK_RADIUS);
+        p.shadow(x, y, wide, tall, DOCK_RADIUS, 10.0, 40.0, 0x00000040);
+        p.fill(x, y, wide, tall, DOCK_RADIUS, panel::CHIP | 0xe6);
+        p.border(x, y, wide, tall, DOCK_RADIUS, 1.0, panel::DIVIDER);
+        p.clear(0.0, 0.0, logical.w as f32, m - edge);
+        p.clear(m, m, w, h);
     })
 }
 
@@ -451,18 +442,10 @@ pub(super) fn paint_legend(scale: f64) -> Option<paint::Painted> {
     let (w, h) = (text::width(&legend, &style) + 32.0, 13.0 * 1.2 + 16.0);
     let logical =
         Size::<i32, Logical>::from(((w * DESIGN_PX).ceil() as i32, (h * DESIGN_PX).ceil() as i32));
-    let device = (
-        (logical.w as f64 * scale).round().max(1.0) as i32,
-        (logical.h as f64 * scale).round().max(1.0) as i32,
-    );
-    let mut p = Painter::new(device.0 as u32, device.1 as u32, scale as f32 * DESIGN_PX)?;
-    p.fill(0.0, 0.0, w, h, 10.0, panel::CHIP | 0xcc);
-    p.text(&legend, 16.0, h / 2.0, &style);
-    Some(paint::Painted {
-        buffer: paint::buffer(&p.pixmap),
-        logical,
-        device,
-        scale,
+    paint::Painted::new(logical, scale, |p| {
+        p.f *= DESIGN_PX;
+        p.fill(0.0, 0.0, w, h, 10.0, panel::CHIP | 0xcc);
+        p.text(&legend, 16.0, h / 2.0, &style);
     })
 }
 

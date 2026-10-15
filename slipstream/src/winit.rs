@@ -39,11 +39,7 @@ pub fn init_winit(
     );
     let _global = output.create_global::<Slipstream>(&state.display_handle);
     // SLIPSTREAM_SCALE previews fractional scaling nested, as on a laptop panel.
-    let scale = std::env::var("SLIPSTREAM_SCALE")
-        .ok()
-        .and_then(|s| s.parse::<f64>().ok())
-        .filter(|scale| (0.5..=4.0).contains(scale))
-        .map(Scale::Fractional);
+    let scale = crate::screen::scale_from_env().map(Scale::Fractional);
     output.change_current_state(
         Some(mode),
         Some(Transform::Flipped180),
@@ -91,22 +87,39 @@ pub fn init_winit(
                     let size = backend.window_size();
                     let damage = Rectangle::from_size(size);
 
-                    let (elements, states) = {
-                        let (renderer, mut framebuffer) = backend.bind().unwrap();
-                        let elements = render::output_elements(state, renderer, &output, None);
-                        let states = damage_tracker
-                            .render_output(
-                                renderer,
-                                &mut framebuffer,
-                                0,
-                                &elements,
-                                render::BACKGROUND,
-                            )
-                            .unwrap()
-                            .states;
-                        (elements, states)
+                    let drawn = match backend.bind() {
+                        Ok((renderer, mut framebuffer)) => {
+                            let elements = render::output_elements(state, renderer, &output, None);
+                            damage_tracker
+                                .render_output(
+                                    renderer,
+                                    &mut framebuffer,
+                                    0,
+                                    &elements,
+                                    render::BACKGROUND,
+                                )
+                                .map(|result| result.states)
+                                .map(|states| (elements, states))
+                                .map_err(|err| format!("{err:?}"))
+                        }
+                        Err(err) => Err(format!("{err:?}")),
                     };
-                    backend.submit(Some(&[damage])).unwrap();
+                    let submitted = drawn.and_then(|drawn| {
+                        backend
+                            .submit(Some(&[damage]))
+                            .map(|()| drawn)
+                            .map_err(|err| format!("{err:?}"))
+                    });
+                    // A frame that fails is skipped, and the next one tried, rather than taking
+                    // the session down with it.
+                    let (elements, states) = match submitted {
+                        Ok(drawn) => drawn,
+                        Err(err) => {
+                            tracing::warn!("couldn't draw the window: {err}");
+                            backend.window().request_redraw();
+                            return;
+                        }
+                    };
                     // Nested, the host's swap is as close to the screen as can be known.
                     state.update_scanout_outputs(&output, &states);
                     state.presentation_feedback(&output, &states).presented(
@@ -143,8 +156,6 @@ pub fn init_winit(
                     state.space.refresh();
                     state.popups.cleanup();
                     let _ = state.display_handle.flush_clients();
-
-                    // Ask for redraw to schedule new frame.
                     backend.window().request_redraw();
                 }
                 WinitEvent::CloseRequested => {

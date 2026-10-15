@@ -30,15 +30,30 @@ impl Named for &str {
     }
 }
 
-/// How a mode is written down, for the Settings app and for a hand-edited settings file.
-pub fn mode_label(mode: &smithay::output::Mode) -> String {
+/// `mode` as the settings describe one.
+pub fn screen_mode(
+    mode: &smithay::output::Mode,
+    preferred: bool,
+) -> slipstream_config::screens::ScreenMode {
     slipstream_config::screens::ScreenMode {
         width: mode.size.w,
         height: mode.size.h,
         refresh: mode.refresh,
-        preferred: false,
+        preferred,
     }
-    .label()
+}
+
+/// How a mode is written down, for the Settings app and for a hand-edited settings file.
+pub fn mode_label(mode: &smithay::output::Mode) -> String {
+    screen_mode(mode, false).label()
+}
+
+/// The scale `SLIPSTREAM_SCALE` sets for every screen, when it holds one a screen can take.
+pub fn scale_from_env() -> Option<f64> {
+    std::env::var("SLIPSTREAM_SCALE")
+        .ok()
+        .and_then(|s| s.parse::<f64>().ok())
+        .filter(|scale| (0.5..=4.0).contains(scale))
 }
 
 /// One screen: an output, and the workspace it is showing.
@@ -58,8 +73,7 @@ pub struct Screen<O> {
 /// Every lit screen, left to right, and which one the keyboard is on.
 ///
 /// How many workspaces there are is not kept here: it's the workspace list's to say, and a second
-/// copy of it once went stale and hid every workspace past the fifth. Anything that picks or
-/// clamps a workspace is told the count by its caller.
+/// copy could go stale. Anything that picks or clamps a workspace is told the count by its caller.
 #[derive(Debug)]
 pub struct Screens<O> {
     list: Vec<Screen<O>>,

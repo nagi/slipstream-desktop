@@ -2,16 +2,15 @@
 
 use super::*;
 
-/// Alt+Tab's deck on the screen `output`: each window's pane, nearest first, the name of the one
-/// at the front, and the dark behind them all. The panes lift from where their windows are drawn
-/// and fly back there.
+/// Alt+Tab's deck on the screen at `output_geo`: each window's pane, nearest first, the name of
+/// the one at the front, and the dark behind them all. The panes lift from where their windows
+/// are drawn and fly back there.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn deck_elements_for(
     state: &mut Slipstream,
     chrome: &mut Chrome,
     renderer: &mut GlesRenderer,
     deck: &mut crate::deck::Deck<Window>,
-    output: &Output,
     output_geo: Rectangle<i32, Logical>,
     scale: f64,
     now: f64,
@@ -22,7 +21,6 @@ pub(super) fn deck_elements_for(
     ui_alpha: f32,
 ) -> Vec<OutputElement> {
     use crate::pane::{Look, Pose};
-    let _ = output;
     let screen = (output_geo.size.w as f64, output_geo.size.h as f64);
     let eye = crate::deck::camera(screen);
     let off_screen = Pose {
@@ -206,7 +204,7 @@ pub(super) fn deck_elements_for(
 /// The deck's name tag: the front window's name and where it lives, on the panels' glass.
 /// The painted area holds the card's shadow around it: `panel::MARGIN` design pixels at the
 /// sides and top, and `panel::BELOW` more underneath.
-pub(super) fn paint_deck_label(label: &str, scale: f64) -> Option<paint::Painted> {
+fn paint_deck_label(label: &str, scale: f64) -> Option<paint::Painted> {
     let style = Style {
         tracking: 0.02,
         ..Style::new(Face::Display, 27.0, panel::BRIGHT)
@@ -225,6 +223,6 @@ pub(super) fn paint_deck_label(label: &str, scale: f64) -> Option<paint::Painted
 }
 
 /// The deck's name tag's height and the room at its ends, in design pixels.
-pub(super) const DECK_LABEL_H: f32 = 56.0;
+const DECK_LABEL_H: f32 = 56.0;
 
-pub(super) const DECK_LABEL_PAD: f32 = 24.0;
+const DECK_LABEL_PAD: f32 = 24.0;

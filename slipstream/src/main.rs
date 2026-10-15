@@ -28,6 +28,7 @@ mod connect;
 mod cursor;
 mod debug;
 mod deck;
+mod dock;
 mod emoji;
 mod exit;
 mod explorer;
@@ -48,8 +49,6 @@ mod icons;
 mod idle;
 mod ime;
 mod inhibit;
-
-mod dock;
 mod input;
 mod keys;
 mod known;
@@ -243,7 +242,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut state = Slipstream::new(&mut event_loop, display);
     state.owns_state = owner.is_some();
     resume::make_notes_dir();
-    // The explorer follows apps being installed and removed, as KDE's menus do.
+    // The explorer follows apps being installed and removed.
     watch::watch_apps(&event_loop.handle());
     watch::watch_recent_files(&event_loop.handle());
     // Settings apply as soon as they're saved.
@@ -308,6 +307,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Before anything starts, so every child connects here and none reaches for X11.
         // The socket's name also goes in SLIPSTREAM_LIVE_SOCKET, so a Slipstream started from
         // inside this session knows not to nest on it.
+        // SAFETY: the threads already running reach the environment only through `std::env` and
+        // `Command`, which take the same lock as these writes.
         unsafe {
             std::env::set_var("WAYLAND_DISPLAY", &state.socket_name);
             std::env::set_var(live::LIVE_SOCKET, &state.socket_name);
@@ -348,11 +349,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Before the window, whose output connecting already asks things of the backend (the lid
         // switch, for one).
         state.nested = true;
-        // Open a Wayland/X11 window for our nested compositor
         crate::winit::init_winit(&mut event_loop, &mut state)?;
 
-        // Set WAYLAND_DISPLAY to our socket name, so child processes connect to Slipstream rather
-        // than the host compositor
+        // After the window has connected to the host, so that children connect here instead.
+        // SAFETY: as above, the other threads reach the environment only through `std`.
         unsafe { std::env::set_var("WAYLAND_DISPLAY", &state.socket_name) };
         tracing::info!(
             "listening on WAYLAND_DISPLAY={}. Nested, Alt is the Mod key: Alt+arrows move focus, \
@@ -390,7 +390,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         state.start_xwayland();
     }
 
-    // Optionally start one client inside Slipstream: `slipstream --command foot`
     state.concentration.asked(std::time::Instant::now());
     spawn_client(&args);
 
@@ -438,8 +437,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         state.sync_toplevels(windows);
         state.space.refresh();
         state.popups.cleanup();
-        // Send queued replies after every pass, not only on redraw (as smallvil did). Anvil
-        // does the same.
+        // Queued replies go out after every pass, not only on redraw.
         let _ = state.display_handle.flush_clients();
     })?;
 
@@ -671,6 +669,7 @@ fn unlock_kwallet() {
     }
 }
 
+/// The client named by `--command` (or `-c`), started inside Slipstream.
 fn spawn_client(args: &[String]) {
     let command = args
         .iter()

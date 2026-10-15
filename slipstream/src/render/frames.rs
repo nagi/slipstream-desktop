@@ -2,12 +2,7 @@
 
 use super::*;
 
-/// Everything on `output`, front to back. `cursor` is `None` when a host desktop draws the
-/// pointer (nested).
 impl Slipstream {
-    /// Frame callbacks after `output` has drawn: to every window in the space, and to the windows
-    /// drawn outside it in that frame, which bullet time shows live. Nothing else hidden gets
-    /// them, so windows on workspaces out of sight stay cheap.
     /// Who wants to hear when this frame reaches `output`: every window on it whose surfaces
     /// were drawn, per `states`.
     pub fn presentation_feedback(
@@ -48,8 +43,7 @@ impl Slipstream {
         };
         // Windows drawn from workspaces no screen is showing (bullet time, a window being shared)
         // count too: they are on this screen's frame, so this screen should pace them.
-        let off_space = self.drawn_off_space.clone();
-        for window in self.space.elements().chain(off_space.iter()) {
+        for window in self.space.elements().chain(self.drawn_off_space.iter()) {
             window.with_surfaces(|surface, surface_states| {
                 update_surface_primary_scanout_output(
                     surface,
@@ -75,6 +69,9 @@ impl Slipstream {
         }
     }
 
+    /// Frame callbacks after `output` has drawn: to every window in the space, and to the windows
+    /// drawn outside it in that frame, which bullet time shows live. Nothing else hidden gets
+    /// them, so windows on workspaces out of sight stay cheap.
     pub fn send_frames(&mut self, output: &Output) {
         use smithay::desktop::utils::surface_primary_scanout_output;
         let now = self.start_time.elapsed();

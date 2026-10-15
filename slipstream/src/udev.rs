@@ -79,7 +79,6 @@ struct Gpu {
     token: RegistrationToken,
 }
 
-/// One lit connector.
 /// The longest a screen goes without looking for something new to draw, once a few frames in a row
 /// have had nothing. Anything that moves keeps frames coming every refresh; this only spaces out
 /// the looks at a still desktop, and input or a window's update ends the wait at once, so what
@@ -87,6 +86,7 @@ struct Gpu {
 /// blink), by a twentieth of a second at most.
 const IDLE_LOOK: Duration = Duration::from_millis(50);
 
+/// One lit connector.
 struct Screen {
     output: Output,
     /// Kept so the screen can be lit again after the lid puts it out.
@@ -265,6 +265,8 @@ impl Slipstream {
         let (drm, notifier) = DrmDevice::new(fd.clone(), true)?;
         let gbm = GbmDevice::new(fd)?;
 
+        // SAFETY: nothing but smithay calls `eglGetPlatformDisplay` in this process, so its
+        // tracking of the displays it has open holds.
         let display = unsafe { EGLDisplay::new(gbm.clone())? };
         let egl_device = EGLDevice::device_for_display(&display)?;
         if egl_device.is_software() {
@@ -275,6 +277,7 @@ impl Slipstream {
             .ok()
             .flatten()
             .unwrap_or(node);
+        // SAFETY: the context is new, so it isn't current on any other thread.
         let renderer = unsafe { GlesRenderer::new(EGLContext::new(&display)?)? };
 
         let render_formats: Vec<_> = renderer
@@ -368,11 +371,7 @@ impl Slipstream {
         connector: connector::Info,
         crtc: crtc::Handle,
     ) {
-        let name = format!(
-            "{}-{}",
-            connector.interface().as_str(),
-            connector.interface_id()
-        );
+        let name = connector_name(&connector);
         // The lid is shut and something else is lit: the panel stays out, and is remembered so
         // that opening the lid brings it straight back.
         if self.lid_closed && crate::state::is_internal_panel(&name) && self.lit_elsewhere() {
@@ -494,10 +493,7 @@ impl Slipstream {
         else {
             return;
         };
-        self.space.unmap_output(&screen.output);
-        self.screen_disconnected(&screen.output);
-        self.display_handle
-            .remove_global::<Slipstream>(screen.global);
+        self.screen_gone(&screen);
         if let Some(udev) = self.udev.as_mut() {
             udev.sleeping
                 .retain(|(_, connector, _)| connector.handle() != screen.connector.handle());
@@ -576,10 +572,7 @@ impl Slipstream {
             };
             // Dropping the screen releases its CRTC, which is what actually turns the panel off;
             // the connector itself is still connected, so no hotplug will ever bring it back.
-            self.space.unmap_output(&screen.output);
-            self.screen_disconnected(&screen.output);
-            self.display_handle
-                .remove_global::<Slipstream>(screen.global);
+            self.screen_gone(&screen);
             if let Some(udev) = self.udev.as_mut() {
                 udev.sleeping.push((node, screen.connector.clone(), crtc));
             }
@@ -604,11 +597,7 @@ impl Slipstream {
             .unwrap_or_default();
         for (node, connector, crtc) in sleeping {
             tracing::info!(
-                connector = format!(
-                    "{}-{}",
-                    connector.interface().as_str(),
-                    connector.interface_id()
-                ),
+                connector = connector_name(&connector),
                 "the lid is open: lighting the panel again"
             );
             self.connector_connected(node, connector, crtc);
@@ -629,13 +618,26 @@ impl Slipstream {
         // Each of its screens leaves the desktop as an unplugged one does, so the keyboard and
         // the workspaces never point at an output that's gone.
         for screen in gpu.screens.into_values() {
-            self.space.unmap_output(&screen.output);
-            self.screen_disconnected(&screen.output);
-            self.display_handle
-                .remove_global::<Slipstream>(screen.global);
+            self.screen_gone(&screen);
         }
         self.retile();
         tracing::info!(%node, "GPU removed");
+    }
+
+    /// Takes a screen that is no longer lit off the desktop and out of what clients can bind.
+    fn screen_gone(&mut self, screen: &Screen) {
+        self.space.unmap_output(&screen.output);
+        self.screen_disconnected(&screen.output);
+        self.display_handle
+            .remove_global::<Slipstream>(screen.global.clone());
+    }
+
+    /// Screen `crtc` on GPU `node`, if it is still lit.
+    fn screen_mut(&mut self, node: DrmNode, crtc: crtc::Handle) -> Option<&mut Screen> {
+        self.udev
+            .as_mut()
+            .and_then(|udev| udev.gpus.get_mut(&node))
+            .and_then(|gpu| gpu.screens.get_mut(&crtc))
     }
 
     /// The display showed the last frame: start the next one.
@@ -645,12 +647,7 @@ impl Slipstream {
         crtc: crtc::Handle,
         metadata: Option<&DrmEventMetadata>,
     ) {
-        let Some(screen) = self
-            .udev
-            .as_mut()
-            .and_then(|udev| udev.gpus.get_mut(&node))
-            .and_then(|gpu| gpu.screens.get_mut(&crtc))
-        else {
+        let Some(screen) = self.screen_mut(node, crtc) else {
             return;
         };
         match screen.drm_output.frame_submitted() {
@@ -804,12 +801,7 @@ impl Slipstream {
     ) -> Option<RegistrationToken> {
         self.loop_handle
             .insert_source(timer, move |_, _, state| {
-                if let Some(screen) = state
-                    .udev
-                    .as_mut()
-                    .and_then(|udev| udev.gpus.get_mut(&node))
-                    .and_then(|gpu| gpu.screens.get_mut(&crtc))
-                {
+                if let Some(screen) = state.screen_mut(node, crtc) {
                     screen.retry = None;
                 }
                 state.render_screen(node, crtc);
@@ -838,12 +830,7 @@ impl Slipstream {
         for (node, crtc, token) in waiting {
             self.loop_handle.remove(token);
             let retry = self.look_again(node, crtc, Timer::immediate());
-            if let Some(screen) = self
-                .udev
-                .as_mut()
-                .and_then(|udev| udev.gpus.get_mut(&node))
-                .and_then(|gpu| gpu.screens.get_mut(&crtc))
-            {
+            if let Some(screen) = self.screen_mut(node, crtc) {
                 screen.retry = retry;
             }
         }
@@ -924,16 +911,13 @@ impl Slipstream {
             else {
                 continue;
             };
-            let Some(drm) = screen.connector.modes().iter().copied().find(|drm| {
-                let mode = Mode::from(*drm);
-                slipstream_config::screens::ScreenMode {
-                    width: mode.size.w,
-                    height: mode.size.h,
-                    refresh: mode.refresh,
-                    preferred: false,
-                }
-                .matches(want)
-            }) else {
+            let Some(drm) = screen
+                .connector
+                .modes()
+                .iter()
+                .copied()
+                .find(|drm| crate::screen::screen_mode(&Mode::from(*drm), false).matches(want))
+            else {
                 tracing::warn!(screen = name, want, "this screen has no such mode");
                 return false;
             };
@@ -982,13 +966,10 @@ impl Slipstream {
                     .modes()
                     .iter()
                     .map(|drm| {
-                        let mode = Mode::from(*drm);
-                        slipstream_config::screens::ScreenMode {
-                            width: mode.size.w,
-                            height: mode.size.h,
-                            refresh: mode.refresh,
-                            preferred: drm.mode_type().contains(ModeTypeFlags::PREFERRED),
-                        }
+                        crate::screen::screen_mode(
+                            &Mode::from(*drm),
+                            drm.mode_type().contains(ModeTypeFlags::PREFERRED),
+                        )
                     })
                     .collect();
                 // Biggest first, then fastest: the order the Settings app offers them in.
@@ -1134,7 +1115,6 @@ impl DmabufHandler for Slipstream {
     }
 }
 
-/// Touchpads tap to click, as on Windows and in Plasma 6.
 /// How long to wait before looking again after `empty_run` frames in a row with nothing new, on a
 /// screen refreshing every `period`: a frame's time for the first, doubling after that, never
 /// longer than `IDLE_LOOK` (and never shorter than a frame).
@@ -1143,19 +1123,25 @@ fn look_after(period: Duration, empty_run: u32) -> Duration {
     doubled.min(IDLE_LOOK).max(period)
 }
 
+/// Touchpads tap to click.
 fn configure_input_device(device: &mut libinput::Device) {
     if device.config_tap_finger_count() > 0 {
         let _ = device.config_tap_set_enabled(true);
     }
 }
 
+/// How a connector is known to clients and the settings: `eDP-1`, `HDMI-A-2`.
+fn connector_name(connector: &connector::Info) -> String {
+    format!(
+        "{}-{}",
+        connector.interface().as_str(),
+        connector.interface_id()
+    )
+}
+
 /// `SLIPSTREAM_SCALE` if it's set, otherwise a guess from pixel density.
 fn output_scale(width_px: i32, width_mm: u32) -> f64 {
-    std::env::var("SLIPSTREAM_SCALE")
-        .ok()
-        .and_then(|s| s.parse::<f64>().ok())
-        .filter(|scale| (0.5..=4.0).contains(scale))
-        .unwrap_or_else(|| scale_for_density(width_px, width_mm))
+    crate::screen::scale_from_env().unwrap_or_else(|| scale_for_density(width_px, width_mm))
 }
 
 /// What a screen gets when nothing in Settings says otherwise: 1.25 on a 14" 1920×1200 laptop

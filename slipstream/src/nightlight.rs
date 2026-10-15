@@ -92,8 +92,6 @@ pub fn target(manual: bool, scheduled: Option<(bool, f64)>) -> f64 {
 }
 
 impl crate::Slipstream {
-    /// Once a pass of the event loop: follows the schedule, eases towards the warmth wanted, and
-    /// sends it to the screens when it has moved.
     /// Puts the night light back over a screen a program has just given back: its ramps are
     /// whatever that program last wrote, and nothing else would write them again until the
     /// strength next moved, which on a settled evening could be an hour.
@@ -103,6 +101,8 @@ impl crate::Slipstream {
         self.set_night_light(strength);
     }
 
+    /// Once a pass of the event loop: follows the schedule, eases towards the warmth wanted, and
+    /// sends it to the screens when it has moved.
     pub fn tick_night_light(&mut self) {
         let wall = self.wall();
         let dt = self
@@ -110,12 +110,13 @@ impl crate::Slipstream {
             .last_tick
             .map_or(0.0, |last| (wall - last).clamp(0.0, 0.25));
         self.night.last_tick = Some(wall);
-        let display = self.settings.display.clone();
         let (minute, date, offset) = local_clock();
         let location = *self
             .night
             .location
             .get_or_insert_with(slipstream_config::sun::location);
+        let display = &self.settings.display;
+        let manual = display.night_light;
         let scheduled = display
             .night_window(date, offset, location)
             .map(|(start, end)| {
@@ -131,13 +132,13 @@ impl crate::Slipstream {
             Some((night, _)) if self.night.last_night != Some(night) => {
                 self.night.last_night = Some(night);
                 tracing::info!(night, "night light's schedule turned");
-                if display.night_light != night && self.owns_state {
+                if manual != night && self.owns_state {
                     self.change_settings(move |settings| settings.display.night_light = night);
                 }
             }
             Some(_) => {}
         }
-        let target = target(display.night_light, scheduled);
+        let target = target(manual, scheduled);
         let current = self.night.current;
         self.night.current = if self.clock.reduced_motion {
             target

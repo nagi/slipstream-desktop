@@ -18,8 +18,9 @@ pub struct Cursor {
     size: u32,
     /// Parsed shapes by name; `None` if the theme doesn't have that one.
     icons: HashMap<String, Option<Vec<Image>>>,
-    /// Uploaded frames by shape, nominal size and animation frame.
-    buffers: HashMap<(String, u32, usize), MemoryRenderBuffer>,
+    /// Uploaded frames by shape, then by nominal size and animation frame. Keyed by shape first
+    /// so a frame's lookup by `&str` allocates nothing; the drawn arrow is under `""`.
+    buffers: HashMap<String, HashMap<(u32, usize), MemoryRenderBuffer>>,
 }
 
 impl Cursor {
@@ -60,9 +61,8 @@ impl Cursor {
             image.xhot as f64 / int_scale as f64,
             image.yhot as f64 / int_scale as f64,
         ));
-        let buffer = self
-            .buffers
-            .entry((name.to_string(), nominal, index))
+        let buffer = shape_buffers(&mut self.buffers, name)
+            .entry((nominal, index))
             .or_insert_with(|| {
                 MemoryRenderBuffer::from_slice(
                     &image.pixels_rgba,
@@ -103,9 +103,8 @@ impl Cursor {
     }
 
     fn fallback(&mut self, int_scale: i32) -> (MemoryRenderBuffer, Point<f64, Logical>) {
-        let buffer = self
-            .buffers
-            .entry((String::new(), int_scale as u32, 0))
+        let buffer = shape_buffers(&mut self.buffers, "")
+            .entry((int_scale as u32, 0))
             .or_insert_with(|| {
                 let (w, h, pixels) = arrow(int_scale);
                 MemoryRenderBuffer::from_slice(
@@ -122,27 +121,40 @@ impl Cursor {
     }
 }
 
-/// The animation frame due at `millis`, from the images nearest the nominal `size`.
+/// The uploaded frames of shape `name`, made on first use.
+fn shape_buffers<'a>(
+    buffers: &'a mut HashMap<String, HashMap<(u32, usize), MemoryRenderBuffer>>,
+    name: &str,
+) -> &'a mut HashMap<(u32, usize), MemoryRenderBuffer> {
+    if !buffers.contains_key(name) {
+        buffers.insert(name.to_string(), HashMap::new());
+    }
+    buffers.get_mut(name).expect("inserted above")
+}
+
+/// The animation frame due at `millis`, from the images nearest the nominal `size`. `images` is
+/// never empty: a shape with no images counts as missing from the theme.
 fn frame(millis: u32, size: u32, images: &[Image]) -> (usize, &Image) {
     let nearest = images
         .iter()
-        .min_by_key(|image| (size as i32 - image.size as i32).abs())
-        .unwrap();
-    let frames: Vec<&Image> = images
-        .iter()
-        .filter(|image| image.width == nearest.width && image.height == nearest.height)
-        .collect();
-    let total: u32 = frames.iter().map(|image| image.delay).sum();
+        .min_by_key(|image| size.abs_diff(image.size))
+        .expect("a shape has at least one image");
+    let frames = move || {
+        images
+            .iter()
+            .filter(move |image| image.width == nearest.width && image.height == nearest.height)
+    };
+    let total: u32 = frames().map(|image| image.delay).sum();
     if total > 0 {
         let mut t = millis % total;
-        for (index, image) in frames.iter().enumerate() {
+        for (index, image) in frames().enumerate() {
             if t < image.delay {
                 return (index, image);
             }
             t -= image.delay;
         }
     }
-    (0, frames[0])
+    (0, frames().next().unwrap_or(nearest))
 }
 
 /// A white arrow with a black edge, for systems with no cursor theme.
