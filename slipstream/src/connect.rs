@@ -40,12 +40,10 @@ pub struct Connect {
     pub monitor: String,
     /// The connector it came up on, for the title.
     pub connector: String,
-    /// The workspace of its own it has been given.
-    pub own: usize,
-    /// What it is called on the bar.
+    /// What the workspace of its own it has been given is called.
     own_label: String,
-    /// The workspace it would have taken under the old rule, and that name, when there is one
-    /// free. Without one the card only confirms what it did.
+    /// A free workspace it could show instead, and that workspace's name. Without one the card
+    /// only confirms what it did.
     pub share: Option<usize>,
     share_label: String,
     since: f64,
@@ -58,11 +56,9 @@ pub struct Connect {
 }
 
 impl Connect {
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         monitor: String,
         connector: String,
-        own: usize,
         own_label: String,
         share: Option<(usize, String)>,
         now: f64,
@@ -75,7 +71,6 @@ impl Connect {
         Self {
             monitor,
             connector,
-            own,
             own_label,
             share,
             share_label,
@@ -226,7 +221,6 @@ mod tests {
         Connect::new(
             "Dell U2720Q".into(),
             "DP-1".into(),
-            5,
             "Workspace 6".into(),
             share,
             0.0,

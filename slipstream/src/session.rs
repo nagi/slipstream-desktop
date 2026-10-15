@@ -43,12 +43,16 @@ use serde::{Deserialize, Serialize};
 
 use crate::layout::Shape;
 
+/// `$XDG_STATE_HOME/slipstream`, else `~/.local/state/slipstream`, where the known screens are
+/// kept too. The session script already makes it for the log.
+pub use slipstream_config::screens::state_dir;
+
 /// The file's name inside Slipstream's state folder.
-pub const FILE_NAME: &str = "session.toml";
+const FILE_NAME: &str = "session.toml";
 
 /// Bumped when the format changes in a way an older Slipstream would read wrongly. A file from a
 /// newer version is ignored rather than half-understood.
-pub const VERSION: u32 = 1;
+const VERSION: u32 = 1;
 
 /// More than this many windows and the rest are left out, so a runaway can't write a huge file.
 const MAX_WINDOWS: usize = 60;
@@ -148,7 +152,7 @@ impl Record {
     }
 
     /// Whether this file came from a Slipstream that knew something this one doesn’t.
-    pub fn is_too_new(&self) -> bool {
+    fn is_too_new(&self) -> bool {
         self.version > VERSION
     }
 
@@ -226,20 +230,6 @@ fn take(text: &str, depth: usize) -> Option<(Shape<usize>, &str)> {
     ))
 }
 
-/// `$XDG_STATE_HOME/slipstream`, else `~/.local/state/slipstream`. The session script already
-/// makes this folder for the log.
-pub fn state_dir() -> PathBuf {
-    let state = std::env::var_os("XDG_STATE_HOME")
-        .map(PathBuf::from)
-        .filter(|dir| dir.is_absolute())
-        .unwrap_or_else(|| {
-            PathBuf::from(std::env::var_os("HOME").unwrap_or_default())
-                .join(".local")
-                .join("state")
-        });
-    state.join("slipstream")
-}
-
 pub fn path() -> PathBuf {
     state_dir().join(FILE_NAME)
 }
@@ -255,7 +245,7 @@ pub fn read(path: &Path) -> io::Result<Option<Record>> {
 
 /// A record from its text. One whose tiling can't be read is unreadable as a whole, so nothing
 /// half-understood is offered.
-pub fn parse(text: &str) -> io::Result<Option<Record>> {
+fn parse(text: &str) -> io::Result<Option<Record>> {
     let record: Record =
         toml::from_str(text).map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
     if let Some(tiling) = record

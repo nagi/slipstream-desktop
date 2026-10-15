@@ -1,7 +1,6 @@
-//! Follows changes on disk. The explorer's app list keeps in step with what's installed, as KDE's
-//! menus do: every applications folder (Flatpak exports included) is watched, and any change
-//! there, an app installed, removed or updated, reads the apps and their icons again once the
-//! changes settle. The recent files list is read again when an app rewrites it. Settings apply as
+//! Follows changes on disk. The explorer's app list keeps in step with what's installed: every
+//! applications folder (Flatpak exports included) is watched, and any change there, an app
+//! installed, removed or updated, reads the apps and their icons again once the changes settle. The recent files list is read again when an app rewrites it. Settings apply as
 //! soon as the Settings app saves them.
 
 use std::{cell::Cell, mem::MaybeUninit, path::PathBuf, rc::Rc, time::Duration};

@@ -7,7 +7,6 @@
 //!
 //! Wall time, like the way out: this is drawn while the desktop is still filling up.
 
-use crate::motion::REDUCED_FADE;
 use smithay::{
     backend::renderer::{ImportMem, Renderer, element::memory::MemoryRenderBufferRenderElement},
     input::keyboard::Keysym,
@@ -16,13 +15,11 @@ use smithay::{
 
 use crate::{
     card::{self, Btn, Button, Card, Hit, Row},
-    motion::HYPR,
+    exit,
     paint::Painted,
     panel::{self, DESIGN_PX},
 };
 
-/// The card opens as the way out's does, and as the explorer does.
-const OPEN: f64 = 0.18;
 /// Apps named in the card's prose before it stops listing them.
 const MAX_NAMED: usize = 6;
 
@@ -81,7 +78,7 @@ impl Offer {
     }
 
     /// A key while the card is up. It takes every key: nothing else should be answered first.
-    pub fn key(&mut self, sym: Keysym) -> Act {
+    pub fn key(&self, sym: Keysym) -> Act {
         match sym {
             // Enter only, never Space: the card appears by itself at login, and a space typed as
             // it does must not answer it.
@@ -102,7 +99,7 @@ impl Offer {
 
     /// A click on the card. Beside it nothing happens: this is a question, and the answers are the
     /// buttons, so a stray click neither reopens nor throws the record away.
-    pub fn click(&mut self, x: f64, y: f64) -> Act {
+    pub fn click(&self, x: f64, y: f64) -> Act {
         match self.hit(x, y) {
             Some(Button::Go) => Act::Reopen,
             Some(Button::Stay) => Act::Clean,
@@ -130,8 +127,7 @@ impl Offer {
         let plural = if windows == 1 { "window" } else { "windows" };
         Card {
             title: format!("Reopen {windows} {plural}?"),
-            // Said here rather than discovered afterwards: the gap between "my windows came back"
-            // and "my work came back" is where the disappointment lives.
+            // Said before anything is reopened, not discovered afterwards.
             note: format!(
                 "{list} — on the workspaces they were on, in the layout they were in. It reopens \
                  the apps, not what they had open."
@@ -196,19 +192,9 @@ impl Offer {
             ((screen.w - painted.logical.w) / 2) as f64,
             ((screen.h - painted.logical.h) / 2).max(0) as f64,
         ));
-        let (alpha, rise) = self.opening(now - self.since);
+        let (alpha, rise) = exit::opening(now - self.since, self.reduced_motion);
         let at = self.at + Point::from((0.0, rise * DESIGN_PX as f64));
         painted.element(renderer, at, alpha)
-    }
-
-    /// Its opacity and how far above its place it is, `since` seconds after it appeared.
-    fn opening(&self, since: f64) -> (f32, f64) {
-        if self.reduced_motion {
-            ((since / REDUCED_FADE).clamp(0.0, 1.0) as f32, 0.0)
-        } else {
-            let eased = HYPR.at((since / OPEN).clamp(0.0, 1.0));
-            (eased.clamp(0.0, 1.0) as f32, -10.0 * (1.0 - eased))
-        }
     }
 }
 
@@ -228,7 +214,7 @@ mod tests {
 
     #[test]
     fn enter_reopens_and_esc_starts_clean() {
-        let mut offer = offer();
+        let offer = offer();
         assert_eq!(offer.key(Keysym::a), Act::Nothing);
         assert_eq!(offer.key(Keysym::Escape), Act::Clean);
         assert_eq!(offer.key(Keysym::Return), Act::Reopen);
@@ -269,7 +255,7 @@ mod tests {
 
     #[test]
     fn a_click_beside_the_card_answers_nothing() {
-        let mut offer = offer();
+        let offer = offer();
         assert_eq!(offer.click(5.0, 5.0), Act::Nothing);
     }
 }

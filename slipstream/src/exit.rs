@@ -1,7 +1,7 @@
 //! The way out: Lock, Log out, Restart and Shut down all come through here.
 //!
-//! Ctrl+Alt+Del opens it on a chooser, as Windows' own security screen does; quick settings'
-//! power buttons skip the chooser and name their destination outright.
+//! Ctrl+Alt+Del opens it on a chooser; quick settings' power buttons skip the chooser and name
+//! their destination outright.
 //!
 //! One state machine, one overlay, four destinations. It asks first, then asks every window to
 //! close and gives the apps a moment to take it — a moment it spends *out of the way*, taking no
@@ -14,7 +14,6 @@
 //!
 //! Wall time throughout: bullet time must never stretch a logout.
 
-use crate::motion::REDUCED_FADE;
 use smithay::{
     backend::renderer::{ImportMem, Renderer, element::memory::MemoryRenderBufferRenderElement},
     input::keyboard::Keysym,
@@ -23,7 +22,7 @@ use smithay::{
 
 use crate::{
     card::{self, Btn, Button, Card, Hit, Row},
-    motion::HYPR,
+    motion::{HYPR, REDUCED_FADE},
     paint::Painted,
     panel::{self, AMBER, BELOW, DESIGN_PX, MARGIN},
 };
@@ -41,7 +40,7 @@ const FADE_OUT: f64 = 0.35;
 const MAX_ROWS: usize = 8;
 /// The slim card while the apps are closing: the toast's width, hanging from the panels' line.
 const SLIM_WIDTH: f32 = 440.0;
-const SLIM_TOP: f32 = crate::panel::TOP;
+const SLIM_TOP: f32 = panel::TOP;
 
 /// Where the session is going.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -53,7 +52,7 @@ pub enum Intent {
 
 impl Intent {
     /// The card's heading.
-    pub fn title(self) -> &'static str {
+    fn title(self) -> &'static str {
         match self {
             Intent::LogOut => "Log out",
             Intent::Restart => "Restart",
@@ -74,7 +73,7 @@ impl Intent {
 /// A row on the chooser: every way out of the session, in the order the card lists them. Lock
 /// comes first because it is the one that changes nothing, and the one pressed most.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Way {
+enum Way {
     Lock,
     LogOut,
     Restart,
@@ -82,20 +81,15 @@ pub enum Way {
 }
 
 impl Way {
-    pub const ALL: [Way; 4] = [Way::Lock, Way::LogOut, Way::Restart, Way::ShutDown];
+    const ALL: [Way; 4] = [Way::Lock, Way::LogOut, Way::Restart, Way::ShutDown];
 
     /// The row's name.
-    pub fn name(self) -> &'static str {
-        match self {
-            Way::Lock => "Lock",
-            Way::LogOut => "Log out",
-            Way::Restart => "Restart",
-            Way::ShutDown => "Shut down",
-        }
+    fn name(self) -> &'static str {
+        self.intent().map_or("Lock", Intent::title)
     }
 
     /// What it does to what's open, beside the name.
-    pub fn note(self) -> &'static str {
+    fn note(self) -> &'static str {
         match self {
             Way::Lock => "everything keeps running",
             Way::LogOut => "closes every window",
@@ -105,7 +99,7 @@ impl Way {
     }
 
     /// Where the session goes, or nothing for the one that only covers the screen.
-    pub fn intent(self) -> Option<Intent> {
+    fn intent(self) -> Option<Intent> {
         match self {
             Way::Lock => None,
             Way::LogOut => Some(Intent::LogOut),
@@ -179,7 +173,7 @@ enum Shape {
 }
 
 pub struct Exit<W> {
-    pub intent: Intent,
+    intent: Intent,
     phase: Phase,
     /// Every window that was open when the overlay started, in the order they're named.
     asked: Vec<Open<W>>,
@@ -542,9 +536,8 @@ impl<W: Clone + PartialEq> Exit<W> {
         }
     }
 
-    /// The first card. It says what is about to happen and nothing else: naming every open window
-    /// here was a list nobody read, and the windows that matter are the ones that don't close,
-    /// which the "still here" card names.
+    /// The first card. It says what is about to happen and nothing else: the windows that matter
+    /// are the ones that don't close, which the "still here" card names.
     fn ask_card(&self) -> Card {
         let count = self.asked.len();
         let note = match count {
@@ -672,20 +665,9 @@ impl<W: Clone + PartialEq> Exit<W> {
         // tenth of a second and a button that moved under the pointer would be worse than one
         // that waits for it.
         self.at = self.origin(screen, painted.logical);
-        let (alpha, rise) = self.opening(now - self.since);
+        let (alpha, rise) = opening(now - self.since, self.reduced_motion);
         let at = self.at + Point::from((0.0, rise * DESIGN_PX as f64));
         painted.element(renderer, at, alpha)
-    }
-
-    /// A card `since` seconds after it appeared: its opacity, and how far above its place it is,
-    /// in design pixels. The explorer's opening, so the two feel like one desktop.
-    fn opening(&self, since: f64) -> (f32, f64) {
-        if self.reduced_motion {
-            ((since / REDUCED_FADE).clamp(0.0, 1.0) as f32, 0.0)
-        } else {
-            let eased = HYPR.at((since / OPEN).clamp(0.0, 1.0));
-            (eased.clamp(0.0, 1.0) as f32, -10.0 * (1.0 - eased))
-        }
     }
 
     /// Where the painted surface goes: the ask card is centred, the slim one sits where a toast
@@ -702,6 +684,17 @@ impl<W: Clone + PartialEq> Exit<W> {
             }
             _ => Point::from((x, ((screen.h - painted.h) / 2).max(0) as f64)),
         }
+    }
+}
+
+/// A card `since` seconds after it appeared: its opacity, and how far above its place it is, in
+/// design pixels. The explorer's opening, so the cards and the explorer feel like one desktop.
+pub fn opening(since: f64, reduced_motion: bool) -> (f32, f64) {
+    if reduced_motion {
+        ((since / REDUCED_FADE).clamp(0.0, 1.0) as f32, 0.0)
+    } else {
+        let eased = HYPR.at((since / OPEN).clamp(0.0, 1.0));
+        (eased.clamp(0.0, 1.0) as f32, -10.0 * (1.0 - eased))
     }
 }
 

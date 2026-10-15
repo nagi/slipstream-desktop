@@ -1,14 +1,15 @@
 //! Timed debug steps, for checking features without a person at the keyboard.
 //!
-//! `SLIPSTREAM_DEBUG="2000:ws:2;3000:shot:/tmp/frame.png;4000:quit"` runs each step once, that
+//! `SLIPSTREAM_DEBUG="2000:ws:2;3000:shot:frame.png;4000:quit"` runs each step once, that
 //! many milliseconds after start. Steps: `ws:N` (switch to workspace N), `move:N` (move the
 //! focused window to workspace N), `close`, `shot:PATH` (save the next rendered frame as a PNG),
 //! `run:COMMAND` (start a program the way key bindings do, so X11 apps get XWayland's display),
 //! `explore` (open or close the app explorer), `hkey:NAME` (a key in the shortcut sheet, which is
 //! how the tour is stepped through), `tour:N` or `tour:N@T` (the tour at lesson N, from 0, its
 //! miniature held T of the way through its loop if given), `power:off` and `power:on` (the
-//! screens off, as after a long idle, and lit again), `type:TEXT` and `key:NAME` (type into the open explorer, or
-//! press a key there by its xkb name, such as `Down`, `Return` or `ctrl+BackSpace`), `heavier`,
+//! screens off, as after a long idle, and lit again), `type:TEXT` and `key:NAME` (type into the
+//! open explorer, or press a key there by its xkb name, such as `Down`, `Return` or
+//! `ctrl+BackSpace`), `heavier`,
 //! `lighter` and `gravity` (a step along gravity's ladder, and Super+T, on the focused window),
 //! `tile:DIRECTION` (Super+Alt+arrow: move the focused tile `left`, `right`, `up` or `down`),
 //! `focus:DIRECTION` (Super+arrow: the keyboard to the neighbouring tile), `full` and `unfull`
@@ -21,8 +22,9 @@
 //! go, for a drag), `drag:X1,Y1 X2,Y2` (a press, a drag and a release, as selecting text in a
 //! terminal does), `cycle` or `cycle:N` (Alt held, Tab pressed N times, then Alt let go), `tab`
 //! (one Tab with Alt held down, and kept held) and `letgo` (Alt let go after `tab`), `minimise`
-//! and `restore` (Super+M and Super+Shift+M), `dock` and `undock` (Super+W and Super+Shift+W), `float` (Super+Shift+V), `hideall` (Super+H: every window on the workspace
-//! into the code rain, and the same ones back), `idle` (fade the UI out now) and `wake` (as any
+//! and `restore` (Super+M and Super+Shift+M), `dock` and `undock` (Super+W and Super+Shift+W),
+//! `float` (Super+Shift+V), `hideall` (Super+H: every window on the workspace into the code rain,
+//! and the same ones back), `idle` (fade the UI out now) and `wake` (as any
 //! input would), `fade:F` (hold the fade to the wallpaper at F, 0 to 1), `slow:MS` (count each
 //! drawn frame as MS milliseconds, script times included; `slow:0` is real time again),
 //! `demand:F` (pin every minimised app's load at F, 0 to 1), `bullet` (Super+Tab), `bkey:NAME` (a
@@ -264,7 +266,7 @@ impl Step {
 /// The key events of `press:NAME`, `release:NAME` or `chord:mod+…+NAME`. A chord presses its
 /// keys in order and lets them go in reverse, as fingers do. Modifiers can be written as
 /// `super`, `shift`, `ctrl` and `alt`; anything else is an xkb keysym name.
-pub fn key_events(kind: &str, text: &str) -> Vec<(String, bool)> {
+fn key_events(kind: &str, text: &str) -> Vec<(String, bool)> {
     let name = |part: &str| {
         match part.trim().to_ascii_lowercase().as_str() {
             "super" | "logo" | "win" | "mod4" => "Super_L",
@@ -308,7 +310,7 @@ impl Script {
         self.steps.is_empty()
     }
 
-    pub fn parse(text: &str) -> Self {
+    fn parse(text: &str) -> Self {
         let point = |at: &str| -> Option<(f64, f64)> {
             let (x, y) = at.split_once(',')?;
             Some((x.trim().parse().ok()?, y.trim().parse().ok()?))
