@@ -31,9 +31,10 @@
 #                                   alias claude='agent-notify keep claude' makes it the default
 #   agent-notify hook AGENT EVENT   what the hooks run; EVENT is start, finish, attention,
 #                                   working (the agent has carried on after waiting on you), or
-#                                   waiting (the agent has dispatched a subagent and is waiting)
+#                                   waiting (the agent has dispatched a subagent and is waiting), or
+#                                   step (the agent is calling its model: a start if it was idle)
 #
-# Agents: claude (Claude Code), gemini (Gemini CLI), codex (Codex CLI).
+# Agents: claude (Claude Code), gemini (Gemini CLI), codex (Codex CLI), agy (Antigravity CLI).
 #
 # Config, ~/.config/agent-notify/config, one "key = value" per line:
 #   agents = claude gemini
@@ -47,7 +48,7 @@ set -u
 
 CONFIG=${XDG_CONFIG_HOME:-$HOME/.config}/agent-notify/config
 STATE=${XDG_RUNTIME_DIR:-/tmp/agent-notify-$(id -u)}/agent-notify
-KNOWN_AGENTS="claude gemini codex"
+KNOWN_AGENTS="claude gemini codex agy"
 
 # ---------------------------------------------------------------------------------------------
 # Small helpers
@@ -90,6 +91,7 @@ agent_name() {
         claude) printf 'Claude Code' ;;
         gemini) printf 'Gemini CLI' ;;
         codex) printf 'Codex' ;;
+        agy) printf 'Antigravity' ;;
         *) printf '%s' "$1" ;;
     esac
 }
@@ -165,6 +167,7 @@ close_notification() {
 #
 # If a second ancestor with the same name is found above the first, this hook is running inside a
 # subagent spawned by a parent session. Only the top-level session leaves a note; subagents don't.
+# One straight above another is the same session restarting itself, as Gemini CLI does.
 agent_pid() {
     if is_number "${AGENT_NOTIFY_PID:-}"; then
         printf '%s' "$AGENT_NOTIFY_PID"
@@ -172,14 +175,18 @@ agent_pid() {
     fi
     walk_pid=$PPID
     found=
+    below=
     while [ "${walk_pid:-0}" -gt 1 ]; do
         if is_agent "$1" "$walk_pid"; then
             if [ -z "$found" ]; then
                 found=$walk_pid
-            else
+            elif [ -z "$below" ]; then
                 # A second ancestor with this name: we are a subagent, not the top-level session.
                 return 1
             fi
+            below=$walk_pid
+        else
+            below=
         fi
         # The parent is the second field after the command name, which can itself hold spaces.
         walk_pid=$(sed 's/.*) //' "/proc/$walk_pid/stat" 2>/dev/null | cut -d' ' -f2)
@@ -188,12 +195,15 @@ agent_pid() {
     return 1
 }
 
-# Whether process `$2` is agent `$1`: called that, or running a versioned copy of it from a
-# terminal. Claude runs a background session straight from its versions folder, so the process
-# is named after the version. The host above it, which keeps the session's terminal, has none of
-# its own and isn't counted, or the session would look like a subagent.
+# Whether process `$2` is agent `$1`: called that, an interpreter (node, python) running a script
+# called that, as Gemini CLI is, or running a versioned copy of it from a terminal. Claude runs a
+# background session straight from its versions folder, so the process is named after the
+# version. The host above it, which keeps the session's terminal, has none of its own and isn't
+# counted, or the session would look like a subagent.
 is_agent() {
     [ "$(cat "/proc/$2/comm" 2>/dev/null)" = "$1" ] && return 0
+    agent_script=$(tr '\0' '\n' <"/proc/$2/cmdline" 2>/dev/null | sed -n 2p)
+    [ "${agent_script##*/}" = "$1" ] && return 0
     case $(readlink "/proc/$2/exe" 2>/dev/null) in
     */"$1"/versions/*) case $(readlink "/proc/$2/fd/0" 2>/dev/null) in /dev/pts/*) return 0 ;; esac ;;
     esac
@@ -204,7 +214,7 @@ is_agent() {
 # agent has given the session where it keeps one, or else how the prompt begins. Nothing if the
 # hook says neither.
 task() {
-    task_file=$(printf '%s' "$payload" | jq -r '.transcript_path // empty' 2>/dev/null)
+    task_file=$(printf '%s' "$payload" | jq -r '.transcript_path // .transcriptPath // empty' 2>/dev/null)
     task_title=
     if [ -r "$task_file" ]; then
         # Titles are written again as a session goes on, so the newest is near the end.
@@ -367,7 +377,7 @@ hook() {
     # Not what an agent sends: nothing to say.
     printf '%s' "$payload" | jq -e 'type == "object"' >/dev/null 2>&1 || exit 0
 
-    session=$(field .session_id | tr -cd 'A-Za-z0-9_-' | cut -c1-80)
+    session=$(field '.session_id // .conversationId' | tr -cd 'A-Za-z0-9_-' | cut -c1-80)
     [ -n "$session" ] || session=default
     mkdir -p "$STATE" && chmod 700 "$STATE"
     started_file=$STATE/$agent-$session.started
@@ -389,8 +399,18 @@ hook() {
         read -r previous <"$id_file"
     fi
 
-    project=$(field .cwd)
+    project=$(field '.cwd // .workspacePaths[0]')
     project=${project##*/}
+
+    # Antigravity says nothing when a prompt arrives, only before each call to its model: the
+    # first of those since the last finish is the start.
+    if [ "$event" = step ]; then
+        if [ -r "$started_file" ]; then
+            working_note "$agent" on
+            exit 0
+        fi
+        event=start
+    fi
 
     case $event in
         start)
@@ -610,8 +630,11 @@ setup_claude() {
 }
 
 setup_gemini() {
-    groups=$(jq -n --arg s "$(hook_command 'gemini start')" \
+    groups=$(jq -n --arg ss "$(hook_command 'gemini session_start')" \
+        --arg s "$(hook_command 'gemini start')" --arg w "$(hook_command 'gemini working')" \
         --arg f "$(hook_command 'gemini finish')" --arg a "$(hook_command 'gemini attention')" '{
+        SessionStart: {hooks: [{type: "command", name: "agent-notify-session", command: $ss, timeout: 5000}]},
+        AfterTool: {hooks: [{type: "command", name: "agent-notify-working", command: $w, timeout: 5000}]},
         BeforeAgent: {hooks: [{type: "command", name: "agent-notify-start", command: $s, timeout: 5000}]},
         AfterAgent: {hooks: [{type: "command", name: "agent-notify-finish", command: $f, timeout: 5000}]},
         Notification: {hooks: [{type: "command", name: "agent-notify-attention", command: $a, timeout: 5000}]}}')
@@ -622,8 +645,11 @@ setup_gemini() {
 }
 
 setup_codex() {
-    groups=$(jq -n --arg s "$(hook_command 'codex start')" \
+    groups=$(jq -n --arg ss "$(hook_command 'codex session_start')" \
+        --arg s "$(hook_command 'codex start')" --arg w "$(hook_command 'codex working')" \
         --arg f "$(hook_command 'codex finish')" --arg a "$(hook_command 'codex attention')" '{
+        SessionStart: {hooks: [{type: "command", command: $ss, timeout: 10}]},
+        PostToolUse: {matcher: "*", hooks: [{type: "command", command: $w, timeout: 5}]},
         UserPromptSubmit: {hooks: [{type: "command", command: $s, timeout: 10}]},
         Stop: {hooks: [{type: "command", command: $f, timeout: 10}]},
         PermissionRequest: {matcher: "*", hooks: [{type: "command", command: $a, timeout: 10}]}}')
@@ -634,6 +660,21 @@ setup_codex() {
     if [ "$remove" = 0 ]; then
         echo "  Codex runs new hooks only once you trust them: open /hooks in Codex."
     fi
+}
+
+# Antigravity's hooks file holds named hooks, so ours is one entry, put in or taken out whole. It
+# has no event for a permission prompt, so it gets no attention hook.
+setup_agy() {
+    hooks=$(jq -n --arg ss "$(hook_command 'agy session_start')" \
+        --arg st "$(hook_command 'agy step')" --arg w "$(hook_command 'agy working')" \
+        --arg f "$(hook_command 'agy finish')" '{
+        SessionStart: [{type: "command", command: $ss, timeout: 10}],
+        PreInvocation: [{type: "command", command: $st, timeout: 10}],
+        PostToolUse: [{matcher: "*", hooks: [{type: "command", command: $w, timeout: 5}]}],
+        Stop: [{type: "command", command: $f, timeout: 10}]}')
+    # shellcheck disable=SC2016 # jq program, not shell
+    merge "$HOME/.gemini/config/hooks.json" --argjson hooks "$hooks" --argjson remove "$remove" \
+        'if $remove == 1 then del(.["agent-notify"]) else .["agent-notify"] = $hooks end'
 }
 
 # Writes the config the first time, with the agents that are installed.
@@ -717,6 +758,7 @@ hooks_file() {
         claude) printf '%s' "$HOME/.claude/settings.json" ;;
         gemini) printf '%s' "$HOME/.gemini/settings.json" ;;
         codex) printf '%s' "${CODEX_HOME:-$HOME/.codex}/hooks.json" ;;
+        agy) printf '%s' "$HOME/.gemini/config/hooks.json" ;;
     esac
 }
 
