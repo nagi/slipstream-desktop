@@ -219,7 +219,7 @@ impl Slipstream {
     /// warnings, and the card.
     pub fn tick_battery(&mut self) {
         let (reading, left) = {
-            let status = self.status.lock().unwrap();
+            let status = crate::status::held(&self.status);
             // Only a time that counts down: "until full" belongs to a charger, whatever the
             // pinned reading says.
             let left = status

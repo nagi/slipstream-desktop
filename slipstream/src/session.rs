@@ -276,7 +276,7 @@ pub fn parse(text: &str) -> io::Result<Option<Record>> {
 pub fn write(path: &Path, record: &Record) -> io::Result<()> {
     let text =
         toml::to_string(record).map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
-    slipstream_config::replace(path, format!("{HEADER}{text}").as_bytes())
+    slipstream_config::replace_private(path, format!("{HEADER}{text}").as_bytes())
 }
 
 /// Deletes the record, for when remembering is turned off. A file that isn't there is a success.

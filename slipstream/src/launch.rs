@@ -179,15 +179,19 @@ fn default_browser() -> Option<Vec<String>> {
         .map(String::from)
         .collect();
     for file in mimeapps_files() {
-        let Ok(text) = std::fs::read_to_string(&file) else {
+        let Some(text) = crate::files::read_small_text(&file, crate::files::DESKTOP_ENTRY_LIMIT)
+        else {
             continue;
         };
-        let Some(id) = web_browser_id(&text) else {
+        let Some(id) = web_browser_id(&text).filter(|id| !id.contains('/')) else {
             continue;
         };
         let stem = id.strip_suffix(".desktop").unwrap_or(&id);
         for dir in crate::apps::application_dirs() {
-            let Ok(entry) = std::fs::read_to_string(dir.join(format!("{stem}.desktop"))) else {
+            let path = dir.join(format!("{stem}.desktop"));
+            let Some(entry) =
+                crate::files::read_small_text(&path, crate::files::DESKTOP_ENTRY_LIMIT)
+            else {
                 continue;
             };
             if let Some(app) = crate::apps::parse(stem, &entry, &desktops, installed)
@@ -288,7 +292,7 @@ fn resuming(command: &str, typed_into: Option<&str>, login: &str) -> Vec<String>
 fn in_a_terminal(exec: &[String], terminal: Option<Vec<String>>) -> Option<Vec<String>> {
     let mut command = terminal?;
     // How each terminal is told to run a command.
-    let program = Path::new(&command[0])
+    let program = Path::new(command.first()?)
         .file_name()
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_default();

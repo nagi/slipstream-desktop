@@ -4,6 +4,7 @@ use std::{
     ffi::OsString,
     fs::{self, File},
     io::{self, Write},
+    os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
     sync::atomic::{AtomicU64, Ordering},
     time::{Duration, SystemTime, UNIX_EPOCH},
@@ -75,6 +76,16 @@ static PARTIALS: AtomicU64 = AtomicU64::new(0);
 /// A `path` that is a symlink (a dotfiles manager's, say) has its target replaced rather than the
 /// link, and the file keeps the permissions it had.
 pub fn replace(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    replace_with(path, bytes, None)
+}
+
+/// `replace` for a file only its owner may read, whatever it allowed before: one that holds
+/// commands to run.
+pub fn replace_private(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    replace_with(path, bytes, Some(fs::Permissions::from_mode(0o600)))
+}
+
+fn replace_with(path: &Path, bytes: &[u8], permissions: Option<fs::Permissions>) -> io::Result<()> {
     let linked = fs::symlink_metadata(path).is_ok_and(|meta| meta.file_type().is_symlink());
     let target = if linked {
         fs::canonicalize(path).ok()
@@ -82,7 +93,8 @@ pub fn replace(path: &Path, bytes: &[u8]) -> io::Result<()> {
         None
     };
     let path = target.as_deref().unwrap_or(path);
-    let permissions = fs::metadata(path).ok().map(|meta| meta.permissions());
+    let permissions =
+        permissions.or_else(|| fs::metadata(path).ok().map(|meta| meta.permissions()));
     let dir = path
         .parent()
         .filter(|dir| !dir.as_os_str().is_empty())
@@ -325,7 +337,7 @@ mod tests {
 
     #[test]
     fn a_linked_file_keeps_its_link_and_permissions() {
-        use std::os::unix::fs::{PermissionsExt, symlink};
+        use std::os::unix::fs::symlink;
         let scratch = Scratch::new("linked");
         let real = scratch.0.join("dotfiles-settings.toml");
         fs::write(&real, "").unwrap();
@@ -343,6 +355,17 @@ mod tests {
         );
         assert_eq!(read(&real).unwrap(), settings);
         let mode = fs::metadata(&real).unwrap().permissions().mode();
+        assert_eq!(mode & 0o777, 0o600);
+    }
+
+    #[test]
+    fn a_private_file_is_the_owner_s_alone() {
+        let scratch = Scratch::new("private");
+        let path = scratch.0.join("session.toml");
+        fs::write(&path, "").unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).unwrap();
+        replace_private(&path, b"x = 1\n").unwrap();
+        let mode = fs::metadata(&path).unwrap().permissions().mode();
         assert_eq!(mode & 0o777, 0o600);
     }
 

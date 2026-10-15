@@ -664,7 +664,16 @@ pub fn load_image(path: &Path, px: u32) -> Option<Pixmap> {
     let mut out = Pixmap::new(px, px)?;
     let side = px as f32;
     if path.extension().is_some_and(|ext| ext == "svg") {
-        let tree = usvg::Tree::from_data(&data, &usvg::Options::default()).ok()?;
+        // An `<image>` naming a file would be read whole, however big, and a FIFO would never
+        // finish, so only images embedded in the SVG itself are drawn.
+        let options = usvg::Options {
+            image_href_resolver: usvg::ImageHrefResolver {
+                resolve_data: usvg::ImageHrefResolver::default_data_resolver(),
+                resolve_string: Box::new(|_, _| None),
+            },
+            ..usvg::Options::default()
+        };
+        let tree = usvg::Tree::from_data(&data, &options).ok()?;
         let size = tree.size();
         let k = side / size.width().max(size.height());
         let transform = Transform::from_row(
@@ -696,6 +705,11 @@ pub(crate) fn decode_png(data: &[u8]) -> Option<Pixmap> {
     let mut decoder = png::Decoder::new(std::io::Cursor::new(data));
     decoder.set_transformations(png::Transformations::normalize_to_color8());
     let mut reader = decoder.read_info().ok()?;
+    // A small file can claim an enormous picture; nothing shown needs more than 32 megapixels.
+    let (width, height) = reader.info().size();
+    if u64::from(width) * u64::from(height) > 1 << 25 {
+        return None;
+    }
     let mut pixels = vec![0; reader.output_buffer_size()?];
     let info = reader.next_frame(&mut pixels).ok()?;
     let channels = info.color_type.samples();

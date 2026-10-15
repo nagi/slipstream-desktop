@@ -592,13 +592,18 @@ impl Rain {
 fn compose(light: &[u8], card: &Card) -> Pixmap {
     let (iw, _) = card.inner;
     let mut out = card.base.clone();
-    let w = out.width() as usize;
+    let (w, h) = (out.width() as usize, out.height() as usize);
     let data = out.data_mut();
     for (i, (light, &cover)) in light.chunks_exact(4).zip(&card.cover).enumerate() {
         if cover == 0 || light[..3] == [0, 0, 0] {
             continue;
         }
-        let at = ((i / iw + card.inset) * w + i % iw + card.inset) * 4;
+        // A card only a pixel or two across still has an inner shape of one, past its edge.
+        let (x, y) = (i % iw + card.inset, i / iw + card.inset);
+        if x >= w || y >= h {
+            continue;
+        }
+        let at = (y * w + x) * 4;
         for (channel, &light) in data[at..at + 3].iter_mut().zip(&light[..3]) {
             let added = *channel as u32 + (light as u32 * cover as u32 + 127) / 255;
             *channel = added.min(255) as u8;

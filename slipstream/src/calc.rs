@@ -16,11 +16,16 @@ pub struct Answer {
 /// The answer to `query`, if it is a sum or a conversion.
 pub fn answer(query: &str) -> Option<Answer> {
     let query = query.trim();
-    if query.is_empty() {
+    // The parser recurses once per bracket or sign, so a sum is kept to a length nobody types,
+    // well short of what would run the stack out.
+    if query.is_empty() || query.len() > LONGEST {
         return None;
     }
     convert(query).or_else(|| calculate(query))
 }
+
+/// The longest query worked out, in bytes.
+const LONGEST: usize = 256;
 
 fn calculate(query: &str) -> Option<Answer> {
     let expression = query.strip_suffix('=').unwrap_or(query).trim();

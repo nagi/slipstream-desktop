@@ -5,7 +5,7 @@
 use std::{
     process::Stdio,
     sync::{
-        Arc, Mutex, OnceLock,
+        Arc, Mutex, MutexGuard, OnceLock, PoisonError,
         atomic::{AtomicBool, AtomicUsize, Ordering},
         mpsc,
     },
@@ -78,6 +78,13 @@ static EVERYTHING: AtomicBool = AtomicBool::new(false);
 /// Until when the reader leaves the shared reading alone, while a change shown ahead of time is
 /// still being made.
 static HELD_UNTIL: Mutex<Option<Instant>> = Mutex::new(None);
+
+/// `reading` locked, even if a reader thread panicked while it held it: readers only ever store
+/// whole values, so what is there is still a reading, and the desktop carries on rather than
+/// panicking with it.
+pub fn held<T>(reading: &Mutex<T>) -> MutexGuard<'_, T> {
+    reading.lock().unwrap_or_else(PoisonError::into_inner)
+}
 
 pub fn start() -> Arc<Mutex<Reading>> {
     let shared = Arc::new(Mutex::new(Reading::default()));
@@ -308,6 +315,10 @@ fn parse_clock(text: &str) -> Option<(String, String, Date)> {
         month: ymd.next()?.parse().ok()?,
         day: ymd.next()?.parse().ok()?,
     };
+    // The calendar indexes its tables by month.
+    if !(1..=12).contains(&today.month) || !(1..=31).contains(&today.day) {
+        return None;
+    }
     Some((time, date, today))
 }
 

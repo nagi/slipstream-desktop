@@ -119,6 +119,9 @@ impl<W: Clone + PartialEq> Switcher<W> {
     /// Another Tab, or Shift+Tab: the selection moves one along, wrapping.
     pub fn step(&mut self, forward: bool) {
         let count = self.windows.len();
+        if count == 0 {
+            return;
+        }
         self.selected = if forward {
             (self.selected + 1) % count
         } else {

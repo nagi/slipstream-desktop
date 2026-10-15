@@ -813,7 +813,7 @@ impl Slipstream {
             .map(|a| a.name.clone())
             .collect();
         Facts {
-            today: self.status.lock().unwrap().today,
+            today: crate::status::held(&self.status).today,
             do_not_disturb: self.settings.notifications.do_not_disturb,
             reduced_motion: self.centre.reduced_motion,
             ring: self.panel_ring(),

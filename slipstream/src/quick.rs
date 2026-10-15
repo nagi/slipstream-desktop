@@ -912,12 +912,12 @@ impl Slipstream {
 
     pub fn quick_facts(&self) -> Facts {
         Facts {
-            status: self.status.lock().unwrap().clone(),
+            status: crate::status::held(&self.status).clone(),
             do_not_disturb: self.settings.notifications.do_not_disturb,
             night_light: self.settings.display.night_light,
             reduced_motion: self.quick.reduced_motion,
             user: self.user.clone(),
-            meter: self.meter.lock().unwrap().clone(),
+            meter: crate::status::held(&self.meter).clone(),
             ring: self.panel_ring(),
         }
     }
@@ -953,7 +953,7 @@ impl Slipstream {
             Request::Close => self.quick.close(),
             Request::Volume(percent) => {
                 let was_muted = {
-                    let mut shown = self.status.lock().unwrap();
+                    let mut shown = crate::status::held(&self.status);
                     shown.volume = percent;
                     std::mem::replace(&mut shown.muted, false)
                 };
@@ -970,7 +970,7 @@ impl Slipstream {
             }
             Request::Brightness(percent) => {
                 if let Some(command) = launch::set_brightness(percent) {
-                    self.status.lock().unwrap().brightness = Some(percent);
+                    crate::status::held(&self.status).brightness = Some(percent);
                     status::change(command);
                 }
             }
@@ -979,7 +979,7 @@ impl Slipstream {
     }
 
     fn quick_press(&mut self, control: Control) {
-        let reading = self.status.lock().unwrap().clone();
+        let reading = crate::status::held(&self.status).clone();
         match control {
             Control::Power | Control::Brightness => {}
             Control::Lock => {
@@ -1010,13 +1010,13 @@ impl Slipstream {
             // Each change shows at once; the reading catches up once it's made.
             Control::WiFi => {
                 let on = !reading.wifi;
-                self.status.lock().unwrap().wifi = on;
+                crate::status::held(&self.status).wifi = on;
                 status::change(status::set_wifi(on));
             }
             Control::Bluetooth => {
                 let on = !reading.bluetooth;
                 {
-                    let mut shown = self.status.lock().unwrap();
+                    let mut shown = crate::status::held(&self.status);
                     shown.bluetooth = on;
                     shown.bluetooth_device = None;
                 }
@@ -1025,7 +1025,7 @@ impl Slipstream {
             Control::PowerMode => match reading.power_profile.as_deref() {
                 Some(current) => {
                     let next = status::next_power_profile(current);
-                    self.status.lock().unwrap().power_profile = Some(next.to_string());
+                    crate::status::held(&self.status).power_profile = Some(next.to_string());
                     status::change(status::set_power_profile(next));
                 }
                 None => self.show_toast(
@@ -1035,7 +1035,7 @@ impl Slipstream {
                 ),
             },
             Control::Volume => {
-                self.status.lock().unwrap().muted = !reading.muted;
+                crate::status::held(&self.status).muted = !reading.muted;
                 status::change(status::set_mute(!reading.muted));
             }
             Control::DoNotDisturb => {

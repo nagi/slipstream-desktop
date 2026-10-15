@@ -25,6 +25,11 @@ pub const CURSOR_LIMIT: u64 = 16 << 20;
 /// A `.desktop` file is text, a few kilobytes even with every translation.
 pub const DESKTOP_ENTRY_LIMIT: u64 = 1 << 20;
 
+/// `read_small` as text: nothing for a file that isn't UTF-8, or isn't a small regular file.
+pub fn read_small_text(path: &Path, limit: u64) -> Option<String> {
+    String::from_utf8(read_small(path, limit).ok()?).ok()
+}
+
 /// The whole of `path`, if it is a regular file of at most `limit` bytes.
 pub fn read_small(path: &Path, limit: u64) -> io::Result<Vec<u8>> {
     // Looked at before it's opened: opening a device node can do something by itself (a serial

@@ -83,7 +83,9 @@ use serde::{Deserialize, Serialize};
 pub use display::{
     Align, Display, NIGHT_FADE_MINS, NightSchedule, Position, SCALE_RANGE, ScreenPlace,
 };
-pub use file::{FILE_NAME, civil, move_aside, path, read, replace, write, xdg_home};
+pub use file::{
+    FILE_NAME, civil, move_aside, path, read, replace, replace_private, write, xdg_home,
+};
 pub use wallpaper::{VARIATIONS, Variation, Wallpaper, current_id};
 pub use workspaces::{MAX_WORKSPACES, WorkspaceEntry, Workspaces, unused_id, workspace_label};
 

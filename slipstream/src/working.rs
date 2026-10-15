@@ -134,7 +134,9 @@ fn parse_note(path: &Path, len: u64) -> (Option<String>, AgentStatus) {
     if len == 0 || len > LONGEST_NOTE {
         return (None, AgentStatus::Active);
     }
-    let Ok(text) = fs::read_to_string(path) else {
+    // Read without blocking and only if still a small regular file: the note can be swapped for
+    // a FIFO between the look and the read, and this runs on the event loop.
+    let Some(text) = crate::files::read_small_text(path, LONGEST_NOTE) else {
         return (None, AgentStatus::Active);
     };
     let mut lines = text.lines();

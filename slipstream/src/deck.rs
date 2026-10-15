@@ -64,6 +64,10 @@ impl<W: Clone + PartialEq> Deck<W> {
     /// The selection moved to `selected` at `now`: the deck turns to bring it to the front.
     pub fn select(&mut self, selected: usize, now: f64) {
         let n = self.windows.len();
+        // A pane clicked on the last frame can belong to a window that has closed since.
+        if selected >= n {
+            return;
+        }
         for i in 0..n {
             let (at, _) = self.place(i, now);
             let target = rank(i, selected, n);
@@ -84,6 +88,11 @@ impl<W: Clone + PartialEq> Deck<W> {
             self.to.remove(i);
             self.round.remove(i);
             self.last.remove(i);
+            if let Some((_, poses)) = self.released.as_mut()
+                && i < poses.len()
+            {
+                poses.remove(i);
+            }
             if self.chosen > i {
                 self.chosen -= 1;
             }
