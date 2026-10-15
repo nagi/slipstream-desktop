@@ -55,7 +55,7 @@ pub fn notes_dir() -> Option<PathBuf> {
 }
 
 /// Removes notes that belong to processes that are no longer running, to keep the folder tidy
-/// across a long session. Called as a side effect of `at_work`.
+/// across a long session.
 fn clean_stale(notes: &Path, uid: u32, ticks: u64) {
     let Ok(dir) = fs::read_dir(notes) else {
         return;
@@ -95,7 +95,6 @@ pub fn at_work() -> Vec<Agent> {
     // SAFETY: both only read values the kernel holds for this process.
     let (uid, ticks) = unsafe { (libc::getuid(), libc::sysconf(libc::_SC_CLK_TCK)) };
     let agents = read(Path::new("/proc"), &notes, uid, ticks.max(1) as u64);
-    // Tidy up notes for processes that have gone, so they don't accumulate across a long session.
     clean_stale(&notes, uid, ticks.max(1) as u64);
     agents
 }
@@ -257,19 +256,19 @@ mod tests {
         machine.process(300, "/home/sam/projects/kiln");
         machine.process(301, "/home/sam/projects/ledger");
         machine.process(302, "/home/sam/projects/orchard");
-        machine.note_saying(300, "claude: fixing the kiln\nwaiting\n", 150);
-        machine.note_saying(301, "claude: counting the ledger\nidle\n", 160);
-        machine.note_saying(302, "claude: growing the orchard\n", 170);
+        machine.note_saying(300, "robin: fixing the kiln\nwaiting\n", 150);
+        machine.note_saying(301, "robin: counting the ledger\nidle\n", 160);
+        machine.note_saying(302, "robin: growing the orchard\n", 170);
         let agents = machine.read();
-        assert_eq!(agents[0].name, "claude: fixing the kiln");
+        assert_eq!(agents[0].name, "robin: fixing the kiln");
         assert_eq!(
             agents[0].status,
             AgentStatus::Subagents,
             "second line 'waiting'"
         );
-        assert_eq!(agents[1].name, "claude: counting the ledger");
+        assert_eq!(agents[1].name, "robin: counting the ledger");
         assert_eq!(agents[1].status, AgentStatus::Idle, "second line 'idle'");
-        assert_eq!(agents[2].name, "claude: growing the orchard");
+        assert_eq!(agents[2].name, "robin: growing the orchard");
         assert_eq!(agents[2].status, AgentStatus::Active, "no second line");
     }
 
@@ -277,7 +276,7 @@ mod tests {
     fn idle_agent_is_shown_like_any_other() {
         let machine = Machine::new("working-idle");
         machine.process(300, "/home/sam/projects/kiln");
-        machine.note_saying(300, "claude: done\nidle\n", 150);
+        machine.note_saying(300, "robin: done\nidle\n", 150);
         let agents = machine.read();
         assert_eq!(agents.len(), 1, "idle note is still counted");
         assert_eq!(agents[0].status, AgentStatus::Idle);

@@ -1,5 +1,5 @@
 //! The tour (Super+/, then Enter): what tiling is, why this desktop works the way it does, and
-//! the places a window can be besides a tile, in sixteen short lessons, each one drawn happening.
+//! the places a window can be besides a tile, in short lessons, each one drawn happening.
 //!
 //! Someone coming from overlapping windows doesn't get stuck because there are too many keys.
 //! They get stuck because the desktop does something they didn't ask for — a second window opens

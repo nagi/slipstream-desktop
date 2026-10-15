@@ -191,8 +191,9 @@ pub struct Explorer {
     icon_cache: HashMap<(String, u32), Option<Pixmap>>,
     shown: Option<Look>,
     buffer: Option<Painted>,
-    /// The caret, painted for a scale, and its corner in logical pixels from the painted area's.
+    /// The caret, painted for a scale, and its size in logical pixels.
     caret: Option<(f64, MemoryRenderBuffer, Size<i32, Logical>)>,
+    /// The caret's corner, in logical pixels from the painted area's.
     caret_at: Point<f64, Logical>,
     /// The catalog version and icon size last asked to be warmed.
     warmed: Option<(u64, u32)>,
@@ -645,9 +646,9 @@ impl Explorer {
         }
     }
 
-    /// The explorer for a screen `width` logical pixels wide at `scale`, repainted when what it
-    /// shows changes. `running` holds the app IDs and X11 classes of open windows, lowercased.
-    /// The explorer's elements, front first: the caret, then the painted explorer.
+    /// The explorer's elements, front first (the caret, then the painted explorer), for a screen
+    /// `width` logical pixels wide at `scale`, repainted only when what it shows changes.
+    /// `running` holds the app IDs and X11 classes of open windows, lowercased.
     pub fn element<R>(
         &mut self,
         renderer: &mut R,

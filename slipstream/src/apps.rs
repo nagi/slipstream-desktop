@@ -1,7 +1,5 @@
 //! Installed apps, for the explorer: desktop entries from the XDG data directories (Flatpak
 //! exports included), their icons, ranked search, and the recently used files list.
-//!
-//! Parsing and ranking are pure, so they're unit-tested without a desktop.
 
 use std::{
     collections::{HashMap, HashSet},

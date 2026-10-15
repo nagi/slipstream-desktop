@@ -354,12 +354,10 @@ impl Scope {
             .iter()
             .map(|t| ((t.colour.to_bits() as u64) << 32) | t.amp.to_bits() as u64)
             .collect();
-        // Wave animation (active trace or colour transition): needs 30fps.
-        let waving = !self.reduced_motion
-            && traces
-                .iter()
-                .any(|trace| trace.amp > WAITING_AMP + 0.01 || trace.colour > 0.01);
-        // Pulse animation only (waiting trace, no wave): 10fps is enough for a 1Hz pulse.
+        // A full wave needs 30 fps; a change of colour repaints through `levels`.
+        let waving =
+            !self.reduced_motion && traces.iter().any(|trace| trace.amp > WAITING_AMP + 0.01);
+        // A waiting trace only pulses, and 10 fps is enough for a 1 Hz pulse.
         let pulsing = !self.reduced_motion && !waving && traces.iter().any(|trace| trace.amp > 0.0);
         if levels != canvas.painted
             || (waving && now - canvas.painted_at >= STEP)

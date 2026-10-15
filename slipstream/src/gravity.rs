@@ -261,8 +261,7 @@ impl<T: Clone + PartialEq> Gravity<T> {
                     distant: Vec::new(),
                 };
             }
-            // Heavier out of the grid: this window takes the centre and the rest orbit it. The
-            // ladder's two halves meet here now that tiling is not between them.
+            // Heavier out of the grid: this window takes the centre and the rest orbit it.
             (Rung::Grid, Rung::Centre) => {
                 self.mode = Mode::Mass {
                     centre: id.clone(),
@@ -339,8 +338,9 @@ impl<T: Clone + PartialEq> Gravity<T> {
         self.pinned.contains(id)
     }
 
-    /// Pins or unpins an orbit window to its slot. Returns whether it's pinned now.
-    #[allow(dead_code)] // Bullet time's `p` key.
+    /// Pins or unpins an orbit window to its slot. Returns whether it's pinned now. No key does
+    /// this yet; a pin comes back only with a restored layout.
+    #[cfg(test)]
     pub fn toggle_pin(&mut self, id: &T) -> bool {
         if self.pinned.contains(id) {
             self.pinned.retain(|w| w != id);

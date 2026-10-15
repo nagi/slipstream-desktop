@@ -2,7 +2,7 @@
 //! changed most often, a power menu, and the way into the Settings app.
 //!
 //! While it's open it takes every key: arrows or Tab move, Enter or Space presses, ←/→ move a
-//! slider, Esc closes. A mint ring shows where the keyboard is. The Wi-Fi and Bluetooth tiles
+//! slider, Esc closes. A ring shows where the keyboard is. The Wi-Fi and Bluetooth tiles
 //! carry a chevron that opens the system's own settings page for them.
 
 use smithay::{

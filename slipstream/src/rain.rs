@@ -9,10 +9,7 @@
 //! shares — a file manager doing nothing under fast green rain is a lie about the file manager,
 //! whatever the rain is actually measuring.
 //!
-//! So every stream paints its own band at its own speed. A quiet app's steps a few times a
-//! second where a busy one's steps thirty, which means what a stream costs to draw is what its
-//! app is doing — six idle streams and six flat out measure the same as the one shared band they
-//! replaced.
+//! So every stream paints its own band, at its own speed and in its own colour.
 
 use crate::motion::REDUCED_FADE;
 use resvg::tiny_skia::Pixmap;
@@ -46,8 +43,6 @@ use crate::{
 const STREAM_GAP: i32 = 4;
 const STREAM_EDGE: i32 = INNER_GAP;
 
-// Other sizes in design pixels. Streams are narrow, and their headers are scaled down (`HEADER`)
-// to match.
 /// The button's width, height and corner radius, the card's radius too, in design pixels before
 /// `HEADER`.
 const BUTTON_W: f32 = 58.0;
@@ -340,7 +335,6 @@ impl Rain {
         stream_hit(self.streams.len(), x, y, screen, top)
     }
 
-    /// Adds a stream for `window`.
     pub fn add(
         &mut self,
         window: Window,
@@ -486,10 +480,8 @@ impl Rain {
                 continue;
             };
 
-            // Its own light, at its own speed and colour. A quiet app's stream steps a few times a
-            // second and a busy one's thirty, so what a stream costs to paint is what its app is
-            // doing — the same thing the stream is there to say. The app's name is written into
-            // it, vowels small and the rest in capitals, lit in the ring's colour.
+            // Its own light, at its own speed and colour. The app's name is written into it,
+            // vowels small and the rest in capitals, lit in the ring's colour.
             let (iw, ih) = card.inner;
             let (changed, recoloured) = match effects {
                 Effects::Matrix => {

@@ -2,9 +2,9 @@
 //! glass in front of the desktop.
 //!
 //! The pane hangs from the bar's lower edge at its right-hand end, framed all round in the
-//! bar's own material, so the two are one piece. It has three sizes. Docking lifts the
-//! window out of its tile and up to the bar, further away as it goes and leaning back a little; undocking brings it forward
-//! again into a tile. The glass is rigid throughout (`pane.rs`).
+//! bar's own material, so the two are one piece. It has three sizes. Docking lifts the window out
+//! of its tile and up to the bar, further away as it goes and leaning back a little; undocking
+//! brings it forward again into a tile. The glass is rigid throughout (`pane.rs`).
 //!
 //! This is only where the pane rests and how it is drawn on the way there. Which window is
 //! docked, and what the keys do, is the compositor's, and changes on the keypress as ever.
@@ -322,9 +322,8 @@ impl Flight {
     pub fn at(&self, now: f64, camera: &Camera) -> (Pose, Lit) {
         let t = self.progress(now);
         let receding = self.receding();
-        // Coming towards the eye a pane is quick off the mark and then accelerates into place;
-        // going away it speeds off.
-        // Exactly at either end, so a pane that has landed lies exactly where its window is.
+        // Towards the eye a pane eases into place; going away it speeds off. Exact at either
+        // end, so a pane that has landed lies exactly where its window is.
         let (p, deep) = if t >= 1.0 {
             (1.0, 0.0)
         } else if t <= 0.0 {

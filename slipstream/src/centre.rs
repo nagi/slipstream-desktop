@@ -103,8 +103,8 @@ struct Look {
     scale: f64,
     background_apps: Vec<String>,
     background_icon_rev: u64,
-    /// 0 = no launch animation; 1–255 = progress through LAUNCH_DUR (changes every frame,
-    /// keeping the Look comparison unequal so repaint fires on every frame of the animation).
+    /// How far the chip's launch animation is, 1 to 255, or 0 when none runs. It changes every
+    /// frame of the animation, so each one repaints.
     launch_frac: u8,
 }
 
@@ -129,11 +129,9 @@ pub struct Centre {
     targets: Vec<(Target, Rectangle<f64, Logical>)>,
     /// Opens with a short fade instead of rising (`Slipstream::set_reduced_motion`).
     pub reduced_motion: bool,
-    /// (app_id, display_name, icon) for each background app, set in `element()` so `repaint()`
-    /// can draw real icons without a parameter change.
+    /// Each background app's ID, name and icon, as `repaint` draws them.
     background_icon_data: Vec<(String, String, Option<resvg::tiny_skia::Pixmap>)>,
-    /// App IDs only, kept in sync with `background_icon_data`, used for keyboard navigation
-    /// without changing `key()`'s signature.
+    /// The background apps' IDs, in chip order, for the keyboard.
     bg_app_ids: Vec<String>,
     /// Which app's chip is mid-launch animation, and when the click happened.
     launch_app: Option<String>,
@@ -531,7 +529,6 @@ impl Centre {
 
             // Apps running with no visible window.
             if !look.background_apps.is_empty() {
-                // Section label — same style as the Notifications heading.
                 let heading = Style::new(Face::BodyBold, 16.0, INK);
                 p.text("Background Apps", x0, y + HEAD_H / 2.0, &heading);
                 y += HEAD_H + GAP;
@@ -558,7 +555,7 @@ impl Centre {
                     })
                     .collect();
 
-                // How many chips fit in `inner`?
+                // As many chips as fit on one row.
                 let mut used = 0.0_f32;
                 let mut count = 0usize;
                 for (i, &w) in chip_ws.iter().enumerate() {
@@ -570,7 +567,6 @@ impl Centre {
                     count += 1;
                 }
 
-                // Left-justify the row from x0.
                 let row_x = x0;
                 let icon_y = y + CHIP_PAD_TOP;
                 let name_y = icon_y + ICON_SZ + NAME_GAP + NAME_H / 2.0;
@@ -730,10 +726,9 @@ impl Centre {
                         break;
                     }
                     p.fill(x0, top, inner, *h, panel::TILE_RADIUS, panel::TILE);
-                    let hits = notices::paint_card(p, notice, x0, top, inner, CARD_LINES, true);
-                    if let Some([x, y, w, h]) = hits.cross {
-                        targets.push((Target::Dismiss(notice.id), on_screen(x, y, w, h)));
-                    }
+                    let hits = notices::paint_card(p, notice, x0, top, inner, CARD_LINES);
+                    let [cx, cy, cw, ch] = hits.cross;
+                    targets.push((Target::Dismiss(notice.id), on_screen(cx, cy, cw, ch)));
                     buttons.insert(notice.id, hits.buttons.len());
                     for (index, [x, y, w, h]) in hits.buttons.iter().copied().enumerate() {
                         targets.push((Target::Action(notice.id, index), on_screen(x, y, w, h)));

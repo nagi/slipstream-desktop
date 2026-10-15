@@ -555,10 +555,8 @@ fn paint_popup(notice: &Notice, scale: f64) -> Option<Card> {
     let painted = Painted::new(logical, scale, |p| {
         p.f *= DESIGN_PX;
         crate::panel::notice(p, SHADOW, SHADOW, POPUP_W, height);
-        // A cross, as the notification centre's cards have: a pop-up in the corner can be shut up
-        // where it stands, without opening the centre to delete it.
-        let hits = paint_card(p, notice, SHADOW, SHADOW, POPUP_W, POPUP_LINES, true);
-        cross = hits.cross;
+        let hits = paint_card(p, notice, SHADOW, SHADOW, POPUP_W, POPUP_LINES);
+        cross = Some(hits.cross);
         buttons = hits.buttons;
     })?;
     Some(Card {
@@ -622,13 +620,13 @@ const BUTTON_GAP: f32 = 10.0;
 /// buttons in order.
 #[derive(Debug, Default)]
 pub struct CardHits {
-    pub cross: Option<[f32; 4]>,
+    pub cross: [f32; 4],
     pub buttons: Vec<[f32; 4]>,
 }
 
 /// Paints a card's contents (not its background) with its corner at (`x`, `y`): the app's icon,
-/// its name and the time, the summary and the body, and its action buttons. With `dismiss`, a
-/// cross after the time. Says where the cross and the buttons are.
+/// its name and the time with a cross after it, the summary and the body, and its action
+/// buttons. Says where the cross and the buttons are.
 pub fn paint_card(
     p: &mut Painter,
     notice: &Notice,
@@ -636,7 +634,6 @@ pub fn paint_card(
     y: f32,
     width: f32,
     max_lines: usize,
-    dismiss: bool,
 ) -> CardHits {
     match &notice.icon {
         Some(icon) => p.image(icon, x + PAD_X, y + PAD_Y),
@@ -646,20 +643,16 @@ pub fn paint_card(
     let text_w = width - (text_x - x) - PAD_X;
     let meta_centre = y + PAD_Y + META_H / 2.0;
     let meta = Style::new(Face::Body, 12.5, panel::HINT);
-    let mut right = x + width - PAD_X;
-    let mut cross = None;
-    if dismiss {
-        right -= 14.0;
-        p.icon(
-            icons::CLOSE,
-            right,
-            meta_centre - 7.0,
-            14.0,
-            Some(panel::PLACEHOLDER),
-        );
-        cross = Some([right - 8.0, y + PAD_Y - 6.0, 30.0, META_H + 12.0]);
-        right -= 10.0;
-    }
+    let mut right = x + width - PAD_X - 14.0;
+    p.icon(
+        icons::CLOSE,
+        right,
+        meta_centre - 7.0,
+        14.0,
+        Some(panel::PLACEHOLDER),
+    );
+    let cross = [right - 8.0, y + PAD_Y - 6.0, 30.0, META_H + 12.0];
+    right -= 10.0;
     right -= text::width(&notice.time, &meta);
     p.text(&notice.time, right, meta_centre, &meta);
     p.text(
@@ -1170,7 +1163,7 @@ mod tests {
         assert_eq!(
             Pop::for_arrival(false, false, -1, false, false, true, true),
             Pop::Later(POPUP_SHOWN),
-            "faded, it waits for the UI as before"
+            "faded, it waits for the UI"
         );
 
         let mut notices = Notices::default();

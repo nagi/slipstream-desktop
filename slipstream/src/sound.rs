@@ -263,9 +263,9 @@ const BLIP_EVERY: Duration = Duration::from_millis(120);
 
 static LAST_BLIP: Mutex<Option<Instant>> = Mutex::new(None);
 
-/// A short click through the speakers, at whatever level the volume keys have just set — the
-/// level is heard as well as seen, as it is on macOS and Windows. Volume only: never on mute,
-/// which is the absence of sound, and never on brightness, which makes none.
+/// A short click through the speakers, at whatever level the volume keys have just set, so the
+/// level is heard as well as seen. Volume only: never on mute, which is the absence of sound, and
+/// never on brightness, which makes none.
 pub fn blip() {
     // A nested run's click would play on the speakers of the desktop around it.
     if crate::launch::machine_commands_held() {

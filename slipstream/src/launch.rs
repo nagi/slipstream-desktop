@@ -483,7 +483,7 @@ pub fn backlight() -> Option<(String, u64, u64)> {
     ))
 }
 
-fn strings(parts: &[&str]) -> Vec<String> {
+pub(crate) fn strings(parts: &[&str]) -> Vec<String> {
     parts.iter().map(|part| part.to_string()).collect()
 }
 

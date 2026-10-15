@@ -338,7 +338,7 @@ pub fn lineage(proc: &Path, pid: u32) -> Vec<u32> {
 /// The parent pid from a `/proc/<pid>/stat` line: `pid (comm) state ppid …`. The command name is
 /// whatever the program called itself, spaces and parentheses included, so the fields are counted
 /// from its last closing parenthesis.
-fn parent_of(stat: &str) -> Option<u32> {
+pub(crate) fn parent_of(stat: &str) -> Option<u32> {
     let mut fields = stat[stat.rfind(')')? + 1..].split_whitespace();
     fields.next()?;
     fields.next()?.parse().ok()

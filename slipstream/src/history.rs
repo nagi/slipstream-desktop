@@ -393,7 +393,6 @@ impl History {
         self.frame.contains(pos)
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub fn element<R>(
         &mut self,
         renderer: &mut R,
