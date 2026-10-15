@@ -143,6 +143,37 @@ impl Slipstream {
         }
     }
 
+    /// The session an AI agent left a note about in `window`'s terminal, if the terminal's process
+    /// has that window alone: a process with more than one window can't say which of them a shell
+    /// belongs to.
+    pub(super) fn agent_session(&self, window: &Window) -> Option<resume::Session> {
+        let pid = self.window_pid(window)?;
+        let windows = self
+            .all_open_windows()
+            .iter()
+            .filter(|other| self.window_pid(other) == Some(pid))
+            .count();
+        (windows == 1).then(|| resume::in_terminal(pid)).flatten()
+    }
+
+    /// Ends the process of a terminal whose agent's session comes back with the layout, as a logout
+    /// with no desktop to ask it first would. Its "programs are still running" question would only
+    /// hold the way out up for an answer the layout has already given.
+    fn end_terminal(&mut self, window: &Window) {
+        let Some(pid) = self.window_pid(window) else {
+            self.close_window(window);
+            return;
+        };
+        tracing::info!(
+            window = logged_app(window),
+            "closing a terminal whose agent comes back with the layout"
+        );
+        // SAFETY: kill takes a pid and a signal, and the pid is the live client's own.
+        if unsafe { libc::kill(pid as libc::pid_t, libc::SIGTERM) } != 0 {
+            self.close_window(window);
+        }
+    }
+
     /// The desktop as it stands: which app is on which workspace, where it sits in the tiling, what
     /// gravity was doing with it, and what is in the code rain. Apps and places only — no window
     /// titles are ever written down. A terminal in which an AI agent has left word of how to
@@ -151,20 +182,7 @@ impl Slipstream {
         let mut windows = Vec::new();
         let mut workspaces = Vec::new();
         let focused = self.focused_window();
-        // A process with more than one window can't say which of them a shell belongs to.
-        let processes: Vec<u32> = self
-            .workspaces
-            .all_windows()
-            .into_iter()
-            .chain(self.rain.streams.iter().map(|stream| stream.window.clone()))
-            .chain(self.dock.iter().map(|docked| docked.window.clone()))
-            .filter_map(|window| self.window_pid(&window))
-            .collect();
-        let session = |window: &Window| {
-            let pid = self.window_pid(window)?;
-            let alone = processes.iter().filter(|&&other| other == pid).count() == 1;
-            alone.then(|| resume::in_terminal(pid)).flatten()
-        };
+        let session = |window: &Window| self.agent_session(window);
         for index in 0..self.workspaces.count() {
             let workspace = self.workspaces.get(index);
             let here = workspace.layout.windows();
@@ -809,8 +827,15 @@ impl Slipstream {
         match act {
             Act::Nothing => {}
             Act::Close(windows) => {
-                for window in windows {
+                let remember = self.exit.as_ref().is_some_and(Exit::remember);
+                let (ask, end) = crate::exit::split_closing(windows, remember, |window| {
+                    self.agent_session(window).is_some()
+                });
+                for window in ask {
                     self.close_window(&window);
+                }
+                for window in end {
+                    self.end_terminal(&window);
                 }
             }
             // Nothing was lost: the desktop is as it was, minus whatever already closed.

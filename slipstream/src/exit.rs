@@ -738,6 +738,20 @@ fn paint_slim(slim: &Slim, scale: f64) -> Option<Painted> {
     })
 }
 
+/// The windows the way out asks to close, and the ones it closes itself. With the layout being
+/// kept, a terminal an AI agent left a note in comes back with its session, so it isn't held up by
+/// its own "programs are still running" question. Without the layout, every window is asked.
+pub fn split_closing<W>(
+    windows: Vec<W>,
+    remember: bool,
+    comes_back: impl Fn(&W) -> bool,
+) -> (Vec<W>, Vec<W>) {
+    if !remember {
+        return (windows, Vec::new());
+    }
+    windows.into_iter().partition(|window| !comes_back(window))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -764,6 +778,20 @@ mod tests {
             Phase::Choosing { selected } => Way::ALL[selected].name(),
             other => panic!("not choosing: {other:?}"),
         }
+    }
+
+    #[test]
+    fn a_terminal_whose_agent_comes_back_is_closed_without_its_question() {
+        let agent = |window: &u32| *window == 2;
+        assert_eq!(
+            split_closing(vec![1, 2, 3], true, agent),
+            (vec![1, 3], vec![2])
+        );
+        // Not keeping the layout, the session doesn't come back: its terminal is asked like any.
+        assert_eq!(
+            split_closing(vec![1, 2, 3], false, agent),
+            (vec![1, 2, 3], vec![])
+        );
     }
 
     #[test]
