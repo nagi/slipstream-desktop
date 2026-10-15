@@ -29,10 +29,11 @@
 #   agent-notify usage [--refresh]  plan limits used, as JSON for a desktop meter (see Usage limits)
 #   agent-notify keep claude [ARGS] start a session in the background, attached to this terminal;
 #                                   alias claude='agent-notify keep claude' makes it the default
-#   agent-notify hook AGENT EVENT   what the hooks run; EVENT is start, finish, attention,
-#                                   working (the agent has carried on after waiting on you), or
-#                                   waiting (the agent has dispatched a subagent and is waiting), or
-#                                   step (the agent is calling its model: a start if it was idle)
+#   agent-notify hook AGENT EVENT   what the hooks run; EVENT is session_start, start, finish,
+#                                   attention, working (the agent has carried on after waiting on
+#                                   you), waiting (the agent has dispatched a subagent and is
+#                                   waiting), subagent_done (a subagent has handed back), or step
+#                                   (the agent is calling its model: a start if it was idle)
 #
 # Agents: claude (Claude Code), gemini (Gemini CLI), codex (Codex CLI), agy (Antigravity CLI).
 #
@@ -118,6 +119,25 @@ is_number() {
         '' | *[!0-9]*) return 1 ;;
         *) return 0 ;;
     esac
+}
+
+# Makes $STATE, private to this user. Without a runtime folder its parent is a fixed name in /tmp
+# that anyone could have made first, and files written into someone else's folder can be pointed
+# anywhere, so a parent that isn't this user's own is refused.
+make_state() {
+    if [ -z "${XDG_RUNTIME_DIR:-}" ]; then
+        mkdir -m 700 "${STATE%/*}" 2>/dev/null
+        if [ -L "${STATE%/*}" ] || [ "$(stat -c %u "${STATE%/*}" 2>/dev/null)" != "$(id -u)" ]; then
+            return 1
+        fi
+        chmod 700 "${STATE%/*}" || return 1
+    fi
+    mkdir -p "$STATE" && chmod 700 "$STATE"
+}
+
+# Single-quoted for a shell, whatever it holds.
+shell_quote() {
+    printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"
 }
 
 # ---------------------------------------------------------------------------------------------
@@ -251,7 +271,7 @@ task() {
     printf '%s' "$task_title" | tr '\n' ' ' | tr -d '\000-\037\177' | cut -c1-60
 }
 
-# working_note AGENT on|on-clear|wait|off|idle: leaves, updates, or marks idle the note that
+# working_note AGENT on|on-clear|on-sub|wait|off|idle: leaves, updates, or marks idle the note that
 # says what the agent is doing. Only where a desktop has made the folder for them. The first line
 # names the agent; a second line of "waiting" or "idle" says what it is doing; no second line
 # means active. The note stays while the session is open; "off" writes idle and the desktop cleans
@@ -408,7 +428,7 @@ hook() {
 
     session=$(field '.session_id // .conversationId' | tr -cd 'A-Za-z0-9_-' | cut -c1-80)
     [ -n "$session" ] || session=default
-    mkdir -p "$STATE" && chmod 700 "$STATE"
+    make_state || exit 0
     started_file=$STATE/$agent-$session.started
     id_file=$STATE/$agent-$session.id
     notify_app=$(agent_name "$agent")
@@ -535,10 +555,12 @@ plugins purge respawn rm setup-token stop ultrareview update upgrade"
 # Leaving the session in the window (detaching, or quitting the agent view) stops it, as quitting
 # the agent does anywhere else: its conversation is kept, and attaching opens it again.
 keep_attach() {
-    mkdir -p "$STATE" && chmod 700 "$STATE"
-    printf '%s\n' "$$" >"$STATE/$1-$2.window"
+    if make_state; then
+        printf '%s\n' "$$" >"$STATE/$1-$2.window"
+    fi
     if [ -n "${XDG_RUNTIME_DIR:-}" ] && mkdir -p "$XDG_RUNTIME_DIR/slipstream/resume" 2>/dev/null; then
-        printf "'%s' keep %s attach %s\n" "$self" "$1" "$2" >"$XDG_RUNTIME_DIR/slipstream/resume/$$"
+        printf '%s keep %s attach %s\n' "$(shell_quote "$self")" "$1" "$2" \
+            >"$XDG_RUNTIME_DIR/slipstream/resume/$$"
     fi
     trap 'exit 0' HUP TERM
     "$1" attach "$2"
@@ -562,8 +584,13 @@ keep() {
     if [ "$keep_agent" != claude ] || [ ! -t 0 ] || [ ! -t 1 ]; then
         exec "$keep_agent" "$@"
     fi
+    # The ID goes into the note run again at the next login, so only one shaped like an ID is kept
+    # there; anything else is claude's to answer.
     if [ "${1:-}" = attach ] && [ $# -eq 2 ]; then
-        keep_attach claude "$2"
+        case $2 in
+            '' | *[!0-9A-Za-z_-]*) ;;
+            *) keep_attach claude "$2" ;;
+        esac
     fi
     for keep_word in $CLAUDE_COMMANDS; do
         if [ "${1:-}" = "$keep_word" ]; then
@@ -590,7 +617,7 @@ keep() {
 
 # The command a hook runs, quoted for the shell each agent runs hooks under.
 hook_command() {
-    printf "'%s' hook %s" "$self" "$1"
+    printf '%s hook %s' "$(shell_quote "$self")" "$1"
 }
 
 # merge FILE JQ_PROGRAM [jq args...]: rewrites a JSON settings file through jq, atomically, keeping
@@ -722,8 +749,8 @@ write_default_config() {
 # The agents to wire up, any of: $KNOWN_AGENTS
 agents = $detected
 
-# A task that runs this long, in seconds, is announced as critical, with a sound. Shorter ones get a
-# quiet notification.
+# A task that runs this long, in seconds, is announced with a sound, and as critical if it's waiting
+# on you. Shorter ones get a quiet notification.
 long-task-secs = 120
 
 # Sound theme names (freedesktop sound naming), for the long tasks.
@@ -754,9 +781,12 @@ setup() {
                     ;;
             esac
         done
-        conf_tmp=$(mktemp "$CONFIG.XXXXXX")
-        sed "s/^[[:space:]]*agents[[:space:]]*=.*/agents = $*/" "$CONFIG" >"$conf_tmp" &&
+        conf_tmp=$(mktemp "$CONFIG.XXXXXX") || exit 1
+        if sed "s/^[[:space:]]*agents[[:space:]]*=.*/agents = $*/" "$CONFIG" >"$conf_tmp"; then
             mv "$conf_tmp" "$CONFIG"
+        else
+            rm -f "$conf_tmp"
+        fi
     fi
     wanted=$(conf agents "")
     for agent in $KNOWN_AGENTS; do
