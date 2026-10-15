@@ -106,15 +106,24 @@ use crate::{
     workspace::{Workspace, Workspaces},
 };
 
+mod arrangements;
 mod bullet_time;
 mod debug_steps;
 mod docked;
+mod keyboard_focus;
 mod lifecycle;
 mod screens;
 mod streams;
 mod ui;
+mod window_props;
 mod windows;
 mod workspaces;
+
+pub use screens::is_internal_panel;
+use window_props::{configure, is_override_redirect, pretty_name, toplevel_data};
+pub(crate) use window_props::{
+    deactivate, is_child_of, logged_app, min_size, window_app_id, window_title,
+};
 
 /// An app with no visible window: it closed its last window but its Wayland client is still
 /// running. Shown in the notification centre so the user knows it's still there.
@@ -124,29 +133,6 @@ pub struct BackgroundApp {
     pub client_id: ClientId,
     pub icon: Option<resvg::tiny_skia::Pixmap>,
 }
-
-/// The last dot-separated segment of a Wayland app ID, with the first letter capitalised:
-/// `com.discord.Discord` → `Discord`, `spotify` → `Spotify`.
-pub(crate) fn pretty_name(app_id: &str) -> String {
-    let last = app_id.rsplit('.').next().unwrap_or(app_id);
-    let mut chars = last.chars();
-    match chars.next() {
-        None => String::new(),
-        Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
-    }
-}
-
-/// Whether `window` is being moved or resized by the pointer, so it follows it without gliding.
-fn space_placed_now(drag: &Option<crate::grabs::Drag>, window: &Window) -> bool {
-    matches!(
-        drag,
-        Some(crate::grabs::Drag::Move { window: dragged, .. } | crate::grabs::Drag::Resize { window: dragged, .. })
-            if dragged == window
-    )
-}
-
-/// A floating window where it goes, and the size the keys asked of it, if any.
-type PlacedFloat = (Window, Rect, Option<(i32, i32)>);
 
 /// How long the recorded layout waits for the desktop entries to be read before giving up on
 /// this login. The scan takes a fraction of a second; this is only a backstop.
@@ -380,7 +366,6 @@ pub struct Slipstream {
     pub idle: Idle,
     /// Whether you're typing, which decides what may take the keyboard.
     pub concentration: crate::concentration::Concentration,
-    /// The living wallpaper.
     /// The living wallpaper, one per screen: each keeps its own grid, sized to that screen, and
     /// its own turn through the variations.
     pub savers: HashMap<String, Saver>,
@@ -488,11 +473,8 @@ impl Slipstream {
 
         let dh = display.handle();
 
-        // Here we initialize implementations of some wayland protocols
-        // Some of them require us to implement traits on the Slipstream state,
-        // you can find those implementations in the `crate::handlers` module
-
-        // Initialize protocols needed for displaying windows
+        // The protocols' handler traits are implemented in `crate::handlers` and beside each
+        // feature that speaks one.
         let compositor_state = CompositorState::new::<Self>(&dh);
         let xdg_shell_state = XdgShellState::new::<Self>(&dh);
         let xdg_decoration_state = XdgDecorationState::new::<Self>(&dh);
@@ -524,41 +506,29 @@ impl Slipstream {
         let clipboard_globals = clipboard::state(&dh, &primary_selection_state);
         let xwayland_shell_state = XWaylandShellState::new::<Self>(&dh);
 
-        // A seat is a group of keyboards, pointer and touch devices.
-        // A seat typically has a pointer and maintains a keyboard focus and a pointer focus.
         let mut seat_state = SeatState::new();
         let mut seat: Seat<Self> = seat_state.new_wl_seat(&dh, "seat0");
 
         // The layout comes from XKB_DEFAULT_LAYOUT and friends, which the session script sets
         // from the system keyboard settings.
         seat.add_keyboard(Default::default(), 200, 25).unwrap();
-
-        // Notify clients that we have a pointer (mouse)
-        // Here we assume that there is always pointer plugged in
+        // There is always a pointer, plugged in or not, so the rest of the code can rely on one.
         seat.add_pointer();
 
-        // A space represents a two-dimensional plane. Windows and Outputs can be mapped onto it.
-        //
-        // Windows get a position and stacking order through mapping.
-        // Outputs become views of a part of the Space and can be rendered via Space::render_output.
         let space = Space::default();
-
-        // Setup a wayland socket that will be used to accept clients
         let socket_name = Self::init_wayland_listener(display, event_loop);
-
-        // Get the loop signal, used to stop the event loop
         let loop_signal = event_loop.get_signal();
 
         // Screen sharing: the portal's own globals, offered to the portal alone.
         let capture_globals = capture::state(&dh);
 
-        // Video players ask for the screen to stay awake, which keeps the UI from fading.
         // `wlr-gamma-control`: wlsunset and the like drive a screen's ramps themselves, and the
         // night light stands aside for whichever screens they have taken.
         crate::gamma::state(&dh);
         // `wlr-screencopy`: grim, wf-recorder and the screenshot scripts people already have.
         // Offered to every client, and refused unless the program has been allowed (`screencopy.rs`).
         crate::screencopy::state(&dh);
+        // Video players ask for the screen to stay awake, which keeps the UI from fading.
         let idle_inhibit_state = IdleInhibitManagerState::new::<Self>(&dh);
         // `ext-idle-notify`: swayidle and anything else that waits for the seat to go quiet.
         // Slipstream does its own fading and locking on its own timers; this only tells other
@@ -877,29 +847,27 @@ impl Slipstream {
         display: Display<Slipstream>,
         event_loop: &mut EventLoop<Self>,
     ) -> OsString {
-        // Creates a new listening socket, automatically choosing the next available `wayland` socket name.
+        // The next free `wayland-N` name.
         let listening_socket = ListeningSocketSource::new_auto().unwrap();
-
-        // Get the name of the listening socket.
-        // Clients will connect to this socket.
         let socket_name = listening_socket.socket_name().to_os_string();
 
         let loop_handle = event_loop.handle();
 
         loop_handle
             .insert_source(listening_socket, move |client_stream, _, state| {
-                // Inside the callback, you should insert the client into the display.
-                //
-                // You may also associate some data with the client when inserting the client.
                 let data = ClientState::for_connection(&client_stream);
-                state
+                // A client that can't be taken on (out of file descriptors, say) is turned away;
+                // the desktop carries on for everyone else.
+                if let Err(err) = state
                     .display_handle
                     .insert_client(client_stream, Arc::new(data))
-                    .unwrap();
+                {
+                    tracing::warn!("couldn't take on a new client: {err}");
+                }
             })
             .expect("Failed to init the wayland event source.");
 
-        // You also need to add the display itself to the event loop, so that client events will be processed by wayland-server.
+        // Client requests are read and dispatched whenever the display's socket is readable.
         loop_handle
             .insert_source(
                 Generic::new(display, Interest::READ, Mode::Level),
@@ -916,7 +884,6 @@ impl Slipstream {
         socket_name
     }
 
-    /// Retiles when a window's client has changed its minimum size since it was last tiled.
     /// A floating window drew itself at a new size: it's placed again, so it stays inside its area
     /// and its drawing matches.
     pub fn retile_if_floating_resized(&mut self, window: &Window) {
@@ -935,6 +902,7 @@ impl Slipstream {
         }
     }
 
+    /// Retiles when a window's client has changed its minimum size since it was last tiled.
     pub fn retile_if_min_changed(&mut self, window: &Window) {
         let changed = self
             .tiled_mins
@@ -1214,81 +1182,6 @@ impl Slipstream {
     }
 }
 
-/// How a workspace is named in a sentence: `Workspace 3`, or its own name.
-fn workspace_called(label: &str) -> String {
-    if label.chars().all(|ch| ch.is_ascii_digit()) {
-        format!("Workspace {label}")
-    } else {
-        label.to_string()
-    }
-}
-
-/// X11 menus, tooltips and drag images: they place themselves and are never tiled.
-/// Whether an output is the laptop's own panel, by the kind of connector it is on. Embedded
-/// DisplayPort, LVDS and DSI are the three a built-in screen turns up on; everything else is
-/// something plugged in.
-/// One screen to be placed: its connector's name, how big it is, and where its owner says it sits.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Placing {
-    pub name: String,
-    pub width: i32,
-    pub height: i32,
-    pub place: slipstream_config::ScreenPlace,
-}
-
-/// Where each lit screen's top left corner goes. Panels come first, then everything else in the
-/// order it connected; each screen is then placed against the one before it by its own setting —
-/// to the right by default, which is what Slipstream did before there was any say in it.
-///
-/// The result is shifted so nothing sits at a negative coordinate: a screen placed left of or
-/// above the panel moves everything else along rather than putting the desktop off the top left.
-pub fn arrange(screens: &[Placing], panel: impl Fn(&str) -> bool) -> Vec<(String, i32, i32)> {
-    use slipstream_config::{Align, Position};
-    let (panels, others): (Vec<_>, Vec<_>) = screens.iter().partition(|s| panel(&s.name));
-    let order: Vec<&Placing> = panels.into_iter().chain(others).collect();
-    let mut placed: Vec<(String, i32, i32, i32, i32)> = Vec::new();
-    for screen in order {
-        let Some((px, py, pw, ph)) = placed.last().map(|(_, x, y, w, h)| (*x, *y, *w, *h)) else {
-            placed.push((screen.name.clone(), 0, 0, screen.width, screen.height));
-            continue;
-        };
-        let (w, h) = (screen.width, screen.height);
-        // Along the axis the screens are stacked on, they touch; across it, the setting says
-        // which edges line up.
-        let across = |mine: i32, theirs: i32| match screen.place.align {
-            Align::Start => 0,
-            Align::Centre => (theirs - mine) / 2,
-            Align::End => theirs - mine,
-        };
-        let (x, y) = match screen.place.position {
-            Position::RightOf => (px + pw, py + across(h, ph)),
-            Position::LeftOf => (px - w, py + across(h, ph)),
-            Position::Above => (px + across(w, pw), py - h),
-            Position::Below => (px + across(w, pw), py + ph),
-        };
-        placed.push((screen.name.clone(), x, y, w, h));
-    }
-    let left = placed.iter().map(|(_, x, ..)| *x).min().unwrap_or(0);
-    let top = placed.iter().map(|(_, _, y, ..)| *y).min().unwrap_or(0);
-    placed
-        .into_iter()
-        .map(|(name, x, y, _, _)| (name, x - left, y - top))
-        .collect()
-}
-
-pub fn is_internal_panel(name: &str) -> bool {
-    let name = name.to_ascii_lowercase();
-    ["edp", "lvds", "dsi"]
-        .iter()
-        .any(|kind| name.starts_with(kind))
-}
-
-fn is_override_redirect(window: &Window) -> bool {
-    window
-        .x11_surface()
-        .is_some_and(|surface| surface.is_override_redirect())
-}
-
 /// How recently a window was focused: 0 for the focused window, higher for older ones.
 fn recency(history: &[Window], window: &Window) -> usize {
     history
@@ -1307,155 +1200,7 @@ fn workspace_entries(settings: &slipstream_config::Settings) -> Vec<(u32, String
         .collect()
 }
 
-/// The most a client's minimum size is taken at, in logical pixels: wider and taller than any
-/// tiling area, so a real minimum is never cut short.
-const MIN_SIZE_LIMIT: i32 = 16384;
-
-/// The smallest size a window's client will draw at, width and height, 0 where it sets none.
-pub(crate) fn min_size(window: &Window) -> (i32, i32) {
-    if let Some(surface) = window.x11_surface() {
-        return clamp_min_size(surface.min_size().map_or((0, 0), |size| (size.w, size.h)));
-    }
-    window.toplevel().map_or((0, 0), |toplevel| {
-        with_states(toplevel.wl_surface(), |states| {
-            let size = states
-                .cached_state
-                .get::<SurfaceCachedState>()
-                .current()
-                .min_size;
-            clamp_min_size((size.w, size.h))
-        })
-    })
-}
-
-/// A minimum size as a client sent it, brought into range. Neither `xdg_toplevel.set_min_size`
-/// nor X11's size hints are checked before they arrive, and a width near `i32::MAX` would
-/// overflow the tiling's arithmetic.
-fn clamp_min_size((w, h): (i32, i32)) -> (i32, i32) {
-    (w.clamp(0, MIN_SIZE_LIMIT), h.clamp(0, MIN_SIZE_LIMIT))
-}
-
-pub(crate) fn window_title(window: &Window) -> String {
-    if let Some(surface) = window.x11_surface() {
-        return surface.title();
-    }
-    window
-        .toplevel()
-        .and_then(|toplevel| {
-            with_states(toplevel.wl_surface(), |states| {
-                states
-                    .data_map
-                    .get::<XdgToplevelSurfaceData>()?
-                    .lock()
-                    .ok()?
-                    .title
-                    .clone()
-            })
-        })
-        .unwrap_or_default()
-}
-
-/// Tells a window the size of `r`, its tile or (`full`) the whole screen, and which of its edges
-/// are tiled.
-/// Tells a window it isn't the active one any more, and sends that to its client.
-pub(crate) fn deactivate(window: &Window) {
-    window.set_activated(false);
-    if let Some(toplevel) = window.toplevel()
-        && toplevel.is_initial_configure_sent()
-    {
-        toplevel.send_pending_configure();
-    }
-}
-
-/// Whether `window` is `parent`'s own: an xdg toplevel whose parent is its surface, or an X11
-/// window transient for it.
-pub(crate) fn is_child_of(window: &Window, parent: &Window) -> bool {
-    if let (Some(child), Some(parent)) = (window.toplevel(), parent.wl_surface()) {
-        return child.parent().as_ref() == Some(&*parent);
-    }
-    if let (Some(child), Some(parent)) = (window.x11_surface(), parent.x11_surface()) {
-        return child.is_transient_for() == Some(parent.window_id());
-    }
-    false
-}
-
-/// The size to ask of a window for tile `r`, given its minimum size. The tile itself when the
-/// window can go that small. When it can't, the window is drawn scaled down into its tile, so it
-/// is asked for the tile's shape at the smallest size it accepts: scaled, it then fills the tile
-/// exactly, instead of leaving a band of the tile empty below or beside it.
-fn size_for_tile(r: Rect, (min_w, min_h): (i32, i32)) -> Rect {
-    if r.w <= 0 || r.h <= 0 || (r.w >= min_w && r.h >= min_h) {
-        return r;
-    }
-    let k = (min_w as f64 / r.w as f64).max(min_h as f64 / r.h as f64);
-    Rect {
-        w: ((r.w as f64 * k).ceil() as i32).max(min_w),
-        h: ((r.h as f64 * k).ceil() as i32).max(min_h),
-        ..r
-    }
-}
-
-fn configure(window: &Window, r: Rect, full: bool) {
-    if let Some(toplevel) = window.toplevel() {
-        toplevel.with_pending_state(|state| {
-            state.size = Some((r.w, r.h).into());
-            // Tiled edges tell clients to drop rounded corners and shadows there.
-            for edge in [
-                xdg_toplevel::State::TiledLeft,
-                xdg_toplevel::State::TiledRight,
-                xdg_toplevel::State::TiledTop,
-                xdg_toplevel::State::TiledBottom,
-            ] {
-                if full {
-                    state.states.unset(edge);
-                } else {
-                    state.states.set(edge);
-                }
-            }
-            if full {
-                state.states.set(xdg_toplevel::State::Fullscreen);
-            } else {
-                state.states.unset(xdg_toplevel::State::Fullscreen);
-            }
-        });
-        // Before a client's first commit, its initial configure carries this state instead.
-        if toplevel.is_initial_configure_sent() {
-            toplevel.send_pending_configure();
-        }
-    } else if let Some(surface) = window.x11_surface() {
-        let _ = surface.configure(Rectangle::new((r.x, r.y).into(), (r.w, r.h).into()));
-    }
-}
-
-/// A window's Wayland app ID or X11 class, lowercased, to match it to its desktop entry.
-/// A tiling tree with its windows swapped for their slot numbers, for writing down. A window
-/// `slot_of` doesn't know about takes the whole branch with it, so the tree that's written is
-/// always one the slot numbers can be read back against.
-pub(crate) fn window_app_id(window: &Window) -> Option<String> {
-    if let Some(surface) = window.x11_surface() {
-        return Some(surface.class().to_lowercase());
-    }
-    let toplevel = window.toplevel()?;
-    with_states(toplevel.wl_surface(), |states| {
-        states
-            .data_map
-            .get::<XdgToplevelSurfaceData>()?
-            .lock()
-            .ok()?
-            .app_id
-            .clone()
-    })
-    .map(|id| id.to_lowercase())
-}
-
-/// How the log names a window: by its app id, never by its title, which can hold a folder, a
-/// document's name, a URL or who a message is from. `window_name` is for text on the screen.
-pub(crate) fn logged_app(window: &Window) -> String {
-    window_app_id(window).unwrap_or_else(|| "unknown app".to_string())
-}
-
-/// Data associated with a wayland client that connects to Slipstream.
-/// One instance of this type per client.
+/// What Slipstream keeps about each connected client.
 #[derive(Default)]
 pub struct ClientState {
     pub compositor_state: CompositorClientState,
@@ -1469,8 +1214,9 @@ pub struct ClientState {
     /// Whether the client may be an input method or a virtual keyboard (`ime::client_may_type`):
     /// likewise, any client proven to be outside a sandbox.
     pub may_type: bool,
-    /// Whether the client may draw layer surfaces (`layers::client_may_draw`): likewise.
-    pub may_draw_layers: bool,
+    /// Whether the client is proven to be outside a sandbox, which it has to be to draw layer
+    /// surfaces or set gamma ramps.
+    pub unsandboxed: bool,
     /// What to call this client on a card that asks about it, and the path an answer is
     /// remembered against. `None` for a sandboxed client, one `/proc` couldn't be read for, or
     /// one whose executable anyone could rewrite — none of which can be asked about, because
@@ -1491,7 +1237,7 @@ impl ClientState {
             may_capture: capture::client_may_capture(peer.as_ref()),
             may_control_clipboard: clipboard::client_may_control(peer.as_ref()),
             may_type: crate::ime::client_may_type(peer.as_ref()),
-            may_draw_layers: crate::layers::client_may_draw(peer.as_ref()),
+            unsandboxed: peer.is_some(),
             ..Self::default()
         }
     }
@@ -1500,174 +1246,4 @@ impl ClientState {
 impl ClientData for ClientState {
     fn initialized(&self, _client_id: ClientId) {}
     fn disconnected(&self, _client_id: ClientId, _reason: DisconnectReason) {}
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn a_window_that_wont_fit_its_tile_is_asked_for_the_tile_s_shape() {
-        let tile = Rect {
-            x: 10,
-            y: 20,
-            w: 700,
-            h: 900,
-        };
-        assert_eq!(
-            size_for_tile(tile, (400, 300)),
-            tile,
-            "it fits: the tile itself"
-        );
-        let asked = size_for_tile(tile, (1034, 277));
-        assert_eq!((asked.x, asked.y), (10, 20));
-        assert!(asked.w >= 1034 && asked.h >= 277);
-        let (shape, asked_shape) = (
-            tile.w as f64 / tile.h as f64,
-            asked.w as f64 / asked.h as f64,
-        );
-        assert!(
-            (shape - asked_shape).abs() < 0.01,
-            "{shape} against {asked_shape}"
-        );
-        let tall = size_for_tile(tile, (100, 1200));
-        assert!(tall.h >= 1200 && (tall.w as f64 / tall.h as f64 - shape).abs() < 0.01);
-    }
-
-    /// Screens to place, each `(name, width, height)`, all following the one before them to the
-    /// right with their tops level — the default when nothing has been arranged by hand.
-    fn to_place(list: &[(&str, i32, i32)]) -> Vec<Placing> {
-        list.iter()
-            .map(|(name, w, h)| Placing {
-                name: name.to_string(),
-                width: *w,
-                height: *h,
-                place: slipstream_config::ScreenPlace {
-                    monitor: name.to_string(),
-                    ..Default::default()
-                },
-            })
-            .collect()
-    }
-
-    fn at(list: &[(&str, i32, i32)]) -> Vec<(String, i32, i32)> {
-        list.iter()
-            .map(|(name, x, y)| (name.to_string(), *x, *y))
-            .collect()
-    }
-
-    #[test]
-    fn internal_panels_go_first() {
-        // The monitor lit first, or the panel came back when the lid opened.
-        let places = arrange(
-            &to_place(&[("HDMI-A-1", 1920, 1080), ("eDP-1", 1536, 960)]),
-            is_internal_panel,
-        );
-        assert_eq!(places, at(&[("eDP-1", 0, 0), ("HDMI-A-1", 1536, 0)]));
-        // The panel goes out and comes back: still first.
-        let without = arrange(&to_place(&[("HDMI-A-1", 1920, 1080)]), is_internal_panel);
-        assert_eq!(without, at(&[("HDMI-A-1", 0, 0)]));
-        let back = arrange(
-            &to_place(&[("HDMI-A-1", 1920, 1080), ("eDP-1", 1536, 960)]),
-            is_internal_panel,
-        );
-        assert_eq!(back, places);
-        // Other screens keep the order they connected in.
-        let three = arrange(
-            &to_place(&[
-                ("DP-3", 2560, 1440),
-                ("eDP-1", 1536, 960),
-                ("HDMI-A-1", 1920, 1080),
-            ]),
-            is_internal_panel,
-        );
-        assert_eq!(
-            three,
-            at(&[("eDP-1", 0, 0), ("DP-3", 1536, 0), ("HDMI-A-1", 4096, 0)])
-        );
-    }
-
-    /// `list` is `(name, width, height, position, align)`, the panel first.
-    fn arranged(
-        list: &[(
-            &str,
-            i32,
-            i32,
-            slipstream_config::Position,
-            slipstream_config::Align,
-        )],
-    ) -> Vec<(String, i32, i32)> {
-        let screens: Vec<Placing> = list
-            .iter()
-            .map(|(name, w, h, position, align)| Placing {
-                name: name.to_string(),
-                width: *w,
-                height: *h,
-                place: slipstream_config::ScreenPlace {
-                    monitor: name.to_string(),
-                    position: *position,
-                    align: *align,
-                    ..Default::default()
-                },
-            })
-            .collect();
-        arrange(&screens, is_internal_panel)
-    }
-
-    #[test]
-    fn a_screen_can_be_put_above_the_panel() {
-        use slipstream_config::{Align, Position};
-        // A monitor on a stand behind the laptop: the desktop shifts down so nothing is off the
-        // top of the layout, and the panel ends up below it.
-        let places = arranged(&[
-            ("eDP-1", 1536, 960, Position::RightOf, Align::Start),
-            ("DP-2", 1920, 1080, Position::Above, Align::Start),
-        ]);
-        assert_eq!(places, at(&[("eDP-1", 0, 1080), ("DP-2", 0, 0)]));
-    }
-
-    #[test]
-    fn a_screen_can_be_put_left_of_the_panel() {
-        use slipstream_config::{Align, Position};
-        let places = arranged(&[
-            ("eDP-1", 1536, 960, Position::RightOf, Align::Start),
-            ("DP-2", 1920, 1080, Position::LeftOf, Align::Start),
-        ]);
-        // Nothing sits at a negative coordinate: the monitor takes x 0 and the panel follows it.
-        assert_eq!(places, at(&[("eDP-1", 1920, 0), ("DP-2", 0, 0)]));
-    }
-
-    #[test]
-    fn screens_beside_each_other_line_up_by_the_edges_asked_for() {
-        use slipstream_config::{Align, Position};
-        let tops = arranged(&[
-            ("eDP-1", 1536, 960, Position::RightOf, Align::Start),
-            ("DP-2", 1920, 1080, Position::RightOf, Align::Start),
-        ]);
-        assert_eq!(tops, at(&[("eDP-1", 0, 0), ("DP-2", 1536, 0)]));
-        // Middles level: the taller monitor starts 60 above the panel, so the layout shifts down
-        // by 60 and the panel sits there instead. Both middles land on 540.
-        let middles = arranged(&[
-            ("eDP-1", 1536, 960, Position::RightOf, Align::Start),
-            ("DP-2", 1920, 1080, Position::RightOf, Align::Centre),
-        ]);
-        assert_eq!(middles, at(&[("eDP-1", 0, 60), ("DP-2", 1536, 0)]));
-        assert_eq!(60 + 960 / 2, 1080 / 2, "the middles really are level");
-        let bottoms = arranged(&[
-            ("eDP-1", 1536, 960, Position::RightOf, Align::Start),
-            ("DP-2", 1920, 1080, Position::RightOf, Align::End),
-        ]);
-        // Bottoms level: the taller screen starts above the panel, so everything shifts down.
-        assert_eq!(bottoms, at(&[("eDP-1", 0, 120), ("DP-2", 1536, 0)]));
-    }
-
-    use super::*;
-
-    #[test]
-    fn a_minimum_size_from_a_client_is_brought_into_range() {
-        assert_eq!(clamp_min_size((940, 0)), (940, 0), "a real minimum stands");
-        assert_eq!(
-            clamp_min_size((i32::MAX, i32::MIN)),
-            (MIN_SIZE_LIMIT, 0),
-            "nothing past the limit, nothing below zero"
-        );
-    }
 }

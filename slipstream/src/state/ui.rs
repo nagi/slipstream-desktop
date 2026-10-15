@@ -206,7 +206,6 @@ impl Slipstream {
         self.osd.show(kind, level, now);
     }
 
-    /// As `show_osd`, with a line under the label.
     /// Turns Awake on or off, and says so on a card.
     pub fn set_awake(&mut self, on: bool) {
         tracing::info!("Awake {}", if on { "on" } else { "off" });
@@ -225,6 +224,7 @@ impl Slipstream {
         }
     }
 
+    /// As `show_osd`, with a line under the label.
     pub fn show_osd_with(&mut self, kind: osd::Kind, detail: &str) {
         if self.quick.is_open() {
             self.osd.hide();
@@ -538,7 +538,6 @@ impl Slipstream {
         self.show_toast("No terminal", "Install a terminal, or set $TERMINAL.");
     }
 
-    /// Quick settings' chevrons: the system's own settings page for Wi-Fi or Bluetooth.
     /// Slipstream's own Settings app, on the page with the id `page`.
     pub fn open_slipstream_settings(&mut self, page: &str) {
         self.concentration.asked(std::time::Instant::now());
@@ -555,6 +554,7 @@ impl Slipstream {
         }
     }
 
+    /// Quick settings' chevrons: the system's own settings page for Wi-Fi or Bluetooth.
     pub fn open_settings_page(&mut self, page: launch::Page) {
         let Some(command) = launch::settings_page(page) else {
             match page {

@@ -50,13 +50,13 @@ impl CompositorHandler for Slipstream {
                 self.retile_if_min_changed(&window);
                 self.retile_if_floating_resized(&window);
             }
-        };
+        }
 
         // A toplevel's first commit, or its first after unmapping itself, is answered with the
         // size it will be tiled at.
         self.send_initial_configure(surface);
 
-        xdg_shell::handle_commit(&mut self.popups, &self.space, surface);
+        xdg_shell::handle_commit(&mut self.popups, surface);
         self.layer_commit(surface);
 
         // A toplevel with its first buffer is a window worth a tile. Before that it may never be
@@ -68,12 +68,10 @@ impl CompositorHandler for Slipstream {
         self.claim_on_commit(surface);
 
         // An X11 window maps before XWayland gives it a surface; it takes focus once it has one.
-        if self
+        if let Some(window) = self
             .pending_focus
-            .as_ref()
-            .is_some_and(|window| window.wl_surface().is_some())
+            .take_if(|window| window.wl_surface().is_some())
         {
-            let window = self.pending_focus.take().unwrap();
             self.clear_focus();
             self.focus_window(&window);
         }

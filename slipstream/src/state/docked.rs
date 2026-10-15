@@ -230,14 +230,9 @@ impl Slipstream {
         let (Some(window), Some(rect)) = (self.docked_on_show(), self.docked_rect()) else {
             return;
         };
-        configure(&window, size_for_tile(rect, min_size(&window)), false);
+        configure(&window, rect, false);
         self.motion.place(&window, rect, now);
-        if self.space.element_location(&window).is_some() {
-            self.space.relocate_element(&window, (rect.x, rect.y));
-        } else {
-            self.space
-                .map_element(window.clone(), (rect.x, rect.y), false);
-        }
+        self.put_in_space(&window, rect);
         self.space.raise_element(&window, false);
     }
 }

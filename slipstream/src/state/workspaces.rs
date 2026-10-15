@@ -234,12 +234,7 @@ impl Slipstream {
                 (true, Some(screen)) => screen,
                 _ => tile,
             };
-            let asked = if full {
-                r
-            } else {
-                size_for_tile(r, min_size(&window))
-            };
-            configure(&window, asked, full);
+            configure(&window, r, full);
             self.motion.place(&window, r, now);
         }
         let Some(area) = self.area_for_workspace(index) else {
@@ -309,13 +304,6 @@ impl Slipstream {
                     now + crate::switcher::APPEAR,
                 )
             });
-    }
-
-    /// Ends the way out while it is still asking, as Esc on its card does.
-    pub fn cancel_exit(&mut self) {
-        tracing::info!("the way out was cancelled");
-        self.exit = None;
-        self.exit_record = None;
     }
 
     /// Alt let go after Alt+Tab, or a tile clicked: the switcher's choice is committed. A

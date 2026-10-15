@@ -464,7 +464,7 @@ impl Slipstream {
     /// A pointer button in bullet time. On a window, a left press goes to it when let go, unless
     /// it became a drag, which sends the window to the workspace it's let go over; a left click on
     /// its close button closes it; the middle button closes it and the right one minimises it.
-    /// Anything else (the bar, a stream, a frame) is a click, as before.
+    /// Anything else (the bar, a stream, a frame) is a click.
     pub fn bullet_button(&mut self, button: u32, pressed: bool, pos: Point<f64, Logical>) {
         const LEFT: u32 = 0x110;
         const RIGHT: u32 = 0x111;
@@ -595,28 +595,14 @@ impl Slipstream {
         if let Some(window) = self.docked_at(pos) {
             return self.bullet_go(Some(Target::Window(window)));
         }
-        let Some(screen) = self.output_rect() else {
-            return;
-        };
         // The overview is tilted on screen; its hit areas are kept flat.
-        let local = (pos.x - screen.x as f64, pos.y - screen.y as f64);
-        let Some(local) = self.overview_tilt.unproject(local) else {
+        let Some(at) = self.overview_point(pos) else {
             return;
         };
-        let window = self
-            .overview_hits
-            .iter()
-            .find(|(_, area)| area.contains(local))
-            .map(|(window, _)| window.clone());
-        if let Some(window) = window {
+        if let Some((window, _)) = self.overview_window_at(at) {
             return self.bullet_go(Some(Target::Window(window)));
         }
-        let frame = self
-            .frame_hits
-            .iter()
-            .find(|(_, area)| area.contains(local))
-            .map(|(index, _)| *index);
-        if let Some(index) = frame {
+        if let Some(index) = self.overview_frame_at(at) {
             if let Some(mode) = self.bullet.as_mut() {
                 mode.view = index;
             }

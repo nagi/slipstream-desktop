@@ -33,8 +33,6 @@ impl Slipstream {
             .collect()
     }
 
-    /// Ctrl+Alt+Del, or Log out, Restart or Shut down: the way out asks first, then gives the
-    /// apps a moment to close themselves. Only the watchdog's emergency quit skips it.
     /// Ctrl+Alt+Del: the way out, on its chooser. Pressed again while it is up, it closes, as
     /// every other panel's own key does.
     pub fn open_way_out(&mut self) {
@@ -55,6 +53,8 @@ impl Slipstream {
         ));
     }
 
+    /// Log out, Restart or Shut down: the way out asks first, then gives the apps a moment to
+    /// close themselves. Only the watchdog's emergency quit skips it.
     pub fn begin_exit(&mut self, intent: Intent) {
         if self.exit.is_some() {
             return;
@@ -71,6 +71,13 @@ impl Slipstream {
             self.clock.reduced_motion,
             self.settings.session.remember,
         ));
+    }
+
+    /// Ends the way out while it is still asking, as Esc on its card does.
+    pub fn cancel_exit(&mut self) {
+        tracing::info!("the way out was cancelled");
+        self.exit = None;
+        self.exit_record = None;
     }
 
     /// Something moved. The layout goes to disk once the desktop has been still for
@@ -168,7 +175,8 @@ impl Slipstream {
             window = logged_app(window),
             "closing a terminal whose agent comes back with the layout"
         );
-        // SAFETY: kill takes a pid and a signal, and the pid is the live client's own.
+        // SAFETY: kill takes a pid and a signal and touches no memory of ours. An X11 window's pid
+        // is its own claim, but only one naming a terminal with an agent's note gets this far.
         if unsafe { libc::kill(pid as libc::pid_t, libc::SIGTERM) } != 0 {
             self.close_window(window);
         }
@@ -191,27 +199,22 @@ impl Slipstream {
                 let Some(app) = window_app_id(window) else {
                     continue;
                 };
-                let session = session(window);
-                windows.push(session::Win {
-                    app,
-                    // Counting from 1 in the file; the name goes with the tree below.
-                    workspace: Some(index + 1),
-                    slot,
-                    focused: focused.as_ref() == Some(window),
-                    in_rain: false,
-                    docked: None,
-                    gravity: workspace
-                        .gravity
-                        .is_on()
-                        .then(|| workspace.gravity.rung(window).label().to_string()),
-                    pinned: workspace.gravity.is_pinned(window),
-                    resume: session.as_ref().map(|session| session.command.clone()),
-                    directory: session
-                        .as_ref()
-                        .and_then(|session| session.directory.clone()),
-                    shell: session.as_ref().and_then(|session| session.shell.clone()),
-                    search_path: session.and_then(|session| session.search_path),
-                });
+                windows.push(with_agent_session(
+                    session::Win {
+                        app,
+                        // Counting from 1 in the file; the name goes with the tree below.
+                        workspace: Some(index + 1),
+                        slot,
+                        focused: focused.as_ref() == Some(window),
+                        gravity: workspace
+                            .gravity
+                            .is_on()
+                            .then(|| workspace.gravity.rung(window).label().to_string()),
+                        pinned: workspace.gravity.is_pinned(window),
+                        ..session::Win::default()
+                    },
+                    session(window),
+                ));
             }
             if let Some(shape) = workspace.layout.shape() {
                 // Slot numbers, so the tree means something without the windows themselves.
@@ -227,20 +230,16 @@ impl Slipstream {
         }
         for (slot, stream) in self.rain.streams.iter().enumerate() {
             if let Some(app) = window_app_id(&stream.window) {
-                let session = session(&stream.window);
-                windows.push(session::Win {
-                    app,
-                    workspace: None,
-                    slot,
-                    in_rain: true,
-                    resume: session.as_ref().map(|session| session.command.clone()),
-                    directory: session
-                        .as_ref()
-                        .and_then(|session| session.directory.clone()),
-                    shell: session.as_ref().and_then(|session| session.shell.clone()),
-                    search_path: session.and_then(|session| session.search_path),
-                    ..session::Win::default()
-                });
+                windows.push(with_agent_session(
+                    session::Win {
+                        app,
+                        workspace: None,
+                        slot,
+                        in_rain: true,
+                        ..session::Win::default()
+                    },
+                    session(&stream.window),
+                ));
             }
         }
         // A docked window has no place in any workspace's tree: it is kept as one more in the
@@ -248,21 +247,17 @@ impl Slipstream {
         if let Some(docked) = &self.dock
             && let Some(app) = window_app_id(&docked.window)
         {
-            let session = session(&docked.window);
-            windows.push(session::Win {
-                app,
-                workspace: None,
-                slot: self.rain.streams.len(),
-                in_rain: true,
-                docked: Some(docked.size.label().to_string()),
-                resume: session.as_ref().map(|session| session.command.clone()),
-                directory: session
-                    .as_ref()
-                    .and_then(|session| session.directory.clone()),
-                shell: session.as_ref().and_then(|session| session.shell.clone()),
-                search_path: session.and_then(|session| session.search_path),
-                ..session::Win::default()
-            });
+            windows.push(with_agent_session(
+                session::Win {
+                    app,
+                    workspace: None,
+                    slot: self.rain.streams.len(),
+                    in_rain: true,
+                    docked: Some(docked.size.label().to_string()),
+                    ..session::Win::default()
+                },
+                session(&docked.window),
+            ));
         }
         session::Record::new(self.active_workspace() + 1, windows, workspaces)
     }
@@ -667,7 +662,7 @@ impl Slipstream {
             .map(|choice| self.share_row(choice))
             .collect();
         tracing::info!(choices = choices.len(), "an app asked to share the screen");
-        let now = self.start_time.elapsed().as_secs_f64();
+        let now = self.wall();
         self.explorer.close();
         self.quick.close();
         self.centre.close();
@@ -730,10 +725,11 @@ impl Slipstream {
     }
 
     pub fn share_click(&mut self, x: f64, y: f64) {
+        let now = self.wall();
         let Some(picker) = self.share.as_mut() else {
             return;
         };
-        let act = picker.click(x, y);
+        let act = picker.click(x, y, now);
         self.act_on_share(act);
     }
 
@@ -935,5 +931,19 @@ impl Slipstream {
         let act = exit.click(x, y, wall);
         self.exit = Some(exit);
         self.act_on_exit(act);
+    }
+}
+
+/// A recorded window, with how to reopen the AI agent session left in its terminal, if one was.
+fn with_agent_session(win: session::Win, agent: Option<resume::Session>) -> session::Win {
+    let Some(agent) = agent else {
+        return win;
+    };
+    session::Win {
+        resume: Some(agent.command),
+        directory: agent.directory,
+        shell: agent.shell,
+        search_path: agent.search_path,
+        ..win
     }
 }

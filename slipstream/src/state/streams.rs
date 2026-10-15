@@ -4,7 +4,6 @@
 use super::*;
 
 impl Slipstream {
-    /// The app IDs and X11 classes of every open window, for the explorer's running dots.
     /// Every window there is: on any workspace, docked to the bar, or minimised into the code
     /// rain.
     pub fn all_open_windows(&self) -> Vec<Window> {
@@ -16,6 +15,7 @@ impl Slipstream {
             .collect()
     }
 
+    /// The app IDs and X11 classes of every open window, for the explorer's running dots.
     pub fn running_apps(&self) -> Vec<String> {
         self.all_open_windows()
             .iter()
@@ -89,7 +89,6 @@ impl Slipstream {
         }
     }
 
-    /// Super+M: the focused window pours into a stream of code rain on the right.
     /// Super+H: every window on this workspace into the code rain, and the same windows back on
     /// the next press. Windows' "minimise all", which Super+M only does one at a time.
     ///
@@ -137,6 +136,7 @@ impl Slipstream {
         self.hidden = Some(going);
     }
 
+    /// Super+M: the focused window pours into a stream of code rain on the right.
     pub fn minimise_focused(&mut self) {
         if let Some(window) = self.focused_window() {
             // The docked window leaves the bar for a stream of its own, from where its pane is.
@@ -171,18 +171,25 @@ impl Slipstream {
         }
         self.fullscreen.retain(|held| held != window);
         self.take_off_workspace(window);
-        let name = self.stream_name(window);
-        let icon_px = crate::rain::icon_px(scale);
-        let icon = window_app_id(window).and_then(|id| self.explorer.app_icon(&id, icon_px));
-        let pid = self.window_pid(window);
-        let now = self.clock.tick();
-        self.rain.add(window.clone(), name, icon, pid, now);
+        self.add_stream(window, scale);
         tracing::info!(
             window = logged_app(window),
             screen = self.screens.get(0).map(|screen| screen.output.name()),
             "minimised to code rain"
         );
         true
+    }
+
+    /// Gives `window` a stream of its own, headed with its app's name and icon at `scale`, and
+    /// returns the name.
+    pub(super) fn add_stream(&mut self, window: &Window, scale: f64) -> String {
+        let name = self.stream_name(window);
+        let icon_px = crate::rain::icon_px(scale);
+        let icon = window_app_id(window).and_then(|id| self.explorer.app_icon(&id, icon_px));
+        let pid = self.window_pid(window);
+        let now = self.clock.tick();
+        self.rain.add(window.clone(), name.clone(), icon, pid, now);
+        name
     }
 
     /// Sends `window` into its own stream over `over` seconds, fading over the same time so it is
@@ -252,7 +259,7 @@ impl Slipstream {
         }
         self.retile();
         if let Some((window, _)) = from.last() {
-            self.focus_window(&window.clone());
+            self.focus_window(window);
         }
     }
 

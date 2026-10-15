@@ -5,10 +5,6 @@ use std::os::unix::io::OwnedFd;
 
 use crate::{Slipstream, focus::KeyboardFocus};
 
-//
-// Wl Seat
-//
-
 use smithay::input::dnd::{DnDGrab, DndGrabHandler, GrabType, Source};
 use smithay::input::keyboard::LedState;
 use smithay::input::pointer::{CursorImageStatus, Focus};
@@ -204,17 +200,20 @@ impl WaylandDndGrabHandler for Slipstream {
         }
         match type_ {
             GrabType::Pointer => {
-                let ptr = seat.get_pointer().unwrap();
-                let start_data = ptr.grab_start_data().unwrap();
-
-                // create a dnd grab to start the operation
+                let Some(ptr) = seat.get_pointer() else {
+                    source.cancel();
+                    return;
+                };
+                // The drag takes over the press that started it.
+                let Some(start_data) = ptr.grab_start_data() else {
+                    source.cancel();
+                    return;
+                };
                 let grab = DnDGrab::new_pointer(&self.display_handle, start_data, source, seat);
                 ptr.set_grab(self, grab, serial, Focus::Keep);
             }
-            GrabType::Touch => {
-                // slipstream lacks touch handling
-                source.cancel();
-            }
+            // There is no touch input to drag with.
+            GrabType::Touch => source.cancel(),
         }
     }
 }

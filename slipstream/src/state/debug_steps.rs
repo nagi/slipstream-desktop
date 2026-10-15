@@ -110,11 +110,8 @@ impl Slipstream {
                     self.open_share_picker(&list, None);
                 }
                 debug::Step::ShareKey(name) => {
-                    let (shift, name) = match name.strip_prefix("shift+") {
-                        Some(name) => (true, name),
-                        None => (false, name.as_str()),
-                    };
-                    self.share_key(xkb::keysym_from_name(name, xkb::KEYSYM_NO_FLAGS), shift)
+                    let (key, shift) = shifted_key(&name);
+                    self.share_key(key, shift)
                 }
                 debug::Step::ShareClick(x, y) => self.share_click(x, y),
                 debug::Step::StopSharing => self.bar_clicked(bar::Target::Sharing),
@@ -260,11 +257,7 @@ impl Slipstream {
                     tracing::info!("debug step ignored: panel closed");
                 }
                 debug::Step::QuickKey(name) => {
-                    let (shift, name) = match name.strip_prefix("shift+") {
-                        Some(rest) => (true, rest),
-                        None => (false, name.as_str()),
-                    };
-                    let key = xkb::keysym_from_name(name, xkb::KEYSYM_NO_FLAGS);
+                    let (key, shift) = shifted_key(&name);
                     self.quick_key(key, shift);
                 }
                 debug::Step::QuickClick(x, y) => self.quick_click(x, y),
@@ -275,11 +268,7 @@ impl Slipstream {
                     tracing::info!("debug step ignored: panel closed");
                 }
                 debug::Step::CentreKey(name) => {
-                    let (shift, name) = match name.strip_prefix("shift+") {
-                        Some(rest) => (true, rest),
-                        None => (false, name.as_str()),
-                    };
-                    let key = xkb::keysym_from_name(name, xkb::KEYSYM_NO_FLAGS);
+                    let (key, shift) = shifted_key(&name);
                     self.centre_key(key, shift);
                 }
                 debug::Step::CentreClick(x, y) => self.centre_click(x, y),
@@ -310,4 +299,104 @@ impl Slipstream {
             }
         }
     }
+
+    /// A left click at a point on screen, in logical pixels, as the mouse would make it:
+    /// motion, press, release. Debug scripts use it to reach what only the pointer can, such as
+    /// an app's own menus.
+    pub(super) fn debug_click(&mut self, x: f64, y: f64) {
+        let origin = self.output_rect().map_or((0, 0), |r| (r.x, r.y));
+        let at = Point::<f64, Logical>::from((origin.0 as f64 + x, origin.1 as f64 + y));
+        let time = InputTime::now();
+        // Focus follows a click on a window, as the real button handler does. The bar and the
+        // panels have their own debug steps, so this doesn't repeat their click handling.
+        if let Some((window, _)) = self.window_under(at) {
+            self.focus_window(&window);
+        }
+        let pointer = self.seat.get_pointer().unwrap();
+        let under = self.surface_under(at);
+        tracing::debug!(?at, on_a_surface = under.is_some(), "debug click");
+        pointer.motion(
+            self,
+            under,
+            &MotionEvent {
+                location: at,
+                serial: SERIAL_COUNTER.next_serial(),
+                time,
+            },
+        );
+        pointer.frame(self);
+        for state in [ButtonState::Pressed, ButtonState::Released] {
+            pointer.button(
+                self,
+                &ButtonEvent {
+                    button: 0x110,
+                    state,
+                    serial: SERIAL_COUNTER.next_serial(),
+                    time,
+                },
+            );
+            pointer.frame(self);
+        }
+    }
+
+    /// A press, a drag and a release, for the `drag:` debug step: selecting text in a terminal,
+    /// which is one of the things clients do most and the one most likely to make them ask for a
+    /// size of their own. In steps, since a client that follows the pointer only sees where it
+    /// has been told it went.
+    pub(super) fn debug_drag(&mut self, x1: f64, y1: f64, x2: f64, y2: f64) {
+        const STEPS: usize = 8;
+        let origin = self.output_rect().map_or((0, 0), |r| (r.x, r.y));
+        let at = |x: f64, y: f64| {
+            Point::<f64, Logical>::from((origin.0 as f64 + x, origin.1 as f64 + y))
+        };
+        let time = InputTime::now();
+        if let Some((window, _)) = self.window_under(at(x1, y1)) {
+            self.focus_window(&window);
+        }
+        let move_to = |state: &mut Self, x: f64, y: f64| {
+            let location = at(x, y);
+            let under = state.surface_under(location);
+            let pointer = state.seat.get_pointer().unwrap();
+            pointer.motion(
+                state,
+                under,
+                &MotionEvent {
+                    location,
+                    serial: SERIAL_COUNTER.next_serial(),
+                    time,
+                },
+            );
+            pointer.frame(state);
+        };
+        let click = |state: &mut Self, button_state: ButtonState| {
+            let pointer = state.seat.get_pointer().unwrap();
+            pointer.button(
+                state,
+                &ButtonEvent {
+                    button: 0x110,
+                    state: button_state,
+                    serial: SERIAL_COUNTER.next_serial(),
+                    time,
+                },
+            );
+            pointer.frame(state);
+        };
+        move_to(self, x1, y1);
+        click(self, ButtonState::Pressed);
+        for step in 1..=STEPS {
+            let t = step as f64 / STEPS as f64;
+            move_to(self, x1 + (x2 - x1) * t, y1 + (y2 - y1) * t);
+        }
+        click(self, ButtonState::Released);
+        tracing::debug!(from = ?(x1, y1), to = ?(x2, y2), "debug drag");
+    }
+}
+
+/// A key a step names, which may start `shift+`, and whether it does.
+fn shifted_key(name: &str) -> (Keysym, bool) {
+    let (shift, name) = match name.strip_prefix("shift+") {
+        Some(rest) => (true, rest),
+        None => (false, name),
+    };
+    (xkb::keysym_from_name(name, xkb::KEYSYM_NO_FLAGS), shift)
 }

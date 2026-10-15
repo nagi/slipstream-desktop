@@ -1,7 +1,7 @@
 use smithay::{
     desktop::{
-        PopupKeyboardGrab, PopupKind, PopupManager, PopupPointerGrab, PopupUngrabStrategy, Space,
-        Window, find_popup_root_surface, get_popup_toplevel_coords,
+        PopupKeyboardGrab, PopupKind, PopupManager, PopupPointerGrab, PopupUngrabStrategy, Window,
+        find_popup_root_surface, get_popup_toplevel_coords,
     },
     input::{Seat, pointer::Focus},
     reexports::{
@@ -9,12 +9,8 @@ use smithay::{
         wayland_server::protocol::{wl_output, wl_seat, wl_surface::WlSurface},
     },
     utils::Serial,
-    wayland::{
-        compositor::with_states,
-        shell::xdg::{
-            PopupSurface, PositionerState, ToplevelSurface, XdgShellHandler, XdgShellState,
-            XdgToplevelSurfaceData,
-        },
+    wayland::shell::xdg::{
+        PopupSurface, PositionerState, ToplevelSurface, XdgShellHandler, XdgShellState,
     },
 };
 
@@ -168,42 +164,15 @@ impl XdgShellHandler for Slipstream {
     }
 }
 
-/// Should be called on `WlSurface::commit`
-pub fn handle_commit(popups: &mut PopupManager, space: &Space<Window>, surface: &WlSurface) {
-    // Handle toplevel commits. X11 windows share the space and have no toplevel.
-    if let Some(window) = space
-        .elements()
-        .find(|w| w.toplevel().is_some_and(|t| t.wl_surface() == surface))
-        .cloned()
-    {
-        let initial_configure_sent = with_states(surface, |states| {
-            states
-                .data_map
-                .get::<XdgToplevelSurfaceData>()
-                .unwrap()
-                .lock()
-                .unwrap()
-                .initial_configure_sent
-        });
-
-        if !initial_configure_sent {
-            window.toplevel().unwrap().send_configure();
-        }
-    }
-
-    // Handle popup commits.
+/// A popup's commit: its first is answered with its initial configure. Toplevels get theirs from
+/// `Slipstream::send_initial_configure`.
+pub fn handle_commit(popups: &mut PopupManager, surface: &WlSurface) {
     popups.commit(surface);
-    if let Some(popup) = popups.find_popup(surface) {
-        match popup {
-            PopupKind::Xdg(ref xdg) => {
-                if !xdg.is_initial_configure_sent() {
-                    // NOTE: This should never fail as the initial configure is always
-                    // allowed.
-                    xdg.send_configure().expect("initial configure failed");
-                }
-            }
-            PopupKind::InputMethod(ref _input_method) => {}
-        }
+    if let Some(PopupKind::Xdg(xdg)) = popups.find_popup(surface)
+        && !xdg.is_initial_configure_sent()
+    {
+        // Only a re-configure is ever refused, so the initial one can't fail.
+        xdg.send_configure().expect("initial configure failed");
     }
 }
 
@@ -279,10 +248,11 @@ impl Slipstream {
         else {
             return;
         };
-        let window_geo = self.space.element_geometry(window).unwrap();
+        let Some(window_geo) = self.space.element_geometry(window) else {
+            return;
+        };
 
-        // The target geometry for the positioner should be relative to its parent's geometry, so
-        // we will compute that here.
+        // The positioner works relative to the parent's geometry.
         let mut target = output_geo;
         target.loc -= get_popup_toplevel_coords(&PopupKind::Xdg(popup.clone()));
         target.loc -= window_geo.loc;
