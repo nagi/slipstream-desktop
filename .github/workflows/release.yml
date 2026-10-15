@@ -13,9 +13,7 @@ on:
         required: true
 
 permissions:
-  contents: write
-  id-token: write
-  attestations: write
+  contents: read
 
 concurrency:
   group: release-${{ github.event.inputs.tag || github.ref_name }}
@@ -23,6 +21,10 @@ concurrency:
 jobs:
   release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
     # The oldest system the download supports: its libraries are old enough for newer ones too.
     container: docker.io/library/debian:13
     env:

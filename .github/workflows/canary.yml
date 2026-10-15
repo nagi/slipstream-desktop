@@ -10,7 +10,6 @@ on:
 
 permissions:
   contents: read
-  issues: write
 
 jobs:
   distributions:
@@ -39,6 +38,8 @@ jobs:
     needs: distributions
     if: failure() && github.event_name == 'schedule'
     runs-on: ubuntu-latest
+    permissions:
+      issues: write
     env:
       GH_TOKEN: ${{ github.token }}
       RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
