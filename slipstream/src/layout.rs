@@ -224,25 +224,41 @@ impl<T: Clone + PartialEq> Dwindle<T> {
     }
 
     pub fn len(&self) -> usize {
-        self.windows().len()
+        fn count<T>(node: &Node<T>) -> usize {
+            match node {
+                Node::Leaf(_) => 1,
+                Node::Split { a, b, .. } => count(a) + count(b),
+            }
+        }
+        self.root.as_ref().map_or(0, count)
+    }
+
+    pub fn contains(&self, id: &T) -> bool {
+        fn walk<T: PartialEq>(node: &Node<T>, id: &T) -> bool {
+            match node {
+                Node::Leaf(t) => t == id,
+                Node::Split { a, b, .. } => walk(a, id) || walk(b, id),
+            }
+        }
+        self.root.as_ref().is_some_and(|root| walk(root, id))
     }
 
     /// Windows in tree order (left/top first).
     pub fn windows(&self) -> Vec<T> {
+        fn walk<T: Clone>(node: &Node<T>, out: &mut Vec<T>) {
+            match node {
+                Node::Leaf(t) => out.push(t.clone()),
+                Node::Split { a, b, .. } => {
+                    walk(a, out);
+                    walk(b, out);
+                }
+            }
+        }
         let mut out = Vec::new();
         if let Some(root) = &self.root {
-            Self::collect(
-                root,
-                Rect {
-                    x: 0,
-                    y: 0,
-                    w: 1,
-                    h: 1,
-                },
-                &mut out,
-            );
+            walk(root, &mut out);
         }
-        out.into_iter().map(|(t, _)| t).collect()
+        out
     }
 
     /// The tree as it stands: every split's axis and ratio, and the windows at the leaves, in
@@ -297,7 +313,7 @@ impl<T: Clone + PartialEq> Dwindle<T> {
             } => match (Self::node_of(a, seen), Self::node_of(b, seen)) {
                 (Some(a), Some(b)) => Some(Node::Split {
                     vertical: *vertical,
-                    ratio: ratio.clamp(0.1, 0.9),
+                    ratio: ratio.clamp(MIN_RATIO, MAX_RATIO),
                     a: Box::new(a),
                     b: Box::new(b),
                 }),
@@ -313,7 +329,7 @@ impl<T: Clone + PartialEq> Dwindle<T> {
             return;
         };
         let mut raw = Vec::new();
-        Self::collect(root, area, &mut raw);
+        Self::collect_within(root, area, &|_| (0, 0), &mut raw);
         let target = beside
             .and_then(|b| raw.iter().find(|(t, _)| t == b))
             .or(raw.last())
@@ -330,8 +346,7 @@ impl<T: Clone + PartialEq> Dwindle<T> {
         if a == b {
             return false;
         }
-        let here = self.windows();
-        if !here.contains(a) || !here.contains(b) {
+        if !self.contains(a) || !self.contains(b) {
             return false;
         }
         let Some(root) = &mut self.root else {
@@ -416,13 +431,7 @@ impl<T: Clone + PartialEq> Dwindle<T> {
         let half = self.inner_gap / 2;
         let mut out = Vec::new();
         if let Some(root) = &self.root {
-            let min = |t: &T| {
-                let (w, h) = min(t);
-                (
-                    if w > 0 { w.saturating_add(2 * half) } else { 0 },
-                    if h > 0 { h.saturating_add(2 * half) } else { 0 },
-                )
-            };
+            let min = |t: &T| with_gaps(min(t), half);
             let mut path = Vec::new();
             Self::dividers_within(
                 root,
@@ -634,22 +643,10 @@ impl<T: Clone + PartialEq> Dwindle<T> {
         let half = self.inner_gap / 2;
         let mut raw = Vec::new();
         if let Some(root) = &self.root {
-            // Minimums are of the window; the tiles here are measured before their gaps come off.
-            // Saturating throughout: a minimum is whatever the client sent.
-            let min = |t: &T| {
-                let (w, h) = min(t);
-                (
-                    if w > 0 { w.saturating_add(2 * half) } else { 0 },
-                    if h > 0 { h.saturating_add(2 * half) } else { 0 },
-                )
-            };
+            let min = |t: &T| with_gaps(min(t), half);
             Self::collect_within(root, area.inset(self.outer_gap - half), &min, &mut raw);
         }
         raw.into_iter().map(|(t, r)| (t, r.inset(half))).collect()
-    }
-
-    fn collect(node: &Node<T>, r: Rect, out: &mut Vec<(T, Rect)>) {
-        Self::collect_within(node, r, &|_| (0, 0), out);
     }
 
     fn collect_within(
@@ -766,12 +763,19 @@ impl<T: Clone + PartialEq> Dwindle<T> {
     }
 }
 
-/// The window you reach by pressing `direction` from `from`.
-///
-/// Only windows entirely past that edge count. Among them, windows that line up with
-/// `from` (overlap on the other axis) beat ones that don't, then the nearest wins, then
-/// reading order (top, then left) breaks ties. Comparing centres instead lets a
-/// one-pixel rounding difference pick the wrong window.
+/// A window's minimum size (0 for none) as its tile measures it, before the gaps come off.
+/// Saturating: a minimum is whatever the client sent.
+fn with_gaps((w, h): (i32, i32), half: i32) -> (i32, i32) {
+    let pad = |min: i32| {
+        if min > 0 {
+            min.saturating_add(2 * half)
+        } else {
+            0
+        }
+    };
+    (pad(w), pad(h))
+}
+
 /// How much of `length` the first side of a split gets: its share by `ratio`, moved just far
 /// enough that each side gets its minimum. When both minimums can't fit, the ratio stands and the
 /// windows are drawn scaled into their tiles instead.
@@ -784,6 +788,12 @@ fn give_room(length: i32, ratio: f32, min_a: i32, min_b: i32) -> i32 {
     }
 }
 
+/// The window you reach by pressing `direction` from `from`.
+///
+/// Only windows entirely past that edge count. Among them, windows that line up with
+/// `from` (overlap on the other axis) beat ones that don't, then the nearest wins, then
+/// reading order (top, then left) breaks ties. Comparing centres instead lets a
+/// one-pixel rounding difference pick the wrong window.
 pub fn neighbour<T: Clone + PartialEq>(
     rects: &[(T, Rect)],
     from: &T,

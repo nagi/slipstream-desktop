@@ -400,7 +400,7 @@ pub fn defaults() -> Vec<Binding> {
         bind(mod_shift, Keysym::Right, Action::MoveToWorkspaceBy(1)),
         // On real hardware only: nested inside KDE, KWin takes Alt+F4 for its own window.
         bind(alt, Keysym::F4, Action::Close),
-        // Windows' task switcher. Letting go of Alt settles on the window (see input.rs).
+        // Windows' task switcher. Letting go of Alt settles on the window.
         bind(alt, Keysym::Tab, Action::CycleWindows { forward: true }),
         bind(
             alt_shift,
@@ -447,8 +447,7 @@ pub fn defaults() -> Vec<Binding> {
         // Every key, one keystroke away.
         bind(mod_, Keysym::slash, Action::ShortcutSheet),
         bind(mod_, Keysym::t, Action::ToggleGravity),
-        // Turning the layout. Windows has no equivalent, so this is a new key for a new idea;
-        // the shortcut sheet (Super+/) lists it.
+        // Turning the layout, which Windows has no key for.
         bind(mod_, Keysym::r, Action::Rotate { clockwise: true }),
         bind(mod_shift, Keysym::r, Action::Rotate { clockwise: false }),
         // Fill the tiling area, keeping the neighbours' tiles underneath. gamescope keeps Super+F
@@ -535,7 +534,7 @@ pub fn defaults() -> Vec<Binding> {
 }
 
 /// How long Super can be held and still count as a tap.
-pub const TAP_MS: u32 = 400;
+const TAP_MS: u32 = 400;
 
 /// Super tapped on its own, which opens the explorer as the Windows key opens Start.
 ///

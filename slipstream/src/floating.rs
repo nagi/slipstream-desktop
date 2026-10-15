@@ -264,7 +264,7 @@ impl<T: Clone + PartialEq> Floating<T> {
 // compositor's own bookkeeping do with them.
 
 /// The largest size a window's client will draw at, 0 where it sets none.
-pub fn max_size(window: &Window) -> (i32, i32) {
+fn max_size(window: &Window) -> (i32, i32) {
     if let Some(surface) = window.x11_surface() {
         return surface.max_size().map_or((0, 0), |size| (size.w, size.h));
     }
@@ -336,6 +336,17 @@ pub fn configure_floating(window: &Window, asked: Option<(i32, i32)>, rect: Rect
 }
 
 impl Slipstream {
+    /// Where `window` is drawn in the space, if it is.
+    pub(crate) fn drawn_rect(&self, window: &Window) -> Option<Rect> {
+        let geo = self.space.element_geometry(window)?;
+        Some(Rect {
+            x: geo.loc.x,
+            y: geo.loc.y,
+            w: geo.size.w,
+            h: geo.size.h,
+        })
+    }
+
     /// A new window that floats: on its parent's workspace, centred over its parent, or on the
     /// workspace on screen, centred there.
     pub fn add_floating(&mut self, window: Window) {
@@ -351,14 +362,7 @@ impl Slipstream {
         let Some(area) = self.area_for_workspace(workspace) else {
             return;
         };
-        let over = parent.as_ref().and_then(|parent| {
-            self.space.element_geometry(parent).map(|geo| Rect {
-                x: geo.loc.x,
-                y: geo.loc.y,
-                w: geo.size.w,
-                h: geo.size.h,
-            })
-        });
+        let over = parent.as_ref().and_then(|parent| self.drawn_rect(parent));
         let (w, h) = own_size(&window);
         let sized = w > 0 && h > 0;
         let size = if sized { (w, h) } else { (640, 480) };
@@ -406,14 +410,7 @@ impl Slipstream {
         let Some(area) = self.area_for_workspace(index) else {
             return;
         };
-        let over = parent.and_then(|parent| {
-            self.space.element_geometry(&parent).map(|geo| Rect {
-                x: geo.loc.x,
-                y: geo.loc.y,
-                w: geo.size.w,
-                h: geo.size.h,
-            })
-        });
+        let over = parent.and_then(|parent| self.drawn_rect(&parent));
         let floating = &mut self.workspaces.get_mut(index).floating;
         let Some(mut float) = floating.get(window).cloned() else {
             return;
@@ -456,13 +453,10 @@ impl Slipstream {
                 .insert(index, window.clone(), beside.as_ref(), area);
             tracing::info!(app = logged_app(&window), "window tiled");
         } else {
-            let drawn = self.space.element_geometry(&window);
+            let drawn = self.drawn_rect(&window);
             self.take_off_workspace(&window);
             let (at, size) = match drawn {
-                Some(geo) => (
-                    (geo.loc.x + LOOSEN, geo.loc.y + LOOSEN),
-                    (geo.size.w, geo.size.h),
-                ),
+                Some(rect) => ((rect.x + LOOSEN, rect.y + LOOSEN), (rect.w, rect.h)),
                 None => (centred(area, own_size(&window)), own_size(&window)),
             };
             let floating = &mut self.workspaces.get_mut(index).floating;
@@ -563,9 +557,9 @@ impl Slipstream {
         let (min_w, min_h) = min_size(window);
         let (step_w, step_h) = (area.w / 20, area.h / 20);
         let size = match how {
-            Resize::Wider => ((w + step_w).min(area.w), h),
+            Resize::Wider => (w.saturating_add(step_w).min(area.w), h),
             Resize::Narrower => ((w - step_w).max(min_w.max(100)), h),
-            Resize::Taller => (w, (h + step_h).min(area.h)),
+            Resize::Taller => (w, h.saturating_add(step_h).min(area.h)),
             Resize::Shorter => (w, (h - step_h).max(min_h.max(60))),
         };
         floating.ask(window, size);

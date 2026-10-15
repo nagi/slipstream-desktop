@@ -2,7 +2,7 @@
 //! Super+drag swaps two windows, and a floating window is moved by Super+drag or its own title
 //! bar, and resized by its own edges.
 //!
-//! Both are pointer grabs. While one is held no client has the pointer, so the press, the motion
+//! Each is a pointer grab. While one is held no client has the pointer, so the press, the motion
 //! and the release never reach an app. A grab always ends: on the release, on Esc, when the
 //! screen locks and on a switch to another virtual terminal, so the pointer is never left caught.
 //!
@@ -26,6 +26,7 @@ use smithay::reexports::wayland_protocols::xdg::shell::server::xdg_toplevel;
 use crate::{
     Slipstream,
     focus::KeyboardFocus,
+    input::BTN_LEFT,
     layout::{Divider, Rect},
     state::min_size,
 };
@@ -74,7 +75,7 @@ impl Slipstream {
     /// The gap under `pos` that the pointer can take hold of, with its workspace: only on the
     /// plain desktop, with nothing of Slipstream's own over it, and not while a window fills the
     /// screen or the tiling area, or gravity arranges the workspace.
-    pub fn divider_at(&self, pos: Point<f64, Logical>) -> Option<(usize, Divider)> {
+    fn divider_at(&self, pos: Point<f64, Logical>) -> Option<(usize, Divider)> {
         if self.pointer_blocked() {
             return None;
         }
@@ -121,7 +122,6 @@ impl Slipstream {
         serial: Serial,
         super_held: bool,
     ) -> bool {
-        const BTN_LEFT: u32 = 0x110;
         if button != BTN_LEFT || self.lock.is_some() {
             return false;
         }
@@ -218,7 +218,7 @@ impl Slipstream {
         button: u32,
         serial: Serial,
     ) -> bool {
-        let Some(geo) = self.space.element_geometry(&window) else {
+        let Some(from) = self.drawn_rect(&window) else {
             return false;
         };
         let pointer = self.seat.get_pointer().unwrap();
@@ -231,12 +231,7 @@ impl Slipstream {
         self.drag = Some(Drag::Resize {
             window,
             edges,
-            from: Rect {
-                x: geo.loc.x,
-                y: geo.loc.y,
-                w: geo.size.w,
-                h: geo.size.h,
-            },
+            from,
             pointer: pos,
         });
         pointer.set_grab(self, FloatGrab { start }, serial, Focus::Clear);
@@ -434,18 +429,18 @@ impl Slipstream {
 }
 
 /// Dragging the gap between two tiles.
-pub struct GapGrab {
+struct GapGrab {
     start: GrabStartData<Slipstream>,
     divider: Divider,
 }
 
 /// Dragging a window onto another tile with Super held.
-pub struct SwapGrab {
+struct SwapGrab {
     start: GrabStartData<Slipstream>,
 }
 
 /// Moving or resizing a floating window.
-pub struct FloatGrab {
+struct FloatGrab {
     start: GrabStartData<Slipstream>,
 }
 
@@ -610,6 +605,12 @@ pointer_grab!(
     released: |data| data.drop_window()
 );
 
+pointer_grab!(
+    FloatGrab,
+    motion: |_, data, at| data.drag_floating(at),
+    released: |_| {}
+);
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -645,9 +646,3 @@ mod tests {
         assert_eq!(divider.ratio_at(2000.0), layout::MAX_RATIO);
     }
 }
-
-pointer_grab!(
-    FloatGrab,
-    motion: |_, data, at| data.drag_floating(at),
-    released: |_| {}
-);

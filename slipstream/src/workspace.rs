@@ -56,7 +56,7 @@ impl<T: Clone + PartialEq> Workspace<T> {
     }
 
     pub fn contains(&self, window: &T) -> bool {
-        self.floating.contains(window) || self.layout.windows().contains(window)
+        self.floating.contains(window) || self.layout.contains(window)
     }
 
     /// Where each window goes in `area`: by gravity when it's on, otherwise tiled.
@@ -96,7 +96,7 @@ impl<T: Clone + PartialEq> Workspace<T> {
         if self.maximised.as_ref() == Some(window) {
             self.maximised = None;
             false
-        } else if self.layout.windows().contains(window) {
+        } else if self.layout.contains(window) {
             self.maximised = Some(window.clone());
             true
         } else {
