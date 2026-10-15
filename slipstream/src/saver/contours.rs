@@ -12,7 +12,7 @@
 use std::f32::consts::TAU;
 
 use super::{
-    AMBER, BG, Frame, Grid, Layout, MINT, Variation, WHITE, gradient, line_glyph, mix, palette,
+    AMBER, BG, Frame, Grid, Layout, MINT, Variation, WHITE, draw_letters, line_glyph, mix, palette,
 };
 
 /// Steps a second. Isobars move slowly, and anything slower than 20 is cross-faded, so this is
@@ -155,16 +155,7 @@ impl Contours {
             grid.put(x, y, ch, mix(rgb, WHITE, 0.35));
         }
         // The logo, faint, as the thing the map is drawn round.
-        let (lx, lw) = (layout.logo.0, layout.logo.2);
-        for letter in &layout.letters {
-            let across = (letter.col - lx) as f32 / lw.max(1) as f32;
-            grid.put(
-                letter.col as f32,
-                letter.row as f32,
-                letter.ch,
-                mix(BG, gradient(across), 0.6),
-            );
-        }
+        draw_letters(layout, grid, 0.6);
     }
 
     /// Writes an isobar's pressure into a gap cut in it, down a few columns across the chart.
@@ -211,7 +202,6 @@ impl Contours {
     }
 }
 
-/// An isobar's colour.
 /// Which cells the logo's letters take, to look up by column and row.
 struct LetterCells {
     cols: i32,
@@ -241,6 +231,7 @@ fn letter_cells(layout: &Layout) -> LetterCells {
     }
 }
 
+/// An isobar's colour.
 fn band_colour(level: i32) -> [f32; 3] {
     // Each isobar a step round the palette from the one before, as a relief map tints its
     // heights, so neighbouring lines are told apart.

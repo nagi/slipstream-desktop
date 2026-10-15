@@ -10,7 +10,10 @@
 //! end of the turn the birds land back on their own dots, left of the logo first.
 
 use super::smoothstep as ease;
-use super::{BG, Frame, Grid, Layout, Variation, WHITE, braille, gradient, hash01, logo_dots, mix};
+use super::{
+    BG, Frame, Grid, Layout, Variation, WHITE, braille, draw_letters, gradient, hash01, into_turn,
+    logo_dots, mix, turn_fade,
+};
 
 /// One turn, in seconds of the animation clock.
 const APPEAR: f64 = 1.5;
@@ -474,8 +477,7 @@ impl Variation for Murmuration {
             self.draw(grid, APPEAR + LIFT + 4.0, 1.0, 0.0);
             return;
         }
-        let turn = (frame.elapsed / TURN).floor().max(0.0) as u64;
-        let t = frame.elapsed.rem_euclid(TURN);
+        let (turn, t) = into_turn(frame.elapsed, TURN);
         if self.turn != Some(turn) || self.w != w || self.h != h {
             self.start(layout, turn);
         }
@@ -486,25 +488,10 @@ impl Variation for Murmuration {
         self.last = Some(frame.elapsed);
         self.step(t, dt);
 
-        let fade = if t < APPEAR {
-            (t / APPEAR) as f32
-        } else if t > TURN - GONE {
-            ((TURN - t) / GONE) as f32
-        } else {
-            1.0
-        };
+        let fade = turn_fade(t, APPEAR, TURN, GONE);
         if t < APPEAR || t >= APPEAR + LIFT + FLY + LAND {
             // Home: the letters in their own blocks, crisper than their dots.
-            let (lx, lw) = (layout.logo.0, layout.logo.2.max(1));
-            for letter in &layout.letters {
-                let across = (letter.col - lx) as f32 / lw as f32;
-                grid.put(
-                    letter.col as f32,
-                    letter.row as f32,
-                    letter.ch,
-                    mix(BG, gradient(across), fade),
-                );
-            }
+            draw_letters(layout, grid, fade);
             self.light.iter_mut().for_each(|l| *l = 0.0);
         } else {
             self.draw(grid, t, fade, TRAIL);

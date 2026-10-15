@@ -13,8 +13,8 @@
 
 use super::smoothstep as ease;
 use super::{
-    AMBER, BG, CYAN, Frame, Grid, Layout, MINT, Variation, WHITE, braille, gradient, hash01,
-    logo_dots, mix,
+    AMBER, BG, CYAN, Frame, Grid, Layout, MINT, Variation, WHITE, braille, draw_letters, hash01,
+    into_turn, logo_dots, mix, turn_fade, turn_rng,
 };
 
 /// One turn, in seconds of the animation clock.
@@ -97,7 +97,7 @@ impl Physarum {
         self.trail.resize(w * h, 0.0);
         self.spare.clear();
         self.spare.resize(w * h, 0.0);
-        self.rng = (self.seed ^ turn.wrapping_mul(0x9e37_79b9_7f4a_7c15)) | 1;
+        self.rng = turn_rng(self.seed, turn);
 
         let homes: Vec<(usize, usize, f32)> = logo_dots(layout)
             .into_iter()
@@ -367,21 +367,14 @@ impl Variation for Physarum {
             self.draw(grid, 1.0);
             return;
         }
-        let turn = (frame.elapsed / TURN).floor().max(0.0) as u64;
-        let t = frame.elapsed.rem_euclid(TURN);
+        let (turn, t) = into_turn(frame.elapsed, TURN);
         if self.turn != Some(turn) || self.w != w || self.h != h {
             self.start(layout, turn);
         }
         for _ in 0..MOVES {
             self.advance(t);
         }
-        let fade = if t < APPEAR {
-            (t / APPEAR) as f32
-        } else if t > TURN - GONE {
-            ((TURN - t) / GONE) as f32
-        } else {
-            1.0
-        };
+        let fade = turn_fade(t, APPEAR, TURN, GONE);
         let home = APPEAR + SPILL + GROW + GATHER;
         if t < APPEAR || t >= home {
             // The letters in their own blocks, with what is left of the mould fading round them.
@@ -392,26 +385,15 @@ impl Variation for Physarum {
             } else {
                 1.0
             };
-            let (lx, lw) = (layout.logo.0, layout.logo.2.max(1));
-            for letter in &layout.letters {
-                let across = (letter.col - lx) as f32 / lw as f32;
-                grid.put(
-                    letter.col as f32,
-                    letter.row as f32,
-                    letter.ch,
-                    mix(BG, gradient(across), fade * solid),
-                );
-            }
+            draw_letters(layout, grid, fade * solid);
             if t >= home {
                 let mut veins = Grid::new(layout.cols, layout.rows);
                 let left = (1.0 - (t - home) / (REST * 0.6)).clamp(0.0, 1.0) as f32;
                 self.draw(&mut veins, fade * left);
-                let letters = grid.cells.clone();
-                for ((cell, vein), letter) in grid.cells.iter_mut().zip(&veins.cells).zip(&letters)
-                {
+                for (cell, vein) in grid.cells.iter_mut().zip(&veins.cells) {
                     // Round the letters the mould fades as it did; on them its dots give way to
                     // the blocks once those are more than half there.
-                    let on_letter = letter.ch != ' ';
+                    let on_letter = cell.ch != ' ';
                     if vein.ch != ' ' && (!on_letter || solid < 0.5) {
                         *cell = *vein;
                     }

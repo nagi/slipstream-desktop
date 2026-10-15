@@ -6,7 +6,7 @@
 //! colours, so its shape shows for as long as the rules leave it alone.
 //!
 //! Every living cell also glows into a feedback buffer, and each turn carries that glow through
-//! its own motion, the way a MilkDrop preset does: blooming out from the middle, draining into a
+//! its own motion: blooming out from the middle, draining into a
 //! whirlpool, rising like warm liquid, or thrown out as a kaleidoscope. The glow's colour travels
 //! round a wider loop than the rest of the saver's (amber, rose, violet, cyan, mint) in bands
 //! that spread out from the middle, and the whole picture throbs on a slow beat. A glider leaves
@@ -59,7 +59,7 @@ fn trip(at: f32) -> [f32; 3] {
     mix(LOOP[from], LOOP[(from + 1) % LOOP.len()], at.fract())
 }
 
-/// The ways a turn can carry the glow, one to a turn, like a MilkDrop preset.
+/// The ways a turn can carry the glow, one to a turn.
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Preset {
     /// Out from the middle, turning gently one way and back.
@@ -230,8 +230,8 @@ impl Life {
         self.since_spark = self.since_spark.saturating_add(1);
     }
 
-    /// The hue of the glow at (`x`, `y`) at time `t`, as the byte a `Feedback` stores: bands
-    /// spreading out from the middle while the colours go round.
+    /// Where the glow at (`x`, `y`) at time `t` sits round the colour loop: bands spreading out
+    /// from the middle while the colours go round.
     fn hue(&self, x: f32, y: f32, t: f32) -> f32 {
         let (cx, cy) = self.centre;
         let distance = (x - cx).hypot((y - cy) * 2.0);

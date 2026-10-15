@@ -10,7 +10,10 @@
 //! outwards. At the end of a turn the removal rate climbs past what the pattern can live on, and
 //! it breaks up into spots and dies back.
 
-use super::{BG, Frame, Grid, Layout, Variation, WHITE, braille, gradient, hash01, mix, palette};
+use super::{
+    BAYER, BG, Frame, Grid, Layout, Variation, WHITE, braille, gradient, hash01, into_turn, mix,
+    palette, smoothstep,
+};
 
 /// One turn, in seconds of the animation clock: growing, holding, dying back, and a gap.
 const GROW: f64 = 14.0;
@@ -34,9 +37,6 @@ const DEEP: f32 = SHOWS + 0.12;
 
 /// The most of the pattern's inside the dither lights, where the chemistry is strongest.
 const FILL: f32 = 0.3;
-
-/// A 4×4 ordered dither: the order in which a block's dots light as it fills.
-const BAYER: [u8; 16] = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 
 /// Half cells out from the logo in one lap of the palette, and laps a second the rings travel out.
 const RING_WIDTH: f32 = 90.0;
@@ -390,13 +390,12 @@ impl Variation for Coral {
         "coral"
     }
 
-    fn reset(&mut self, layout: &Layout, seed: u64) {
+    fn reset(&mut self, _layout: &Layout, seed: u64) {
         self.seed = seed;
         self.turn = None;
         self.still = false;
         self.w = 0;
         self.h = 0;
-        let _ = layout;
     }
 
     fn step_hz(&self) -> f64 {
@@ -416,8 +415,7 @@ impl Variation for Coral {
             return;
         }
         self.still = false;
-        let turn = (frame.elapsed / TURN).floor().max(0.0) as u64;
-        let t = frame.elapsed.rem_euclid(TURN);
+        let (turn, t) = into_turn(frame.elapsed, TURN);
         if self.turn != Some(turn)
             || self.w != layout.cols.max(1) as usize
             || self.h != layout.rows.max(1) as usize * 2
@@ -427,7 +425,7 @@ impl Variation for Coral {
         let dying = if t < GROW + HOLD {
             0.0
         } else {
-            DEATH * smoothstep_f64((t - GROW - HOLD) / DIE)
+            DEATH * smoothstep(((t - GROW - HOLD) / DIE) as f32)
         };
         // Full speed while it grows and dies back; a slow creep while it holds.
         let speed = if (GROW..GROW + HOLD).contains(&t) {
@@ -462,10 +460,6 @@ impl Variation for Coral {
     fn preview_at(&self) -> f64 {
         GROW * 0.6
     }
-}
-
-fn smoothstep_f64(t: f64) -> f32 {
-    super::smoothstep(t as f32)
 }
 
 #[cfg(test)]

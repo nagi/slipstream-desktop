@@ -11,7 +11,8 @@ use super::smoothstep as smooth;
 use std::f32::consts::{PI, TAU};
 
 use super::{
-    AMBER, BG, CYAN, Frame, Grid, Layout, MINT, Variation, braille, gradient, hash01, mix,
+    AMBER, BAYER, BG, CYAN, Frame, Grid, Layout, MINT, Variation, braille, draw_letters, gradient,
+    hash01, mix,
 };
 
 /// One turn, in seconds of the animation clock.
@@ -37,9 +38,6 @@ const COURSES: usize = 4;
 
 /// The most of a wall's face the dither lights, near the eye.
 const FACE: f32 = 0.2;
-
-/// A 4×4 ordered dither: the order in which a block's dots light as it grows brighter.
-const BAYER: [u8; 16] = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 
 /// Map squares beyond which nothing is drawn.
 const FAR: f32 = 9.0;
@@ -678,16 +676,7 @@ impl Variation for Maze {
         self.cast(layout, place, heading, light, banner_light);
         self.draw(grid);
         if letters > 0.0 {
-            let (lx, lw) = (layout.logo.0, layout.logo.2.max(1));
-            for letter in &layout.letters {
-                let across = (letter.col - lx) as f32 / lw as f32;
-                grid.put(
-                    letter.col as f32,
-                    letter.row as f32,
-                    letter.ch,
-                    mix(BG, gradient(across), letters.max(banner_light)),
-                );
-            }
+            draw_letters(layout, grid, letters.max(banner_light));
         }
     }
 

@@ -13,8 +13,8 @@
 //! The frost remembers the order it froze in, and melts in the reverse of it.
 
 use super::{
-    BG, Frame, Grid, Layout, Variation, WHITE, braille, draw_letters, gradient, hash01, logo_dots,
-    mix, smoothstep, xorshift,
+    BG, Frame, Grid, Layout, Variation, WHITE, braille, draw_letters, gradient, hash01, into_turn,
+    logo_dots, mix, smoothstep, turn_fade, turn_rng, xorshift,
 };
 
 /// One turn, in seconds of the animation clock.
@@ -100,7 +100,7 @@ impl Frost {
         self.seeds.clear();
         self.specks.clear();
         self.stepped = None;
-        self.rng = (self.seed ^ turn.wrapping_mul(0x9e37_79b9_7f4a_7c15)) | 1;
+        self.rng = turn_rng(self.seed, turn);
         for dot in logo_dots(layout) {
             if dot.x < w && dot.y < h {
                 let i = dot.y * w + dot.x;
@@ -369,18 +369,11 @@ impl Variation for Frost {
             self.draw(grid, shown, 0.0, 0.0, 1.0);
             return;
         }
-        let turn = (frame.elapsed / TURN).floor().max(0.0) as u64;
-        let t = frame.elapsed.rem_euclid(TURN);
+        let (turn, t) = into_turn(frame.elapsed, TURN);
         if self.turn != Some(turn) || resized {
             self.start(layout, turn);
         }
-        let fade = if t < APPEAR {
-            (t / APPEAR) as f32
-        } else if t > TURN - GONE {
-            ((TURN - t) / GONE) as f32
-        } else {
-            1.0
-        };
+        let fade = turn_fade(t, APPEAR, TURN, GONE);
         let grown = APPEAR + GROW;
         let melt = grown + GLITTER;
         let gone = melt + MELT;

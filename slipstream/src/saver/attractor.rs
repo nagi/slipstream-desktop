@@ -17,8 +17,8 @@
 
 use super::smoothstep as ease;
 use super::{
-    AMBER, BG, CYAN, Frame, Grid, Layout, MINT, Variation, WHITE, braille, gradient, hash01,
-    logo_dots, mix,
+    AMBER, BG, CYAN, Frame, Grid, Layout, MINT, Variation, WHITE, braille, draw_letters, gradient,
+    hash01, into_turn, logo_dots, mix, turn_fade,
 };
 
 /// One turn, in seconds of the animation clock.
@@ -326,32 +326,16 @@ impl Variation for Attractor {
             self.particles = particles;
             return;
         }
-        let turn = (frame.elapsed / TURN).floor().max(0.0) as u64;
-        let t = frame.elapsed.rem_euclid(TURN);
+        let (turn, t) = into_turn(frame.elapsed, TURN);
         if self.turn != Some(turn) || self.w != w || self.h != h {
             self.start(layout, turn);
         }
         self.advance(t as f32, false);
-        let fade = if t < APPEAR {
-            (t / APPEAR) as f32
-        } else if t > TURN - GONE {
-            ((TURN - t) / GONE) as f32
-        } else {
-            1.0
-        };
+        let fade = turn_fade(t, APPEAR, TURN, GONE);
         let resting = attractor_share(t) <= 0.0;
         if resting {
             // Home: the letters in their own blocks, crisper than their dots.
-            let (lx, lw) = (layout.logo.0, layout.logo.2.max(1));
-            for letter in &layout.letters {
-                let across = (letter.col - lx) as f32 / lw as f32;
-                grid.put(
-                    letter.col as f32,
-                    letter.row as f32,
-                    letter.ch,
-                    mix(BG, gradient(across), fade),
-                );
-            }
+            draw_letters(layout, grid, fade);
             // What is left of the veil fades out round them.
             self.particles_hidden(layout, grid, t as f32, fade);
         } else {

@@ -10,8 +10,8 @@
 //! smoke that hang in the sky and slowly break up.
 
 use super::{
-    AMBER, BG, CYAN, Frame, Grid, Layout, Variation, WHITE, gradient, hash01, level_line, mix,
-    smoothstep,
+    AMBER, BG, CYAN, FIGURES, Frame, Grid, Layout, Variation, WHITE, gradient, hash01, level_line,
+    mix, smoothstep,
 };
 
 /// Steps a second.
@@ -40,42 +40,9 @@ const SKY_LIFE: f32 = 16.0;
 /// The still picture reduced motion shows: traffic in the sky and the time written above the logo.
 const STILL: f64 = SKY_FIRST + 7.0;
 
-/// Five by seven dot figures for the time, a row to each string, `#` a puff.
-const FIGURES: [[&str; 7]; 11] = [
-    [
-        ".###.", "#...#", "#..##", "#.#.#", "##..#", "#...#", ".###.",
-    ],
-    [
-        "..#..", ".##..", "..#..", "..#..", "..#..", "..#..", ".###.",
-    ],
-    [
-        ".###.", "#...#", "....#", "...#.", "..#..", ".#...", "#####",
-    ],
-    [
-        "####.", "....#", "....#", ".###.", "....#", "....#", "####.",
-    ],
-    [
-        "...#.", "..##.", ".#.#.", "#..#.", "#####", "...#.", "...#.",
-    ],
-    [
-        "#####", "#....", "####.", "....#", "....#", "#...#", ".###.",
-    ],
-    [
-        ".###.", "#....", "#....", "####.", "#...#", "#...#", ".###.",
-    ],
-    [
-        "#####", "....#", "...#.", "..#..", ".#...", ".#...", ".#...",
-    ],
-    [
-        ".###.", "#...#", "#...#", ".###.", "#...#", "#...#", ".###.",
-    ],
-    [
-        ".###.", "#...#", "#...#", ".####", "....#", "....#", ".###.",
-    ],
-    [
-        ".....", "..#..", "..#..", ".....", "..#..", "..#..", ".....",
-    ],
-];
+/// The colon between the hours and minutes, drawn as `FIGURES` are, `#` a puff.
+#[rustfmt::skip]
+const COLON: [&str; 7] = [".....", "..#..", "..#..", ".....", "..#..", "..#..", "....."];
 
 /// One crossing: when it started, which way it flies, its speed, and the curve it follows.
 #[derive(Debug, Clone, Copy)]
@@ -91,7 +58,7 @@ struct Flight {
 }
 
 impl Flight {
-    /// Flight `n` of craft `k` on a screen `cols` wide.
+    /// Flight `n` of craft `k` on `layout`'s screen.
     fn of(layout: &Layout, k: u64, n: i64) -> Self {
         let cols = layout.cols as f32 + 20.0;
         let seed = k.wrapping_mul(0x9e37_79b9) ^ (n as u64).wrapping_mul(0x85eb_ca6b);
@@ -186,8 +153,8 @@ pub struct Contrails {
 }
 
 impl Contrails {
-    /// Lays down one flight's trail at `t` and returns how brightly it lights each letter of the
-    /// logo into `lit`.
+    /// Lays down one flight's trail at `t`, and raises each letter's entry in `lit` to how brightly
+    /// the trail lights it.
     #[allow(clippy::too_many_arguments)]
     fn trail(
         letter_at: &[Option<usize>],
@@ -309,7 +276,7 @@ impl Contrails {
         let top = (ly as f32 - 13.0).max(1.0);
         let front = since * SKY_SPEED - 20.0;
         for (f, &figure) in figures.iter().enumerate() {
-            for (r, line) in FIGURES[figure].iter().enumerate() {
+            for (r, line) in FIGURES.get(figure).unwrap_or(&COLON).iter().enumerate() {
                 for (c, dot) in line.chars().enumerate() {
                     if dot != '#' {
                         continue;

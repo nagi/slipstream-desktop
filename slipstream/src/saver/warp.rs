@@ -151,7 +151,7 @@ impl Warp {
         }
         if let (Some(scale), Some(was)) = (logo_scale(t), logo_scale(t - f64::from(step))) {
             if scale > 1.2 {
-                // A third of the letters leave streaks: all of them draw a lattice of dashes.
+                // About a third of the letters leave streaks; all of them would draw a lattice of dashes.
                 let (lx, _, lw, _) = layout.logo;
                 for (i, letter) in layout.letters.iter().enumerate() {
                     if hash01(i as u64 ^ 0x57ea) > 0.35 {
@@ -313,7 +313,10 @@ impl Variation for Warp {
                 self.draw(layout, &mut picture, STILL, STILL as f32, 1.0);
                 self.still = Some(picture.cells);
             }
-            if let Some(cells) = &self.still {
+            // A picture kept from another size would no longer fit the grid.
+            if let Some(cells) = &self.still
+                && cells.len() == grid.cells.len()
+            {
                 grid.cells.clone_from(cells);
             }
             return;

@@ -119,9 +119,8 @@ impl Variation for Tide {
         );
         // Sparkles change five times a second rather than every step, so they twinkle.
         let glint_beat = ((t * 5.0) as u64).wrapping_mul(0x9e37_79b9);
-        // The swell runs right through the logo's box: thinning it there, however softly, showed
-        // as a patch of flat background riding along with the letters. The logo is drawn over the
-        // sea instead, and the sea between its strokes is the same sea as everywhere else.
+        // The swell runs right through the logo's box. The logo is drawn over the sea, so the sea
+        // between its strokes is the same sea as everywhere else.
         for row in 0..layout.rows {
             for col in 0..layout.cols {
                 let (x, y) = (col as f32, row as f32);
@@ -212,8 +211,7 @@ mod tests {
             layout.letters.len(),
             "every letter is up"
         );
-        // Between the letters is sea, not background: a cleared box rode along with the logo and
-        // read as a hole cut in the swell.
+        // Between the letters is sea, not background.
         let (lx, ly, lw, lh) = layout.logo;
         let between: Vec<(i32, i32)> = (ly..ly + lh)
             .flat_map(|row| (lx..lx + lw).map(move |col| (col, row)))
@@ -228,8 +226,6 @@ mod tests {
             .iter()
             .filter(|&&(col, row)| holding.at(col as f32, row as f32).ch != ' ')
             .count();
-        // The swell is bands, so only some of the gaps are crested at any moment; none of them
-        // would be if the logo were still clearing a space for itself.
         // The swell is bands, so at any one moment only some of the gaps are crested — and at
         // some moments none of them are. Over the hold, the sea crosses the logo freely.
         let most = (0..8)
