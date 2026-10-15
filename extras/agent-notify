@@ -50,6 +50,15 @@ CONFIG=${XDG_CONFIG_HOME:-$HOME/.config}/agent-notify/config
 STATE=${XDG_RUNTIME_DIR:-/tmp/agent-notify-$(id -u)}/agent-notify
 KNOWN_AGENTS="claude gemini codex agy"
 
+# A desktop session's path is set before any shell profile runs, so agents installed with Homebrew
+# aren't on it: look in Homebrew's standard places too.
+for brew_bin in /home/linuxbrew/.linuxbrew/bin "$HOME/.linuxbrew/bin"; do
+    case ":$PATH:" in
+        *":$brew_bin:"*) ;;
+        *) if [ -d "$brew_bin" ]; then PATH=$PATH:$brew_bin; fi ;;
+    esac
+done
+
 # ---------------------------------------------------------------------------------------------
 # Small helpers
 
@@ -92,6 +101,14 @@ agent_name() {
         gemini) printf 'Gemini CLI' ;;
         codex) printf 'Codex' ;;
         agy) printf 'Antigravity' ;;
+        *) printf '%s' "$1" ;;
+    esac
+}
+
+# What a desktop trace calls the agent: one short lowercase word.
+agent_label() {
+    case $1 in
+        agy) printf 'antigravity' ;;
         *) printf '%s' "$1" ;;
     esac
 }
@@ -317,7 +334,7 @@ working_note() {
     # Write or refresh the active state, clearing any waiting/idle line.
     note_task=$(task)
     if [ -n "$note_task" ]; then
-        printf '%s: %s\n' "$1" "$note_task" >"$note_dir/$note_pid"
+        printf '%s: %s\n' "$(agent_label "$1")" "$note_task" >"$note_dir/$note_pid"
     elif [ -s "$note_dir/$note_pid" ]; then
         # Keep the name but strip any status line by rewriting with just the first line.
         note_name=$(head -n 1 "$note_dir/$note_pid" 2>/dev/null)
@@ -348,12 +365,18 @@ hook() {
     payload=$(cat)
     # Run after every tool, so it does as little as it can.
     if [ "$event" = session_start ]; then
-        # A new session has opened: leave an idle note if there isn't one yet.
+        # A new session has opened: leave an idle note if there isn't one yet, named for the agent
+        # and its folder until a task gives it a better name.
         note_dir=${XDG_RUNTIME_DIR:-}/slipstream/working
         if [ -n "${XDG_RUNTIME_DIR:-}" ] && [ -d "$note_dir" ]; then
             session_pid=$(agent_pid "$agent") || true
             if [ -n "$session_pid" ] && [ ! -f "$note_dir/$session_pid" ]; then
-                printf '\nidle\n' >"$note_dir/$session_pid"
+                session_name=$(agent_label "$agent")
+                session_dir=$(field '.cwd // .workspacePaths[0]')
+                if [ -n "$session_dir" ]; then
+                    session_name="$session_name: ${session_dir##*/}"
+                fi
+                printf '%s\nidle\n' "$session_name" >"$note_dir/$session_pid"
             fi
         fi
         exit 0
@@ -817,12 +840,13 @@ sample() {
 #                only ever read. Renewing it would replace the refresh token and sign Claude Code
 #                out, so an expired one waits for Claude Code to renew it.
 #   Codex        account/rateLimits/read from `codex app-server`, which looks after its own login.
+#   Antigravity  `agy -p /usage`, the CLI's own quota readout.
 #
-# Neither is a documented API: they're asked at most every few minutes, and a refusal keeps the
+# None is a documented API: they're asked at most every few minutes, and a refusal keeps the
 # last numbers on show with a note saying why they're old.
 
 USAGE_DIR=${XDG_CACHE_HOME:-$HOME/.cache}/agent-notify/usage
-USAGE_PROVIDERS="claude codex"
+USAGE_PROVIDERS="claude codex agy"
 CLAUDE_CREDENTIALS=$HOME/.claude/.credentials.json
 
 # The providers to report: agents in the config that usage can be read for.
@@ -836,6 +860,7 @@ usage_providers() {
         case $usage_p in
             claude) [ -r "$CLAUDE_CREDENTIALS" ] || continue ;;
             codex) have codex || continue ;;
+            agy) have agy || continue ;;
         esac
         printf '%s\n' "$usage_p"
     done
@@ -1037,6 +1062,31 @@ usage_fetch_codex() {
     fi
     codex_error=$(printf '%s' "$codex_reply" | jq -r '.error.message // "no limits in its answer"' 2>/dev/null)
     usage_keep codex Codex "Codex: $codex_error"
+    return 1
+}
+
+# Antigravity prints its quotas for /usage, one to a line, tab-separated: the models, the window
+# and what is left of it, the percentage left, and when it resets. It is run from the usage folder
+# because it keeps its conversations by folder, though this one leaves none.
+# shellcheck disable=SC2016 # jq program, not shell
+AGY_JQ=$USAGE_JQ_DEFS'
+    [split("\n")[] | split("\t") | select(length == 4)
+     | {models: (.[0] | sub(" [Mm]odels$"; "")), window: (.[1] | sub(" Limit Remaining$"; "")),
+        left: (.[2] | rtrimstr("%") | tonumber? // null), resets: (.[3] | fromdateiso8601? // null)}
+     | select(.left != null)
+     | {label: "\(.window) · \(.models)", percent: (100 - .left | round), resets}] as $meters
+    | if $meters == [] then empty
+      else {name: "Antigravity", detail: null, meters: $meters, note: null, stale: false,
+            updated: $now} end'
+
+usage_fetch_agy() {
+    agy_now=$(date +%s)
+    agy_reply=$(cd "$USAGE_DIR" && timeout 60 agy -p /usage 2>/dev/null)
+    if printf '%s' "$agy_reply" | jq -Rsc --argjson now "$agy_now" "$AGY_JQ" 2>/dev/null |
+        usage_write agy; then
+        return 0
+    fi
+    usage_keep agy Antigravity "Antigravity didn't say"
     return 1
 }
 
