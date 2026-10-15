@@ -66,7 +66,7 @@ pub fn glass(p: &mut Painter, x: f32, y: f32, w: f32, h: f32) {
         w,
         h,
         18.0,
-        (30.0, 90.0, 0x000000b0),
+        (16.0, 64.0, 0x00000048),
         GLASS,
         GLASS_EDGE,
     );
@@ -82,7 +82,8 @@ pub const NOTICE: u32 = 0x141925ff;
 pub const NOTICE_EDGE: u32 = 0xffffff18;
 pub const NOTICE_RADIUS: f32 = 12.0;
 /// How far a notice's shadow reaches past its card: down by its offset and out by half its blur.
-pub const NOTICE_SHADOW: (f32, f32, u32) = (20.0, 50.0, 0x000000aa);
+/// Soft and faint, as current desktops' popups are: the card's edge does the separating.
+pub const NOTICE_SHADOW: (f32, f32, u32) = (10.0, 40.0, 0x00000040);
 pub const NOTICE_MARGIN: f32 = 48.0;
 
 /// Text that teaches a key or says something quietly: 6.4:1 on the glass, 5.4:1 in a quiet
