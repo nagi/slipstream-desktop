@@ -176,11 +176,11 @@ put 644 "$repo/slipstream-settings/$entry" "$data/applications/$entry"
 put 644 "$repo/session/slipstream-session.target" "$config/systemd/user/slipstream-session.target"
 put 644 "$repo/session/slipstream-shutdown.target" "$config/systemd/user/slipstream-shutdown.target"
 systemctl --user daemon-reload 2>/dev/null || true
-# Which portal backend answers what under Slipstream: screen sharing's, and that backend's picker.
-# All of it is per-user and named for Slipstream, so no root is needed and no other desktop's
-# session is touched.
-# The same file scripts/install-session writes, with the default naming the portal backends this
-# machine has: Slipstream is its own desktop, so no other desktop's configuration is consulted.
+# Which portal backend answers what under Slipstream, and screen sharing's picker. All of it is
+# per-user and named for Slipstream, so no root is needed and no other desktop's session is
+# touched. The portals file is the one scripts/install-session writes, with the default naming the
+# portal backends this machine has, generic gtk last: Slipstream is its own desktop, so no other
+# desktop's configuration is consulted.
 {
     cat "$repo/session/slipstream-portals.conf"
     backends=$(
@@ -195,7 +195,8 @@ systemctl --user daemon-reload 2>/dev/null || true
             fi
         done | sort -u | tr '\n' ';' | sed 's/;$//'
     )
-    if [ -e /usr/share/xdg-desktop-portal/portals/gtk.portal ]; then
+    if [ -e /usr/share/xdg-desktop-portal/portals/gtk.portal ] \
+        || [ -e /usr/local/share/xdg-desktop-portal/portals/gtk.portal ]; then
         backends=${backends:+$backends;}gtk
     fi
     echo

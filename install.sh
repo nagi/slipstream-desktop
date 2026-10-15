@@ -71,15 +71,16 @@ case $arch in
         ;;
 esac
 
-# GitHub allows a limited number of unnamed requests from one address each hour. A token in the
-# environment, which continuous integration has and people generally don't, lifts that.
+# GitHub's API allows a limited number of unnamed requests from one address each hour. A token in
+# the environment, which continuous integration has and people generally don't, lifts that. Only
+# the API is sent it: downloads need none, and they redirect to another host.
 token=${GH_TOKEN:-${GITHUB_TOKEN:-}}
 if have curl; then
     fetch() { curl -fsSL ${token:+-H "Authorization: Bearer $token"} "$1"; }
-    fetch_to() { curl -fL --progress-bar ${token:+-H "Authorization: Bearer $token"} -o "$2" "$1"; }
+    fetch_to() { curl -fL --progress-bar -o "$2" "$1"; }
 elif have wget; then
     fetch() { wget -qO- ${token:+--header="Authorization: Bearer $token"} "$1"; }
-    fetch_to() { wget -q --show-progress ${token:+--header="Authorization: Bearer $token"} -O "$2" "$1"; }
+    fetch_to() { wget -q --show-progress -O "$2" "$1"; }
 else
     echo "install.sh: neither curl nor wget is installed, so nothing can be downloaded." >&2
     exit 1
@@ -101,6 +102,13 @@ if [ -z "$tag" ]; then
     echo "  https://github.com/$project/releases" >&2
     exit 1
 fi
+# The tag names files and folders below, so it may only be a tag.
+case $tag in
+    *[!A-Za-z0-9._-]* | .*)
+        echo "install.sh: '$tag' isn't a release tag." >&2
+        exit 1
+        ;;
+esac
 
 # The file is named after the release, so the name is worked out from the tag rather than asked
 # for. GitHub's by-tag view of a release has been seen reporting a release as having no files at
@@ -124,7 +132,11 @@ if ! fetch_to "$base/$name" "$name"; then
     exit 1
 fi
 fetch_to "$base/$name.sha256" "$name.sha256"
-if ! sha256sum -c "$name.sha256" >/dev/null 2>&1; then
+# Compared directly: `sha256sum -c` checks whichever files the checksum file names, which need not
+# be the one about to be unpacked.
+want=$(cut -d ' ' -f 1 "$name.sha256" | head -n1)
+got=$(sha256sum "$name" | cut -d ' ' -f 1)
+if [ -z "$want" ] || [ "$got" != "$want" ]; then
     echo "install.sh: $name doesn't match its published checksum, so it wasn't unpacked." >&2
     echo "Delete $work and try again." >&2
     exit 1

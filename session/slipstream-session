@@ -1,13 +1,18 @@
 #!/bin/sh
-# Starts Slipstream as a login session. The login screen runs this through
-# /usr/local/share/wayland-sessions/slipstream.desktop (see scripts/install-session).
+# Starts Slipstream as a login session. The login screen runs this through slipstream.desktop in
+# its wayland-sessions folder (see scripts/install-session).
 
 # The log goes in the state folder; if that can't be written, somewhere it can, so a session that
-# fails to start still says why.
+# fails to start still says why. A fixed name in a shared /tmp could already be someone else's,
+# so there it gets a fresh folder.
 state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/slipstream"
 if ! mkdir -p "$state_dir" 2>/dev/null || ! [ -w "$state_dir" ]; then
-    state_dir="${XDG_RUNTIME_DIR:-/tmp}/slipstream-$(id -u)"
-    mkdir -p "$state_dir"
+    if [ -n "${XDG_RUNTIME_DIR:-}" ] && [ -d "$XDG_RUNTIME_DIR" ]; then
+        state_dir="$XDG_RUNTIME_DIR/slipstream-$(id -u)"
+        mkdir -p "$state_dir"
+    else
+        state_dir=$(mktemp -d /tmp/slipstream-session.XXXXXX)
+    fi
 fi
 log="$state_dir/slipstream.log"
 [ -f "$log" ] && mv -f "$log" "$log.old"

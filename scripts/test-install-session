@@ -218,7 +218,9 @@ mkdir -p "$r/etc"
 echo "root:x:0:0" >"$r/etc/passwd"
 expect_status 0 --uninstall --yes || true
 for f in "$entry" "$launcher" "$pam" "$manifest" "$work/home/.local/bin/slipstream"; do
-    [ -e "$f" ] && fail "$case_name: $f still there"
+    if [ -e "$f" ]; then
+        fail "$case_name: $f still there"
+    fi
 done
 [ -d "$r/usr/local/share/slipstream" ] && fail "$case_name: manifest folder still there"
 [ -e "$r/etc/passwd" ] || fail "$case_name: removed a file the manifest had no business listing"

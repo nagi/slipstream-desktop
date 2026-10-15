@@ -113,8 +113,10 @@ pam_file=/etc/pam.d/slipstream
 pam_marker="# Written by Slipstream's install-session"
 
 pam_has() {
-    for dir in $pam_dirs; do
-        [ -e "$dir/$1" ] && return 0
+    for ph_dir in $pam_dirs; do
+        if [ -e "$ph_dir/$1" ]; then
+            return 0
+        fi
     done
     return 1
 }
@@ -745,7 +747,7 @@ check() {
     # The compositor itself, once installed: every library it links has to be here.
     bin="$HOME/.local/bin/slipstream"
     if [ -x "$bin" ] && have ldd; then
-        libs=$(ldd "$bin" 2>&1 | sed -n 's/^[[:space:]]*\([^ ]*\) => not found.*/\1/p' | tr '\n' ' ')
+        libs=$(missing_libraries "$bin" | tr '\n' ' ')
         if [ -n "$libs" ]; then
             problem "the installed compositor can't start: missing libraries $libs"
         fi
@@ -1229,8 +1231,8 @@ printf '%s%s\n' "$written" "$manifest" >"$scratch/installed"
 put 644 "$scratch/installed" "$manifest"
 
 # What an earlier install wrote that this one doesn't: a session entry in a folder the display
-# manager no longer reads, a drop-in for a display manager that's gone, and the portal settings
-# that are per-user now.
+# manager no longer reads, a drop-in for a display manager that's gone, and the portal settings,
+# which a copy with no programs to install leaves to scripts/update-session in your home.
 : >"$scratch/remove"
 stale=$(
     manifest_paths
