@@ -205,34 +205,37 @@ pub fn with_a_client_that_has_gone<T>(
     reap: bool,
     look: impl FnOnce(&UnixStream) -> T,
 ) -> T {
-    let dir = crate::files::test_scratch(&format!(
-        "{name}-{}",
-        if reap { "reaped" } else { "zombie" }
-    ));
-    let path = dir.join("socket");
-    let listener = std::os::unix::net::UnixListener::bind(&path).unwrap();
+    // An abstract socket has no file, so its name's length doesn't depend on where the
+    // repository is checked out.
+    let label = format!(
+        "slipstream-test-{name}-{}-{}",
+        if reap { "reaped" } else { "zombie" },
+        std::process::id()
+    );
+    let bytes = label.as_bytes();
+    let listener = std::os::unix::net::UnixListener::bind_addr(
+        &<std::os::unix::net::SocketAddr as std::os::linux::net::SocketAddrExt>::from_abstract_name(
+            bytes,
+        )
+        .unwrap(),
+    )
+    .unwrap();
     // Everything the child needs is made before the fork, so the child calls nothing but
     // connect and _exit, which are safe after forking a threaded process.
     let mut address: libc::sockaddr_un = unsafe { std::mem::zeroed() };
     address.sun_family = libc::AF_UNIX as libc::sa_family_t;
-    let bytes = path.as_os_str().as_bytes();
-    assert!(
-        bytes.len() < address.sun_path.len(),
-        "{path:?} is too long for a socket"
-    );
-    for (to, from) in address.sun_path.iter_mut().zip(bytes) {
+    // An abstract name starts with a zero byte and runs to the given length.
+    for (to, from) in address.sun_path[1..].iter_mut().zip(bytes) {
         *to = *from as libc::c_char;
     }
+    let length =
+        (std::mem::offset_of!(libc::sockaddr_un, sun_path) + 1 + bytes.len()) as libc::socklen_t;
     let socket = unsafe { libc::socket(libc::AF_UNIX, libc::SOCK_STREAM | libc::SOCK_CLOEXEC, 0) };
     assert!(socket >= 0);
     let child = unsafe { libc::fork() };
     if child == 0 {
         unsafe {
-            libc::connect(
-                socket,
-                (&raw const address).cast(),
-                std::mem::size_of::<libc::sockaddr_un>() as libc::socklen_t,
-            );
+            libc::connect(socket, (&raw const address).cast(), length);
             libc::_exit(0);
         }
     }
@@ -250,7 +253,6 @@ pub fn with_a_client_that_has_gone<T>(
         unsafe { libc::waitpid(child, std::ptr::null_mut(), 0) };
     }
     unsafe { libc::close(socket) };
-    std::fs::remove_dir_all(&dir).unwrap();
     answer
 }
 

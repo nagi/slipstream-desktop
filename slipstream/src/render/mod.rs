@@ -1807,7 +1807,7 @@ fn bar_content(
             .bullet
             .as_ref()
             .map(|_| ("BULLET TIME", opaque(state.bullet_rgb))),
-        status: bar::Shown::of(&state.status.lock().unwrap()),
+        status: bar::Shown::of(&crate::status::held(&state.status)),
         do_not_disturb: state.settings.notifications.do_not_disturb,
         unread: state.notices.unread(),
         sharing: state.captures.sharing(),
@@ -1816,7 +1816,7 @@ fn bar_content(
             .get_keyboard()
             .is_some_and(|keyboard| keyboard.modifier_state().caps_lock),
         awake: state.awake,
-        meter: state.meter.lock().unwrap().clone(),
+        meter: crate::status::held(&state.meter).clone(),
         // The pane hangs from the bar of the screen the streams are on.
         dock: state
             .docked_on_show()
@@ -1997,7 +1997,7 @@ fn themed_pointer(
 /// The clock, the date and the battery for the wallpaper's variations that show them, with
 /// `place` naming the workspace on screen.
 fn saver_readings(state: &Slipstream, place: String) -> crate::saver::Readings {
-    let status = state.status.lock().unwrap();
+    let status = crate::status::held(&state.status);
     crate::saver::Readings {
         time: status.time.clone(),
         date: status.date.clone(),

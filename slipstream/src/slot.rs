@@ -348,7 +348,12 @@ fn paint_strip(
         if cover == 0 || light[..3] == [0, 0, 0] {
             continue;
         }
-        let at = ((i / iw + inset) * w as usize + i % iw + inset) * 4;
+        // A card only a pixel or two across still has an inner shape of one, past its edge.
+        let (x, y) = (i % iw + inset, i / iw + inset);
+        if x >= w as usize || y >= h as usize {
+            continue;
+        }
+        let at = (y * w as usize + x) * 4;
         for (channel, &light) in data[at..at + 3].iter_mut().zip(&light[..3]) {
             let added = *channel as u32 + (light as u32 * cover + 127) / 255;
             *channel = added.min(255) as u8;
