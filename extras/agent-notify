@@ -211,8 +211,8 @@ is_agent() {
 }
 
 # What the agent is working on, in a few words, from the hook's JSON in $payload: the title the
-# agent has given the session where it keeps one, or else how the prompt begins. Nothing if the
-# hook says neither.
+# agent has given the session where it keeps one, or else how the prompt begins, from the hook or
+# the transcript. Nothing if neither says.
 task() {
     task_file=$(printf '%s' "$payload" | jq -r '.transcript_path // .transcriptPath // empty' 2>/dev/null)
     task_title=
@@ -225,7 +225,13 @@ task() {
     if [ -z "$task_title" ]; then
         task_title=$(printf '%s' "$payload" | jq -r '.prompt // empty' 2>/dev/null)
     fi
-    printf '%s' "$task_title" | tr -d '\000-\037\177' | cut -c1-60
+    if [ -z "$task_title" ] && [ -r "$task_file" ]; then
+        # Antigravity sends no prompt, but its transcript keeps each one in a USER_REQUEST tag.
+        task_title=$(tail -c 400000 "$task_file" 2>/dev/null |
+            grep '"type": \{0,1\}"USER_INPUT"' | tail -n 1 |
+            jq -r '.content // "" | capture("<USER_REQUEST>\\s*(?<r>[^<]*)").r // "" | gsub("\\s+$"; "")' 2>/dev/null)
+    fi
+    printf '%s' "$task_title" | tr '\n' ' ' | tr -d '\000-\037\177' | cut -c1-60
 }
 
 # working_note AGENT on|on-clear|wait|off|idle: leaves, updates, or marks idle the note that
