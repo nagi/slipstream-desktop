@@ -2,6 +2,22 @@
 
 Slipstream is in beta: anything can change between versions, including settings and keys.
 
+## 0.12.0 - 2026-10-15
+
+- **An AI agent can keep working while you're logged out.** On the same terms as bringing a session back: nothing happens unless your agent can run in the background. Log out and it carries on; at the next login its terminal is back where it was, attached to the same session. It's what you'd usually want a terminal multiplexer for, in the terminal you already like. Notifications from a program working in the background for a terminal now take you to that terminal.
+- **Logging out doesn't ask about an agent's terminal.** With the layout kept, a terminal whose agent will come back with it closes without asking whether to stop what's running; everything else still asks.
+- **A waiting trace moves.** A trace waiting on a subagent now carries a gentle wave instead of a flat pulse, and a trace is named from the moment it appears.
+- **A file opened from a file manager opens as a tile.** Its app used to go straight to a stream, as if it had opened by itself.
+- **The docked pane comes back docked** when the layout is reopened, and notification pop-ups show in their usual place over it.
+- **A notification from a helper process finds its window**, through the sender's process hint when the sender itself has none.
+- **Softer shadows** under panels, notices and the docked pane.
+- **Nothing records your screen before you say yes.** A program could get a frame while the "record your screen?" card was still waiting for an answer. The share picker also ignores keys and clicks for a moment after it opens, so a stray Enter can't share your screen.
+- **Sandboxed apps can't change the screen's colours.** Night light's gamma control is offered only to programs outside a sandbox.
+- **Hardened against bad input.** Notification icons can no longer point at files that never end or never answer, oversized pictures are refused, and a huge window title or calculator sum can't stall the desktop. Screenshots and the saved session are readable only by you.
+- **Fewer ways to crash the session.** A handful of rare errors that used to end the session no longer do.
+- **The installer** checks the download's checksum strictly and sends its GitHub token only to GitHub's API.
+- **Settings:** the Screens page no longer leaks memory as you rearrange, the Power page stops polling while hidden, and a screen scaled below 100% shows its real scale.
+
 ## 0.11.0 - 2026-10-10
 
 - **Background apps in the notification centre.** Super+N now shows a "Background Apps" section above the notifications list: apps that are running but have no visible window — Discord, Spotify and the like. Each appears as a rounded chip with its icon and name; clicking a chip brings the window forward, or launches the app if it has no window open yet. A focus ring pulses in the chip's colour before the centre closes. Tab and arrow keys reach the chips alongside the notification stops.
