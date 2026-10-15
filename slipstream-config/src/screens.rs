@@ -23,6 +23,8 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
+use crate::display::is_zero;
+
 pub const FILE_NAME: &str = "screens.toml";
 
 /// Bumped when the format changes in a way an older Slipstream would read wrongly.
@@ -83,7 +85,13 @@ impl ScreenMode {
         let (w, h) = size.trim().split_once('x')?;
         let refresh = match rate {
             None => None,
-            Some(rate) => Some((rate.trim().parse::<f64>().ok()? * 1000.0).round() as i32),
+            Some(rate) => {
+                let hz: f64 = rate.trim().parse().ok()?;
+                if !(hz.is_finite() && hz > 0.0) {
+                    return None;
+                }
+                Some((hz * 1000.0).round() as i32)
+            }
         };
         Some((w.trim().parse().ok()?, h.trim().parse().ok()?, refresh))
     }
@@ -96,7 +104,7 @@ impl ScreenMode {
         };
         self.width == w
             && self.height == h
-            && refresh.is_none_or(|refresh| (self.refresh - refresh).abs() <= 500)
+            && refresh.is_none_or(|refresh| self.refresh.abs_diff(refresh) <= 500)
     }
 }
 
@@ -133,10 +141,6 @@ pub struct Known {
     /// The scale it is running now.
     #[serde(skip_serializing_if = "is_zero")]
     pub scale: f64,
-}
-
-fn is_zero(scale: &f64) -> bool {
-    *scale == 0.0
 }
 
 impl Remembered {
@@ -222,15 +226,7 @@ impl Remembered {
 
 /// `$XDG_STATE_HOME/slipstream`, else `~/.local/state/slipstream`.
 pub fn state_dir() -> PathBuf {
-    let state = std::env::var_os("XDG_STATE_HOME")
-        .map(PathBuf::from)
-        .filter(|dir| dir.is_absolute())
-        .unwrap_or_else(|| {
-            PathBuf::from(std::env::var_os("HOME").unwrap_or_default())
-                .join(".local")
-                .join("state")
-        });
-    state.join("slipstream")
+    crate::xdg_home("XDG_STATE_HOME", ".local/state").join("slipstream")
 }
 
 pub fn path() -> PathBuf {
@@ -246,8 +242,6 @@ pub fn read(path: &Path) -> Remembered {
     };
     match toml::from_str::<Remembered>(&text) {
         Ok(remembered) if !remembered.is_too_new() => remembered,
-        // A file from a newer Slipstream, or one that can't be read at all: being asked about
-        // the screens again is a far better failure than refusing to start.
         _ => Remembered::new(),
     }
 }
@@ -263,13 +257,9 @@ pub fn write(path: &Path, remembered: &Remembered) -> io::Result<()> {
 /// come back as "Unknown" from `libdisplay-info` when the screen doesn't say, so those are
 /// dropped rather than written into an identity three screens could share.
 pub fn identity(make: &str, model: &str, serial: &str, connector: &str) -> String {
-    let told = |field: &str| {
-        let field = field.trim();
-        (!field.is_empty() && !field.eq_ignore_ascii_case("unknown")).then(|| field.to_string())
-    };
-    let parts: Vec<String> = [make, model, serial]
-        .iter()
-        .filter_map(|f| told(f))
+    let parts: Vec<&str> = [make, model, serial]
+        .into_iter()
+        .filter_map(reported)
         .collect();
     if parts.is_empty() {
         connector.to_string()
@@ -281,21 +271,23 @@ pub fn identity(make: &str, model: &str, serial: &str, connector: &str) -> Strin
 impl Known {
     /// What to call it on screen: its model, or failing that whatever it is known by.
     pub fn name(&self) -> &str {
-        match self.label.is_empty() {
-            true => &self.monitor,
-            false => &self.label,
+        if self.label.is_empty() {
+            &self.monitor
+        } else {
+            &self.label
         }
     }
 }
 
-/// The short name for a screen: the model its EDID gives, else the connector. `libdisplay-info`
-/// says "Unknown" when a screen doesn't tell us, which is no use as a name.
+/// The short name for a screen: the model its EDID gives, else the connector.
 pub fn short_name(model: &str, connector: &str) -> String {
-    let model = model.trim();
-    match !model.is_empty() && !model.eq_ignore_ascii_case("unknown") {
-        true => model.to_string(),
-        false => connector.to_string(),
-    }
+    reported(model).unwrap_or(connector).to_string()
+}
+
+/// An EDID field the screen actually filled in: `libdisplay-info` says "Unknown" when it didn't.
+fn reported(field: &str) -> Option<&str> {
+    let field = field.trim();
+    (!field.is_empty() && !field.eq_ignore_ascii_case("unknown")).then_some(field)
 }
 
 #[cfg(test)]
@@ -388,6 +380,9 @@ mod tests {
         assert!(!sixty.matches("1920x1080@120"));
         assert!(!sixty.matches("1280x720@60"));
         assert!(!sixty.matches("nonsense"));
+        // A hand edit can name any rate at all without upsetting the sums.
+        assert!(!sixty.matches("1920x1080@-1e10"));
+        assert!(!sixty.matches("1920x1080@inf"));
     }
 
     #[test]

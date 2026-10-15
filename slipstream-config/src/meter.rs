@@ -5,6 +5,9 @@
 //! {"sections": [{"name": "Storage", "detail": "Pro", "note": null, "stale": false,
 //!                "meters": [{"label": "Daily", "percent": 42, "resets": 1790000000}]}]}
 //! ```
+//!
+//! `resets` is when that allowance starts over, in seconds since the Unix epoch. `detail`, `note`,
+//! `stale` and `resets` are optional; `stale` dims a section whose numbers are old.
 
 use std::{
     io::Read,
