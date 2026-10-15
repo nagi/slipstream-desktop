@@ -88,7 +88,7 @@ pub fn descends_from(pid: u32, ancestor: u32) -> bool {
         }
         match fs::read_to_string(format!("/proc/{current}/stat"))
             .ok()
-            .and_then(|stat| parent_in_stat(&stat))
+            .and_then(|stat| crate::notify::parent_of(&stat))
         {
             Some(parent) if parent > 1 => current = parent,
             _ => return false,
@@ -99,11 +99,6 @@ pub fn descends_from(pid: u32, ancestor: u32) -> bool {
 
 /// The parent pid from a `/proc/<pid>/stat` line. The command name comes in brackets and may
 /// hold spaces and brackets itself, so the fields are counted from the last `)`.
-fn parent_in_stat(stat: &str) -> Option<u32> {
-    let rest = &stat[stat.rfind(')')? + 1..];
-    rest.split_whitespace().nth(1)?.parse().ok()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -132,12 +127,15 @@ mod tests {
 
     #[test]
     fn parent_is_read_past_awkward_command_names() {
-        assert_eq!(parent_in_stat("412 (bash) S 400 412 412 0"), Some(400));
         assert_eq!(
-            parent_in_stat("9001 (Web Content (x) 2) S 8810 1 1 0"),
+            crate::notify::parent_of("412 (bash) S 400 412 412 0"),
+            Some(400)
+        );
+        assert_eq!(
+            crate::notify::parent_of("9001 (Web Content (x) 2) S 8810 1 1 0"),
             Some(8810)
         );
-        assert_eq!(parent_in_stat("garbage"), None);
+        assert_eq!(crate::notify::parent_of("garbage"), None);
     }
 
     #[test]

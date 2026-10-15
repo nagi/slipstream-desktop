@@ -706,7 +706,6 @@ impl Glyphs {
                     if ox < 0 || ox >= w as i32 {
                         continue;
                     }
-                    // Matrix mode mirrors every glyph.
                     let ox = if mirrored { w as i32 - 1 - ox } else { ox };
                     out[oy as usize * w + ox as usize] = coverage[gy * metrics.width + gx];
                 }

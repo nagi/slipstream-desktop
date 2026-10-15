@@ -59,8 +59,12 @@ impl Request {
                 _ => return Err(format!("{flag} isn't an option")),
             }
         }
-        if request.size.0 < 16 || request.size.1 < 10 || request.size.0 > 3840 {
-            return Err("the size must be between 16x10 and 3840 wide".into());
+        if request.size.0 < 16
+            || request.size.1 < 10
+            || request.size.0 > 3840
+            || request.size.1 > 2160
+        {
+            return Err("the size must be between 16x10 and 3840x2160".into());
         }
         if request.frames > 240 || !(0.0..=10.0).contains(&request.every) {
             return Err("at most 240 frames, at most 10 s apart".into());

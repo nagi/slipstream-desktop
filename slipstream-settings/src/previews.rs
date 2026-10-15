@@ -3,7 +3,7 @@
 //! The wallpaper is drawn on the CPU by the compositor, so the compositor draws the previews too:
 //! `slipstream --wallpaper-preview ID` composes a variation off screen, with no display and no
 //! GPU, and writes a few small frames. They are made once for each build of the compositor, on a
-//! thread of their own, and kept in the cache folder; the page shows each row's frames in turn,
+//! thread of their own, and kept in the cache folder; the page shows each card's frames in turn,
 //! or only the still picture when motion is reduced.
 
 use std::{
@@ -49,12 +49,9 @@ fn compositor() -> Option<PathBuf> {
 
 /// Where previews are kept: `slipstream/wallpaper-previews` in the cache folder.
 fn cache_root() -> PathBuf {
-    let cache = std::env::var_os("XDG_CACHE_HOME")
-        .map(PathBuf::from)
-        .filter(|path| path.is_absolute())
-        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".cache")))
-        .unwrap_or_else(|| PathBuf::from(".cache"));
-    cache.join("slipstream").join("wallpaper-previews")
+    slipstream_config::xdg_home("XDG_CACHE_HOME", ".cache")
+        .join("slipstream")
+        .join("wallpaper-previews")
 }
 
 /// A name for this build of the compositor, from its size and when it was written, so previews
@@ -118,7 +115,7 @@ fn make(compositor: &Path, id: &str, dir: &Path) -> Result<Frames, String> {
     })
 }
 
-/// A preview's place in its row, waiting for its frames.
+/// A preview's place in its card, waiting for its frames.
 pub fn picture() -> gtk::Picture {
     let picture = gtk::Picture::builder()
         .content_fit(gtk::ContentFit::Cover)

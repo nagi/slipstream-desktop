@@ -1,7 +1,7 @@
 //! Slipstream's fonts, embedded as the compositor embeds them, and handed to Pango from files in
 //! the cache folder, so the app matches the desktop without installing fonts system-wide.
 
-use std::{fs, path::PathBuf};
+use std::fs;
 
 use gtk::prelude::*;
 use gtk4 as gtk;
@@ -32,7 +32,9 @@ const FONTS: [(&str, &[u8]); 5] = [
 
 /// Makes the fonts available to this app. Without them, the stylesheet's fallbacks apply.
 pub fn register() {
-    let dir = cache_dir().join("slipstream").join("fonts");
+    let dir = slipstream_config::xdg_home("XDG_CACHE_HOME", ".cache")
+        .join("slipstream")
+        .join("fonts");
     if let Err(err) = fs::create_dir_all(&dir) {
         eprintln!(
             "slipstream-settings: can't unpack fonts into {}: {err}",
@@ -46,28 +48,15 @@ pub fn register() {
     for (name, bytes) in FONTS {
         let path = dir.join(name);
         let unpacked = fs::metadata(&path).is_ok_and(|meta| meta.len() == bytes.len() as u64);
-        if !unpacked {
-            let partial = dir.join(format!("{name}.partial"));
-            if let Err(err) = fs::write(&partial, bytes).and_then(|()| fs::rename(&partial, &path))
-            {
-                eprintln!(
-                    "slipstream-settings: can't unpack {}: {err}",
-                    path.display()
-                );
-                continue;
-            }
+        if !unpacked && let Err(err) = slipstream_config::replace(&path, bytes) {
+            eprintln!(
+                "slipstream-settings: can't unpack {}: {err}",
+                path.display()
+            );
+            continue;
         }
         if let Err(err) = font_map.add_font_file(&path) {
             eprintln!("slipstream-settings: can't load {}: {err}", path.display());
         }
     }
-}
-
-fn cache_dir() -> PathBuf {
-    std::env::var_os("XDG_CACHE_HOME")
-        .map(PathBuf::from)
-        .filter(|dir| dir.is_absolute())
-        .unwrap_or_else(|| {
-            PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".cache")
-        })
 }

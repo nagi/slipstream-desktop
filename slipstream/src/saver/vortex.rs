@@ -12,7 +12,8 @@
 use std::f32::consts::{PI, TAU};
 
 use super::{
-    BG, Cell, Feedback, Frame, Grid, Layout, Motion, Variation, gradient, hue_byte, hue_colour, mix,
+    BG, Cell, Feedback, Frame, Grid, Layout, Motion, Variation, draw_letters, hue_byte, hue_colour,
+    mix,
 };
 
 /// One turn, in seconds of the animation clock. For the last `DIM` of it the sources go out and
@@ -137,16 +138,7 @@ impl Vortex {
         if light <= 0.02 {
             return;
         }
-        let (lx, _, lw, _) = layout.logo;
-        for letter in &layout.letters {
-            let across = (letter.col - lx) as f32 / lw.max(1) as f32;
-            grid.put(
-                letter.col as f32,
-                letter.row as f32,
-                letter.ch,
-                mix(BG, gradient(across), light),
-            );
-        }
+        draw_letters(layout, grid, light);
     }
 }
 
@@ -200,7 +192,10 @@ impl Variation for Vortex {
                 self.draw(layout, &mut picture, 1.0);
                 self.still = Some(picture.cells);
             }
-            if let Some(cells) = &self.still {
+            // A picture kept from another size would no longer fit the grid.
+            if let Some(cells) = &self.still
+                && cells.len() == grid.cells.len()
+            {
                 grid.cells.clone_from(cells);
             }
             return;

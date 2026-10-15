@@ -14,7 +14,8 @@
 //! back to its own dot of its own letter, however far it was flung.
 
 use super::{
-    Frame, Grid, Layout, Stipple, Variation, draw_letters, gradient, hash01, logo_dots, smoothstep,
+    Frame, Grid, Layout, Stipple, Variation, draw_letters, gradient, hash01, into_turn, logo_dots,
+    smoothstep, turn_fade, turn_rng,
 };
 
 /// One turn, in seconds of the animation clock.
@@ -147,7 +148,7 @@ impl Galaxies {
 
         // Stars on the letters, each circling its own half's core in the sense the cores circle
         // each other, and carried along with it.
-        let mut rng = (self.seed ^ turn.wrapping_mul(0x9e37_79b9_7f4a_7c15)) | 1;
+        let mut rng = turn_rng(self.seed, turn);
         self.stars.clear();
         for dot in &dots {
             let rgb = gradient(dot.across);
@@ -182,7 +183,10 @@ impl Galaxies {
     /// Steps the stars forwards or backwards until they are at simulation step `target`.
     fn go_to(&mut self, target: usize) {
         let dt = 1.0 / SIM_HZ;
-        let target = target.min(self.cores.len() - 1);
+        let Some(last) = self.cores.len().checked_sub(1) else {
+            return;
+        };
+        let target = target.min(last);
         while self.at < target {
             let next = self.cores[self.at + 1];
             for star in &mut self.stars {
@@ -259,18 +263,11 @@ impl Variation for Galaxies {
             self.draw(grid, 1.0);
             return;
         }
-        let turn = (frame.elapsed / TURN).floor().max(0.0) as u64;
-        let t = frame.elapsed.rem_euclid(TURN);
+        let (turn, t) = into_turn(frame.elapsed, TURN);
         if self.turn != Some(turn) || resized {
             self.start(layout, turn);
         }
-        let fade = if t < APPEAR {
-            (t / APPEAR) as f32
-        } else if t > TURN - GONE {
-            ((TURN - t) / GONE) as f32
-        } else {
-            1.0
-        };
+        let fade = turn_fade(t, APPEAR, TURN, GONE);
         let collide = APPEAR + HOLD;
         let rewind = collide + COLLIDE + PAUSE;
         let home = rewind + REWIND;

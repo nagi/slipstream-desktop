@@ -16,8 +16,8 @@
 //! join as they move.
 
 use super::{
-    Frame, Grid, Layout, Stipple, Variation, draw_letters, gradient, logo_dots, smoothstep,
-    xorshift,
+    Frame, Grid, Layout, Stipple, Variation, draw_letters, gradient, into_turn, logo_dots,
+    smoothstep, turn_fade, turn_rng, xorshift,
 };
 
 /// One turn, in seconds of the animation clock.
@@ -94,7 +94,7 @@ impl Chladni {
         self.rows = layout.rows;
         self.w = (layout.cols.max(1) * 2) as f32;
         self.h = (layout.rows.max(1) * 4) as f32;
-        self.rng = (self.seed ^ turn.wrapping_mul(0x9e37_79b9_7f4a_7c15)) | 1;
+        self.rng = turn_rng(self.seed, turn);
         self.stepped = None;
         // Four different notes, in a different order each turn.
         let mut modes: Vec<usize> = (0..MODES.len()).collect();
@@ -283,8 +283,7 @@ impl Variation for Chladni {
             self.draw(grid, 1.0);
             return;
         }
-        let turn = (frame.elapsed / TURN).floor().max(0.0) as u64;
-        let t = frame.elapsed.rem_euclid(TURN);
+        let (turn, t) = into_turn(frame.elapsed, TURN);
         if self.turn != Some(turn) || resized {
             self.start(layout, turn);
         }
@@ -294,13 +293,7 @@ impl Variation for Chladni {
             self.stepped = Some(step);
             self.advance(t);
         }
-        let fade = if t < APPEAR {
-            (t / APPEAR) as f32
-        } else if t > TURN - GONE {
-            ((TURN - t) / GONE) as f32
-        } else {
-            1.0
-        };
+        let fade = turn_fade(t, APPEAR, TURN, GONE);
         if t < APPEAR || t >= TURN - REST - GONE {
             draw_letters(layout, grid, fade);
         } else {

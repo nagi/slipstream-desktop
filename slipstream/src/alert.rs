@@ -173,20 +173,8 @@ fn decode_uri_path(text: &str) -> Option<String> {
 /// Where sound themes live: `$XDG_DATA_HOME/sounds`, then `sounds` under each of
 /// `$XDG_DATA_DIRS`, with the spec's defaults for either when unset.
 fn bases() -> Vec<PathBuf> {
-    let home = std::env::var_os("XDG_DATA_HOME")
-        .filter(|dir| !dir.is_empty())
-        .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|home| Path::new(&home).join(".local/share")));
-    let dirs = std::env::var("XDG_DATA_DIRS")
-        .ok()
-        .filter(|dirs| !dirs.is_empty())
-        .unwrap_or_else(|| "/usr/local/share:/usr/share".into());
-    home.into_iter()
-        .chain(
-            dirs.split(':')
-                .filter(|dir| !dir.is_empty())
-                .map(PathBuf::from),
-        )
+    std::iter::once(crate::apps::data_home())
+        .chain(crate::apps::system_data_dirs())
         .filter(|dir| dir.is_absolute())
         .map(|dir| dir.join("sounds"))
         .collect()
@@ -213,7 +201,8 @@ struct Index {
 /// The first `index.theme` for `theme` under `bases`, read. Nothing when no base has the theme.
 fn index(theme: &str, bases: &[PathBuf]) -> Option<Index> {
     bases.iter().find_map(|base| {
-        let text = std::fs::read_to_string(base.join(theme).join("index.theme")).ok()?;
+        let path = base.join(theme).join("index.theme");
+        let text = crate::files::read_small_text(&path, crate::files::DESKTOP_ENTRY_LIMIT)?;
         Some(parse_index(&text))
     })
 }

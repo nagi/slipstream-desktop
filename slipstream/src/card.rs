@@ -1,7 +1,7 @@
 //! The glass card the way out and the login offer are both drawn on: a title, a line or two of
 //! prose, a list, an optional switch, and a footer of answers.
 //!
-//! One card, so the two never drift apart. The answers are buttons the pointer can press, each
+//! One card, so they never drift apart. The answers are buttons the pointer can press, each
 //! carrying the key that does the same thing inside it — keyboard first, mouse always optional —
 //! and each returns where it was drawn, so a click can find it again.
 
@@ -275,7 +275,7 @@ pub fn paint(card: &Card, scale: f64) -> (Option<Painted>, Vec<Hit>) {
 }
 
 /// The switch that says whether to write the layout down, with what it means under it. The whole
-/// row is clickable, not just the box, because a 18-pixel target is a mouse-only cruelty.
+/// row is clickable, not just the box, because an 18-pixel box is too small a target.
 fn paint_switch(p: &mut Painter, on: bool, x: f32, y: f32, inner: f32, lit: bool) -> Hit {
     let label = Style::new(Face::Body, 15.0, INK);
     let key = Style::new(Face::Mono, 12.0, if lit { INK } else { HINT });

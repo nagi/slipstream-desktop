@@ -36,21 +36,12 @@ pub struct Clock {
     /// The real seconds read last and the wall seconds they came to. Kept as a cell so reading
     /// the time takes a shared borrow, as every other reading does.
     recorded: std::cell::Cell<(f64, f64)>,
-    /// A recording's fixed step (`slow:`): a drawn frame is worth this many seconds, however long
-    /// it really took to draw. None the rest of the time, when real seconds are what count.
+    /// A recording's fixed step (`slow:`): each drawn frame moves the clock on this many seconds,
+    /// however long it took to draw, so a slow software renderer still yields every frame of an
+    /// animation. `None` outside a recording.
     ///
-    /// A software renderer manages a dozen frames a second, so a third-of-a-second animation is
-    /// over in three or four of them and no amount of screenshotting finds any more; worse, the
-    /// one frame that costs a second of real time lands most of the way through the animation, so
-    /// what frames there are bunch up at the end. Stepping the clock instead lays them wherever
-    /// the recording asks, however slow the drawing is, and the debug script's own timeline steps
-    /// with it, so a shot every step catches every frame exactly once.
-    ///
-    /// It is the clock the compositor draws by, not the one the world runs on: how long since
-    /// someone last touched a key, how long a program has been starting and how long until the
-    /// screen fades are all real seconds and stay real. So a scene is set up at full speed and
-    /// stepped only over the moment being recorded — and only while something is animating, since
-    /// a stepped clock moves when a frame is drawn and a still screen draws nothing.
+    /// Only the drawing clock steps: idle, launch and fade timers stay on real seconds. And a
+    /// still screen draws nothing, so a recording steps only while something is animating.
     step: Option<f64>,
     /// Wall seconds since start, at the last tick.
     wall: f64,
@@ -421,7 +412,6 @@ mod tests {
                     "rate {rate} dipped below bullet time's"
                 );
                 // The speed-up eases in: the first frame after release only nudges the speed.
-                // (A u² curve jumped from 0.25× to 0.68× here after 15 s of bullet time.)
                 if first_frame {
                     assert!(
                         rate - rate_before < 0.15,

@@ -152,9 +152,9 @@ impl Server {
         };
         let incoming = Incoming {
             id,
-            app_name,
-            app_icon,
-            desktop_entry: text("desktop-entry"),
+            app_name: cut(app_name, NAME_CHARS),
+            app_icon: cut(app_icon, PATH_CHARS),
+            desktop_entry: text("desktop-entry").map(|entry| cut(entry, PATH_CHARS)),
             summary: cut(summary, SUMMARY_CHARS),
             body: cut(body, BODY_CHARS),
             default_action: has_default(&actions),
@@ -163,7 +163,9 @@ impl Server {
             image: ["image-data", "image_data", "icon_data"]
                 .iter()
                 .find_map(|key| hints.get(*key).and_then(image)),
-            image_path: text("image-path").or_else(|| text("image_path")),
+            image_path: text("image-path")
+                .or_else(|| text("image_path"))
+                .map(|path| cut(path, PATH_CHARS)),
             urgency: urgency(hints.get("urgency")),
             transient: flag("transient"),
             resident: flag("resident"),
@@ -336,7 +338,7 @@ pub fn lineage(proc: &Path, pid: u32) -> Vec<u32> {
 /// The parent pid from a `/proc/<pid>/stat` line: `pid (comm) state ppid …`. The command name is
 /// whatever the program called itself, spaces and parentheses included, so the fields are counted
 /// from its last closing parenthesis.
-fn parent_of(stat: &str) -> Option<u32> {
+pub(crate) fn parent_of(stat: &str) -> Option<u32> {
     let mut fields = stat[stat.rfind(')')? + 1..].split_whitespace();
     fields.next()?;
     fields.next()?.parse().ok()
@@ -382,6 +384,11 @@ pub fn invoked(id: u32, action: &str) {
 const SUMMARY_CHARS: usize = 256;
 const BODY_CHARS: usize = 4096;
 
+/// The longest app name kept, and the longest icon, entry or image name: a path no longer than
+/// the system allows.
+const NAME_CHARS: usize = 256;
+const PATH_CHARS: usize = 4096;
+
 /// `text` cut to at most `chars` characters, at a character's boundary.
 fn cut(mut text: String, chars: usize) -> String {
     if let Some((at, _)) = text.char_indices().nth(chars) {
@@ -419,17 +426,51 @@ fn has_default(actions: &[String]) -> bool {
 /// The `image-data` hint, `(iiibiiay)`: width, height, bytes per row, alpha, bits per sample,
 /// channels, and the pixels.
 fn image(value: &OwnedValue) -> Option<Image> {
-    let value = Value::from(value.try_clone().ok()?);
-    let (width, height, rowstride, _alpha, bits, channels, data): (
-        i32,
-        i32,
-        i32,
-        bool,
-        i32,
-        i32,
-        Vec<u8>,
-    ) = value.try_into().ok()?;
+    // Read in place: the pixels arrive as one value per byte, and copying them all before the
+    // size is checked would let a single notification take gigabytes.
+    let Value::Structure(image) = &**value else {
+        return None;
+    };
+    let [
+        width,
+        height,
+        rowstride,
+        _alpha,
+        bits,
+        channels,
+        Value::Array(data),
+    ] = image.fields()
+    else {
+        return None;
+    };
+    let int = |value: &Value| i32::try_from(value).ok();
+    let (width, height, rowstride) = (int(width)?, int(height)?, int(rowstride)?);
+    let (bits, channels) = (int(bits)?, int(channels)?);
+    let needed = needed(width, height, rowstride, bits, channels)?;
+    let data: Vec<u8> = data
+        .inner()
+        .get(..needed)?
+        .iter()
+        .map(|byte| u8::try_from(byte).ok())
+        .collect::<Option<_>>()?;
     decode(width, height, rowstride, bits, channels, &data)
+}
+
+/// How many bytes a picture of this shape takes, for one that adds up and is no bigger than an
+/// icon needs.
+fn needed(width: i32, height: i32, rowstride: i32, bits: i32, channels: i32) -> Option<usize> {
+    if bits != 8 || !(3..=4).contains(&channels) || !(1..=1024).contains(&width) {
+        return None;
+    }
+    if !(1..=1024).contains(&height) || rowstride <= 0 {
+        return None;
+    }
+    let (h, stride) = (height as usize, rowstride as usize);
+    let row = width as usize * channels as usize;
+    if stride < row {
+        return None;
+    }
+    (h - 1).checked_mul(stride)?.checked_add(row)
 }
 
 /// Straight RGBA from 8-bit RGB or RGBA rows, `rowstride` bytes apart. Nothing for a picture that
@@ -442,13 +483,8 @@ fn decode(
     channels: i32,
     data: &[u8],
 ) -> Option<Image> {
-    if bits != 8 || !(3..=4).contains(&channels) || !(1..=1024).contains(&width) {
-        return None;
-    }
-    if !(1..=1024).contains(&height) {
-        return None;
-    }
-    if rowstride <= 0 {
+    let needed = needed(width, height, rowstride, bits, channels)?;
+    if data.len() < needed {
         return None;
     }
     let (w, h, stride, channels) = (
@@ -457,13 +493,6 @@ fn decode(
         rowstride as usize,
         channels as usize,
     );
-    let row = w * channels;
-    let needed = (h - 1)
-        .checked_mul(stride)
-        .and_then(|rows| rows.checked_add(row))?;
-    if stride < row || data.len() < needed {
-        return None;
-    }
     let mut rgba = Vec::with_capacity(w * h * 4);
     for row in 0..h {
         let start = row * stride;

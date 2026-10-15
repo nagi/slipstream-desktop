@@ -154,7 +154,7 @@ impl Variation for Glitch {
         }
         let beat = (t * 14.0) as u64;
         // The time, as the one tear's corruption spells it.
-        let told: Vec<char> = frame.readings.time.chars().collect();
+        let told = &frame.readings.time;
         let telling = tear.is_some_and(|(_, number)| number == TELLING) && !told.is_empty();
         // The torn row nearest the middle of the logo carries it, from a third of the way in.
         let told_row = tear.and_then(|(_, number)| {
@@ -205,7 +205,7 @@ impl Variation for Glitch {
         if let (true, Some(row), Some((along, number))) = (telling, told_row, tear) {
             let slide = torn(row, number).unwrap_or(0.0) * (along * PI).sin();
             let start = (lx + lw / 3) as f32 + slide;
-            for (k, &digit) in told.iter().enumerate() {
+            for (k, digit) in told.chars().enumerate() {
                 grid.put(
                     start + k as f32,
                     row as f32,

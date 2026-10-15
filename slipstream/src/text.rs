@@ -159,9 +159,13 @@ pub fn ellipsize(text: &str, style: &Style, room: f32) -> String {
     if width(text, style) <= room {
         return text.to_string();
     }
-    let mut chars: Vec<char> = text.chars().collect();
-    while chars.pop().is_some() {
-        let candidate = format!("{}…", chars.iter().collect::<String>().trim_end());
+    // Where each shorter prefix ends. A window title can be any length, so the longest prefix that
+    // fits by itself is found by halving: a longer one can't fit with an ellipsis added, since
+    // adding characters never narrows a line.
+    let ends: Vec<usize> = text.char_indices().map(|(at, _)| at).collect();
+    let fits = ends.partition_point(|&end| width(&text[..end], style) <= room);
+    for &end in ends[..fits].iter().rev() {
+        let candidate = format!("{}…", text[..end].trim_end());
         if width(&candidate, style) <= room {
             return candidate;
         }

@@ -49,7 +49,7 @@ pub fn location() -> Option<(f64, f64)> {
 
 /// `+513030-0000731` as degrees: ±DDMM[SS] then ±DDDMM[SS].
 fn coordinates_of(text: &str) -> Option<(f64, f64)> {
-    let split = text[1..].find(['+', '-'])? + 1;
+    let split = text.get(1..)?.find(['+', '-'])? + 1;
     let (lat, lon) = text.split_at(split);
     Some((angle(lat, 2)?, angle(lon, 3)?))
 }

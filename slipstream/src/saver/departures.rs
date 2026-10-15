@@ -12,7 +12,9 @@
 //! This is the variation that gives back what the idle fade takes away: once the UI has faded, the
 //! bar's clock has gone with it.
 
-use super::{AMBER, BG, CYAN, Frame, Grid, Layout, Readings, Variation, WHITE, gradient, mix};
+use super::{
+    AMBER, BG, CYAN, FIGURES, Frame, Grid, Layout, Readings, Variation, WHITE, gradient, mix,
+};
 
 /// Flips a second while a flap riffles, and the shortest and longest a riffle lasts.
 const FLIPS_PER_SEC: f64 = 14.0;
@@ -31,21 +33,6 @@ const LETTERS: &[char] = &[
     ' ', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R',
     'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '%',
     ':', '-', '.', '/',
-];
-
-/// The figures, five cells of ink by seven rows, `#` for ink.
-#[rustfmt::skip]
-const FONT: [[&str; 7]; 10] = [
-    [".###.", "#...#", "#..##", "#.#.#", "##..#", "#...#", ".###."],
-    ["..#..", ".##..", "..#..", "..#..", "..#..", "..#..", ".###."],
-    [".###.", "#...#", "....#", "...#.", "..#..", ".#...", "#####"],
-    ["####.", "....#", "....#", ".###.", "....#", "....#", "####."],
-    ["...#.", "..##.", ".#.#.", "#..#.", "#####", "...#.", "...#."],
-    ["#####", "#....", "####.", "....#", "....#", "#...#", ".###."],
-    [".###.", "#....", "#....", "####.", "#...#", "#...#", ".###."],
-    ["#####", "....#", "...#.", "..#..", ".#...", ".#...", ".#..."],
-    [".###.", "#...#", "#...#", ".###.", "#...#", "#...#", ".###."],
-    [".###.", "#...#", "#...#", ".####", "....#", "....#", ".###."],
 ];
 
 /// A figure's tile, in cells: each point of the font is two cells wide and one row tall, which is
@@ -235,7 +222,7 @@ impl Departures {
             let x =
                 cx + k as i32 * (TILE_W + TILE_GAP) + if k >= 2 { COLON_W - TILE_GAP } else { 0 };
             let (ch, moving) = flap.map_or((' ', false), |flap| flap.at(DIGITS, now));
-            let glyph = ch.to_digit(10).map(|d| &FONT[d as usize]);
+            let glyph = ch.to_digit(10).map(|d| &FIGURES[d as usize]);
             let ink = if moving { riffling } else { settled };
             for row in 0..TILE_H {
                 for col in 0..TILE_W {

@@ -1,7 +1,5 @@
 //! Installed apps, for the explorer: desktop entries from the XDG data directories (Flatpak
 //! exports included), their icons, ranked search, and the recently used files list.
-//!
-//! Parsing and ranking are pure, so they're unit-tested without a desktop.
 
 use std::{
     collections::{HashMap, HashSet},
@@ -214,28 +212,27 @@ fn command(exec: &str, name: &str, icon: Option<&str>) -> Vec<String> {
 }
 
 pub fn data_home() -> PathBuf {
-    std::env::var_os("XDG_DATA_HOME")
+    slipstream_config::xdg_home("XDG_DATA_HOME", ".local/share")
+}
+
+/// `$XDG_DATA_DIRS`, or the spec's default when it is unset.
+pub fn system_data_dirs() -> Vec<PathBuf> {
+    let system = std::env::var("XDG_DATA_DIRS")
+        .ok()
+        .filter(|dirs| !dirs.is_empty())
+        .unwrap_or_else(|| "/usr/local/share:/usr/share".to_string());
+    system
+        .split(':')
         .filter(|dir| !dir.is_empty())
         .map(PathBuf::from)
-        .unwrap_or_else(|| {
-            PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".local/share")
-        })
+        .collect()
 }
 
 /// The XDG data directories in order of precedence, with the Flatpak exports even if the
 /// session didn't add them.
 fn data_dirs() -> Vec<PathBuf> {
     let mut dirs = vec![data_home()];
-    let system = std::env::var("XDG_DATA_DIRS")
-        .ok()
-        .filter(|dirs| !dirs.is_empty())
-        .unwrap_or_else(|| "/usr/local/share:/usr/share".to_string());
-    dirs.extend(
-        system
-            .split(':')
-            .filter(|dir| !dir.is_empty())
-            .map(PathBuf::from),
-    );
+    dirs.extend(system_data_dirs());
     dirs.push(data_home().join("flatpak/exports/share"));
     dirs.push(PathBuf::from("/var/lib/flatpak/exports/share"));
     let mut seen = HashSet::new();
@@ -255,7 +252,7 @@ pub fn application_dirs() -> Vec<PathBuf> {
 /// wins, even if it hides the app.
 pub fn scan() -> Vec<App> {
     let desktops: Vec<String> = std::env::var("XDG_CURRENT_DESKTOP")
-        .unwrap_or_else(|_| "KDE".to_string())
+        .unwrap_or_else(|_| "Slipstream".to_string())
         .split(':')
         .map(String::from)
         .collect();
@@ -288,10 +285,20 @@ fn desktop_files(root: &Path, dir: &Path, out: &mut Vec<(String, PathBuf)>) {
     let Ok(entries) = fs::read_dir(dir) else {
         return;
     };
-    let mut paths: Vec<PathBuf> = entries.flatten().map(|entry| entry.path()).collect();
+    // A folder is recursed into only when it really is one: a link back up the tree would
+    // otherwise be followed until the path grew too long.
+    let mut paths: Vec<(PathBuf, bool)> = entries
+        .flatten()
+        .map(|entry| {
+            (
+                entry.path(),
+                entry.file_type().is_ok_and(|kind| kind.is_dir()),
+            )
+        })
+        .collect();
     paths.sort();
-    for path in paths {
-        if path.is_dir() {
+    for (path, is_dir) in paths {
+        if is_dir {
             desktop_files(root, &path, out);
         } else if path.extension().is_some_and(|ext| ext == "desktop") {
             if let Ok(relative) = path.strip_prefix(root) {
@@ -462,7 +469,7 @@ fn icon_dir_size(name: &str) -> Option<u32> {
         None => (name, 1),
     };
     let pixels: u32 = base.split('x').next()?.parse().ok()?;
-    Some(pixels * factor)
+    pixels.checked_mul(factor)
 }
 
 /// The list of recently used files GTK and KDE apps keep, in the data home.

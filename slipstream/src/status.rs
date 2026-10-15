@@ -5,7 +5,7 @@
 use std::{
     process::Stdio,
     sync::{
-        Arc, Mutex, OnceLock,
+        Arc, Mutex, MutexGuard, OnceLock, PoisonError,
         atomic::{AtomicBool, AtomicUsize, Ordering},
         mpsc,
     },
@@ -78,6 +78,13 @@ static EVERYTHING: AtomicBool = AtomicBool::new(false);
 /// Until when the reader leaves the shared reading alone, while a change shown ahead of time is
 /// still being made.
 static HELD_UNTIL: Mutex<Option<Instant>> = Mutex::new(None);
+
+/// `reading` locked, even if a reader thread panicked while it held it: readers only ever store
+/// whole values, so what is there is still a reading, and the desktop carries on rather than
+/// panicking with it.
+pub fn held<T>(reading: &Mutex<T>) -> MutexGuard<'_, T> {
+    reading.lock().unwrap_or_else(PoisonError::into_inner)
+}
 
 pub fn start() -> Arc<Mutex<Reading>> {
     let shared = Arc::new(Mutex::new(Reading::default()));
@@ -180,14 +187,10 @@ fn run(command: &[String]) {
     }
 }
 
-fn strings(parts: &[&str]) -> Vec<String> {
-    parts.iter().map(|part| part.to_string()).collect()
-}
-
 /// The command that sets the speakers' volume, capped at 100% as the volume keys are.
 pub fn set_volume(percent: u8) -> Vec<String> {
     let level = format!("{:.2}", percent.min(100) as f64 / 100.0);
-    strings(&[
+    crate::launch::strings(&[
         "wpctl",
         "set-volume",
         "-l",
@@ -208,15 +211,15 @@ pub fn set_mute_on(microphone: bool, muted: bool) -> Vec<String> {
     } else {
         "@DEFAULT_AUDIO_SINK@"
     };
-    strings(&["wpctl", "set-mute", device, if muted { "1" } else { "0" }])
+    crate::launch::strings(&["wpctl", "set-mute", device, if muted { "1" } else { "0" }])
 }
 
 pub fn set_wifi(on: bool) -> Vec<String> {
-    strings(&["nmcli", "radio", "wifi", if on { "on" } else { "off" }])
+    crate::launch::strings(&["nmcli", "radio", "wifi", if on { "on" } else { "off" }])
 }
 
-/// Turning Bluetooth on unblocks its radio first, as Plasma's and GNOME's switches do: BlueZ can't
-/// power an adapter that rfkill blocks.
+/// Turning Bluetooth on unblocks its radio first: BlueZ can't power an adapter that rfkill
+/// blocks.
 pub fn set_bluetooth(on: bool) -> Vec<String> {
     let powered =
         format!("busctl set-property org.bluez /org/bluez/hci0 org.bluez.Adapter1 Powered b {on}");
@@ -225,7 +228,7 @@ pub fn set_bluetooth(on: bool) -> Vec<String> {
     } else {
         powered
     };
-    strings(&["sh", "-c", &script])
+    crate::launch::strings(&["sh", "-c", &script])
 }
 
 /// The power mode after `current`, as the quick settings tile cycles them.
@@ -308,6 +311,10 @@ fn parse_clock(text: &str) -> Option<(String, String, Date)> {
         month: ymd.next()?.parse().ok()?,
         day: ymd.next()?.parse().ok()?,
     };
+    // The calendar indexes its tables by month.
+    if !(1..=12).contains(&today.month) || !(1..=31).contains(&today.day) {
+        return None;
+    }
     Some((time, date, today))
 }
 

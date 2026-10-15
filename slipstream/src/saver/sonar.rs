@@ -194,8 +194,8 @@ impl Variation for Sonar {
             );
         }
 
-        // The beam itself, drawn from the middle outwards, with a couple of dimmer rays just
-        // behind it for a soft edge.
+        // The beam itself, drawn from the middle outwards, with dimmer rays just behind it for a
+        // soft edge.
         for back in 0..=TRAIL {
             let angle = beam - back as f32 * TRAIL_STEP;
             let light = (1.0 - back as f32 / (TRAIL + 1) as f32).powi(2) * envelope;
