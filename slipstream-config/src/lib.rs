@@ -106,12 +106,12 @@ mod file;
 mod input;
 mod pages;
 pub mod plugins;
+mod run_or_raise;
 pub mod screens;
 pub mod shortcuts;
 pub mod sounds;
 pub mod sun;
 pub mod theme;
-mod run_or_raise;
 mod wallpaper;
 pub mod weight;
 mod workspaces;
@@ -645,7 +645,13 @@ impl Borders {
     /// The primary colour, the ring's, in the followed theme or in Slipstream's own colours.
     pub fn ring(&self, theme: Option<&theme::Theme>) -> theme::Rgb {
         let tile = &self.selected_tile;
-        Self::resolve(tile, SELECTED_TILE, SELECTED_TILE_WAS, theme, theme::OWN_CYAN)
+        Self::resolve(
+            tile,
+            SELECTED_TILE,
+            SELECTED_TILE_WAS,
+            theme,
+            theme::OWN_CYAN,
+        )
     }
 
     /// The secondary colour, bullet time's, in the followed theme or in Slipstream's own colours.

@@ -280,7 +280,9 @@ fn paint(content: &Content, width: i32, scale: f64) -> Option<Painted> {
             bar.p
                 .fill(right, TALL - 1.0, rest, 1.0, 0.0, panel::divider());
         }
-        None => bar.p.fill(0.0, TALL - 1.0, wide, 1.0, 0.0, panel::divider()),
+        None => bar
+            .p
+            .fill(0.0, TALL - 1.0, wide, 1.0, 0.0, panel::divider()),
     }
     let x = paint_left(&mut bar, content);
     let right = paint_right(&mut bar, content);
@@ -1189,7 +1191,10 @@ mod tests {
                 icon.loc.x >= before.loc.x + before.size.w,
                 "right of the clock"
             );
-            assert!(icon.loc.x - (before.loc.x + before.size.w) < 8.0, "beside it");
+            assert!(
+                icon.loc.x - (before.loc.x + before.size.w) < 8.0,
+                "beside it"
+            );
             let bar = Bar {
                 targets: paint_plain(&shown, 1536, 1.25).unwrap().1,
                 ..Bar::default()

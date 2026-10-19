@@ -22,7 +22,7 @@ use smithay::{
 use crate::{
     Slipstream, icons,
     paint::{Painted, Painter},
-    panel::{self, DESIGN_PX, GAP, ink, PADDING},
+    panel::{self, DESIGN_PX, GAP, PADDING, ink},
     plugins::{Shown, card},
     text::{self, Face, Style},
 };

@@ -14,8 +14,8 @@ use std::io::Write;
 use std::time::{Duration, Instant};
 
 use super::{
-    BLANK, Frame, GlyphCache, Grid, Inks, Layout, Look, Readings, TWEEN_LEVELS, epoch_now,
-    layout, make, paint_cell, step_hz,
+    BLANK, Frame, GlyphCache, Grid, Inks, Layout, Look, Readings, TWEEN_LEVELS, epoch_now, layout,
+    make, paint_cell, step_hz,
 };
 
 /// The width a preview is drawn at before it is shrunk: about a laptop screen's worth of cells,

@@ -62,8 +62,7 @@ impl Slipstream {
     /// The keyboard just moved to a window: once this pass of the event loop is over, and the
     /// layout has settled, the pointer goes to its middle unless it is already over it.
     pub(crate) fn pointer_follows_focus(&mut self) {
-        self.loop_handle
-            .insert_idle(|state| state.warp_to_focus());
+        self.loop_handle.insert_idle(|state| state.warp_to_focus());
     }
 
     fn warp_to_focus(&mut self) {

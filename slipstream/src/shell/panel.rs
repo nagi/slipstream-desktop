@@ -5,8 +5,16 @@
 
 use crate::motion::REDUCED_FADE;
 use crate::{
-    Slipstream, centre::Centre, explorer::Explorer, history::History, keys::Action, motion::HYPR,
-    paint::Painter, palette::{self, tone}, plugin_panel::PluginPanel, quick::QuickSettings,
+    Slipstream,
+    centre::Centre,
+    explorer::Explorer,
+    history::History,
+    keys::Action,
+    motion::HYPR,
+    paint::Painter,
+    palette::{self, tone},
+    plugin_panel::PluginPanel,
+    quick::QuickSettings,
     sheet::Sheet,
 };
 

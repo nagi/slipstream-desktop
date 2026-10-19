@@ -192,7 +192,14 @@ pub fn paint_card(
     let (dy, blur, shadow) = panel::NOTICE_SHADOW;
     p.shadow(x, y, width, height, radius, dy, blur, shadow);
     p.fill(x, y, width, height, radius, accent);
-    p.fill(x + 4.0, y, width - 4.0, height, radius - 3.0, panel::notice_fill());
+    p.fill(
+        x + 4.0,
+        y,
+        width - 4.0,
+        height,
+        radius - 3.0,
+        panel::notice_fill(),
+    );
     p.border(x, y, width, height, radius, 1.0, panel::notice_edge());
     p.text(&title.to_uppercase(), x + PAD, y + 16.0 + 10.0, &heading);
     let top = y + 16.0 + 20.0 + 4.0;

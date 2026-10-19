@@ -843,12 +843,10 @@ impl Slipstream {
         } else {
             FrameFlags::DEFAULT
         };
-        match screen.drm_output.render_frame(
-            &mut gpu.renderer,
-            &shown,
-            render::background(),
-            flags,
-        ) {
+        match screen
+            .drm_output
+            .render_frame(&mut gpu.renderer, &shown, render::background(), flags)
+        {
             Ok(frame) => {
                 self.update_scanout_outputs(&output, &frame.states);
                 screen.scanned_out = fullscreen

@@ -711,7 +711,14 @@ fn paint_slider(
     let track_x = x0 + 38.0;
     let track_w = x0 + inner - 6.0 - 46.0 - 14.0 - track_x;
     let filled = track_w * level.min(100) as f32 / 100.0;
-    p.fill(track_x, centre - 3.0, track_w, 6.0, 3.0, palette::tone(0x3a3f4bff));
+    p.fill(
+        track_x,
+        centre - 3.0,
+        track_w,
+        6.0,
+        3.0,
+        palette::tone(0x3a3f4bff),
+    );
     let status = &facts.status;
     let muted = control == Control::Volume && status.muted;
     let bar_ink = if muted { panel::hint() } else { facts.accent };
@@ -727,7 +734,14 @@ fn paint_slider(
         3.0,
         0x00000088,
     );
-    p.fill(knob - 8.0, centre - 8.0, 16.0, 16.0, 8.0, palette::tone(0xffffffff));
+    p.fill(
+        knob - 8.0,
+        centre - 8.0,
+        16.0,
+        16.0,
+        8.0,
+        palette::tone(0xffffffff),
+    );
     let value = if muted {
         "Muted".to_string()
     } else {

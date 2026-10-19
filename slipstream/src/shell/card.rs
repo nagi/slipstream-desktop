@@ -13,7 +13,7 @@ use smithay::{
 use crate::{
     icons,
     paint::{Painted, Painter},
-    panel::{self, BELOW, DESIGN_PX, hint, ink, MARGIN},
+    panel::{self, BELOW, DESIGN_PX, MARGIN, hint, ink},
     text::{self, Face, Style},
 };
 

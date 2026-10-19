@@ -166,7 +166,14 @@ pub fn paint(p: &mut Painter, chips: &[Chip], how: &Paint) {
             Some((at, t)) if at == i => {
                 let pulse = (t * std::f32::consts::PI).sin();
                 let fill = 0x12 + (pulse * (0x26 - 0x12) as f32) as u32;
-                p.fill(x, y, w, h, panel::ROW_RADIUS, palette::tone(0xffffff00) | fill);
+                p.fill(
+                    x,
+                    y,
+                    w,
+                    h,
+                    panel::ROW_RADIUS,
+                    palette::tone(0xffffff00) | fill,
+                );
                 p.border(x, y, w, h, panel::ROW_RADIUS, 1.0, panel::edge());
                 if !how.reduced_motion {
                     let ring = (how.ring & 0xffffff00) | (pulse * 0xcc as f32) as u32;

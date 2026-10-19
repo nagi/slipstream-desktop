@@ -975,9 +975,14 @@ fn dock_bay_elements(
     );
     let inside =
         Rectangle::<i32, Logical>::new((at.x as i32, at.y as i32).into(), (pane.w, pane.h).into());
-    world.elements.push(OutputElement::Solid(
-        chrome.overview.solid(inside, dock_bay(), v.scale, v.ui_alpha),
-    ));
+    world
+        .elements
+        .push(OutputElement::Solid(chrome.overview.solid(
+            inside,
+            dock_bay(),
+            v.scale,
+            v.ui_alpha,
+        )));
 }
 
 /// The windows, front to back, and what moves among them: the docked pane's bay and flights, and
@@ -1635,9 +1640,12 @@ fn dock_flight_elements(
                     (at.x.round() as i32, at.y.round() as i32).into(),
                     size.into(),
                 );
-                pieces.push(OutputElement::Solid(
-                    chrome.overview.solid(inside, dock_bay(), v.scale, alpha),
-                ));
+                pieces.push(OutputElement::Solid(chrome.overview.solid(
+                    inside,
+                    dock_bay(),
+                    v.scale,
+                    alpha,
+                )));
             }
         }
         world.pane_front += pieces.len();
