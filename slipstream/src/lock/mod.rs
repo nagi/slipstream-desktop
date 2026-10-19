@@ -650,7 +650,7 @@ impl Slipstream {
         }
         // The pointer enters whatever it is over.
         let at = self.pointer_location();
-        self.pointer_moved_to(at, smithay::backend::input::InputTime::now());
+        self.pointer_placed_at(at);
     }
 
     /// A key for the pill, as the keyboard filter passed it on.

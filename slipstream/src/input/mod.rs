@@ -120,7 +120,7 @@ impl Slipstream {
         let blocked = self.pointer_blocked() || self.over_chrome(pos);
         if blocked != self.pointer_was_blocked {
             self.pointer_was_blocked = blocked;
-            self.pointer_moved_to(pos, InputTime::now());
+            self.pointer_motion_to(pos, InputTime::now());
         }
     }
 
@@ -166,9 +166,17 @@ impl Slipstream {
         }
     }
 
-    /// The pointer is now at `pos`, from an absolute device (the host's pointer when nested, a
-    /// tablet) or the `pointer:` debug step.
+    /// The mouse moved to `pos`: from an absolute device (the host's pointer when nested, a
+    /// tablet), a virtual pointer, or the `pointer:` debug step. The window under it takes the
+    /// keyboard (`follow.rs`).
     pub fn pointer_moved_to(&mut self, pos: Point<f64, Logical>, time: InputTime) {
+        self.pointer_motion_to(pos, time);
+        self.hover_focus(pos);
+    }
+
+    /// The pointer's motion to `pos` and everything that hovers on it, but not focus: for the
+    /// pointer being put somewhere rather than moved by hand.
+    pub(crate) fn pointer_motion_to(&mut self, pos: Point<f64, Logical>, time: InputTime) {
         let serial = SERIAL_COUNTER.next_serial();
         let pointer = self.seat.get_pointer().unwrap();
         let under = self.motion_target(pos);
@@ -297,6 +305,7 @@ impl Slipstream {
                 pointer.frame(self);
                 self.update_pointer_constraint();
                 self.pointer_followers(pos);
+                self.hover_focus(pos);
             }
             // The host's pointer when nested; tablets and touchscreens on real hardware.
             InputEvent::PointerMotionAbsolute { event, .. } => {

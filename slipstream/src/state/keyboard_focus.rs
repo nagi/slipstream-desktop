@@ -205,6 +205,7 @@ impl Slipstream {
         }
         // Which window had focus is part of the record, and focus can move without a retile.
         self.note_layout_change();
+        self.pointer_follows_focus();
     }
 
     pub fn clear_focus(&mut self) {

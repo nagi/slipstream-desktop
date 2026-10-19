@@ -653,7 +653,7 @@ impl Slipstream {
             );
             // The pointer stays on a screen that's there.
             let pos = self.pointer_location();
-            self.pointer_moved_to(self.clamp_to_outputs(pos), InputTime::now());
+            self.pointer_placed_at(self.clamp_to_outputs(pos));
         }
     }
 
