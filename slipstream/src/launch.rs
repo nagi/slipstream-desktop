@@ -72,6 +72,7 @@ pub fn launch(app: App) -> Result<(), Failure> {
         App::Terminal => terminal(),
         App::Files => first_installed(FILE_MANAGERS),
         App::Settings => settings_app(),
+        App::Reader => own_app(READER_APP),
         App::Browser => browser(),
     };
     match command {
@@ -105,6 +106,7 @@ pub fn app_class(app: App) -> Option<String> {
             })
         }
         App::Settings => None,
+        App::Reader => Some(READER_ID.to_string()),
     }?;
     let class = class.strip_suffix(".desktop").unwrap_or(&class);
     Some(class.to_lowercase())
@@ -290,12 +292,22 @@ pub fn settings_app_on(page: &str) -> Option<Vec<String>> {
 
 /// Slipstream's settings app: the one installed beside this compositor, else one on `PATH`.
 fn settings_app() -> Option<Vec<String>> {
+    own_app(SETTINGS_APP)
+}
+
+/// The reader's program, and the app id its window has.
+const READER_APP: &str = "slipstream-reader";
+pub const READER_ID: &str = "io.github.peterwalker78.SlipstreamReader";
+
+/// One of Slipstream's own programs: the one installed beside this compositor, else one on
+/// `PATH`.
+fn own_app(name: &str) -> Option<Vec<String>> {
     std::env::current_exe()
         .ok()
-        .map(|exe| exe.with_file_name(SETTINGS_APP))
+        .map(|exe| exe.with_file_name(name))
         .filter(|path| installed(&path.to_string_lossy()))
         .map(|path| vec![path.to_string_lossy().into_owned()])
-        .or_else(|| first_installed(&[&[SETTINGS_APP]]))
+        .or_else(|| first_installed(&[&[name]]))
 }
 
 /// Starts an app's command from its desktop entry. Terminal apps open inside a terminal.

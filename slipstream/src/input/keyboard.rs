@@ -124,6 +124,7 @@ impl Slipstream {
             Action::Close => self.close_focused(),
             Action::Quit => self.quit_focused_app(),
             Action::Edit(edit) => self.send_edit(edit),
+            Action::Launch(keys::App::Reader) => self.reading_mode(),
             Action::Launch(app) => self.launch_app(app),
             Action::Screenshot { window } => self.take_screenshot(window),
             Action::ShowDesktop => self.show_desktop(),

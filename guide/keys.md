@@ -16,7 +16,7 @@ These are the Windows style's keys, which Slipstream starts with. Settings → K
 | Super+arrows | Move focus. Up from the top row goes into a docked window; from a floating or docked window they lead back to the tiles |
 | Super+Shift+arrows | Move the window: it swaps places with the one that way, the two passing through each other. Under gravity, moving into the centre takes it. A floating window moves a step |
 | Super+- and =, with Shift for height | Resize, tiled or floating; under gravity, lighter and heavier |
-| Super+R, Super+Shift+R | Turn the whole layout a quarter, clockwise or back |
+| Super+Alt+R, Super+Alt+Shift+R | Turn the whole layout a quarter, clockwise or back |
 | Super+F | Fill the tiling area, and back, in tiling or gravity |
 | Super+M, Super+Shift+M | Minimise to a stream at the edge, bring back |
 | Super+O | Dock the window to the bar, in front of every workspace; again, its next size of three |
@@ -73,6 +73,8 @@ Super is not tapped for the explorer, and Ctrl+Space stays with input methods. T
 | Super+W | Close the window |
 | Super+Shift+Return, Super+Shift+B | A new window of your default browser |
 | Super+Shift+F | Files |
+| Super+S | Settings |
+| Super+R | Reading mode: your book, full screen. Super+I in it brings out the chapters and the colours |
 | Super+Shift+arrows | Move the window: it swaps places with the one that way |
 | Super+- and =, with Shift for height | Resize |
 | Super+T, Super+Shift+T or Super+Alt+V | Float the window or tile it; switch between floating and tiled windows |

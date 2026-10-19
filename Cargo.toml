@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["slipstream", "slipstream-config", "slipstream-settings"]
+members = ["slipstream", "slipstream-config", "slipstream-settings", "slipstream-reader"]
 
 [workspace.package]
 version = "0.13.0"

@@ -1,4 +1,4 @@
-//! Slipstream's Settings app (Super+I), laid out as the desktop's own panels are: pages in a
+//! Slipstream's Settings app (Super+S), laid out as the desktop's own panels are: pages in a
 //! sidebar, and groups of rows on each page. A change is saved to the settings file straight
 //! away, and Slipstream applies it as soon as the file changes. Only settings Slipstream actually
 //! follows are shown.
@@ -304,7 +304,7 @@ pub fn when_restyled(tell: impl Fn() + 'static) {
 }
 
 fn activate(app: &gtk::Application, page: Option<&str>, screenshot: Option<PathBuf>) {
-    // Super+I again brings back the window that's already open.
+    // Super+S again brings back the window that's already open.
     if let Some(window) = app.active_window() {
         window.present();
         return;

@@ -601,6 +601,10 @@ impl Slipstream {
                     "No Settings app",
                     "slipstream-settings isn’t installed beside Slipstream or on the PATH.",
                 ),
+                App::Reader => self.show_toast(
+                    "No reader",
+                    "slipstream-reader isn’t installed beside Slipstream or on the PATH.",
+                ),
                 App::Browser => self.show_toast(
                     "No browser",
                     "Choose a default browser in your settings, or set $BROWSER.",
@@ -611,10 +615,22 @@ impl Slipstream {
                     App::Terminal => "the terminal",
                     App::Files => "the file manager",
                     App::Settings => "Settings",
+                    App::Reader => "the reader",
                     App::Browser => "the browser",
                 };
                 self.show_toast("Couldn’t start it", &format!("{name}: {err}"));
             }
+        }
+    }
+
+    /// Super+R: the reader's window, wherever it is, or the reader started.
+    pub fn reading_mode(&mut self) {
+        let open = self.all_open_windows().into_iter().find(|window| {
+            window_app_id(window).is_some_and(|id| id.eq_ignore_ascii_case(launch::READER_ID))
+        });
+        match open {
+            Some(window) => self.activate_window(&window),
+            None => self.launch_app(crate::keys::App::Reader),
         }
     }
 

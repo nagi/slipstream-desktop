@@ -165,6 +165,7 @@ impl Action {
             Action::Launch(App::Terminal) => "terminal",
             Action::Launch(App::Files) => "files",
             Action::Launch(App::Settings) => "settings",
+            Action::Launch(App::Reader) => "reading mode",
             Action::Launch(App::Browser) => "browser",
             Action::SwitchVt(_) => "virtual terminal",
             Action::Volume(_) => "volume up, down",
@@ -331,6 +332,8 @@ pub enum App {
     Files,
     /// Super+I, as on Windows: Slipstream's own settings app.
     Settings,
+    /// Reading mode, Slipstream's own EPUB reader: Super+R in the Omarchy style.
+    Reader,
     /// Super+B: whichever browser the desktop is set to open a web page with.
     Browser,
 }
@@ -748,7 +751,10 @@ fn omarchy() -> Vec<Binding> {
         // Omarchy has no keys for these, so they sit where its own keys don't.
         bind(MOD_SHIFT, Keysym::Escape, Action::TakeBack),
         bind(MOD_CTRL, Keysym::Up, Action::BulletTime),
-        bind(MOD, Keysym::i, Action::Launch(App::Settings)),
+        // Settings on S, which Omarchy leaves free, and reading mode on R: Super+I is left to the
+        // reader, which brings out its chapters and colours with it.
+        bind(MOD, Keysym::s, Action::Launch(App::Settings)),
+        bind(MOD, Keysym::r, Action::Launch(App::Reader)),
         bind(MOD, Keysym::p, Action::NextScreen),
         bind(MOD_SHIFT, Keysym::p, Action::MoveToNextScreen),
         bind(MOD_CTRL, Keysym::p, Action::SwapScreens),
@@ -1572,6 +1578,8 @@ mod tests {
             (SUPER, Keysym::a, Action::QuickSettings),
             (SUPER, Keysym::n, Action::NotificationCentre),
             (SUPER, Keysym::o, Action::Pop),
+            (SUPER, Keysym::s, Action::Launch(App::Settings)),
+            (SUPER, Keysym::r, Action::Launch(App::Reader)),
             (SUPER, Keysym::u, Action::Dock),
             (with(true, false, false), Keysym::u, Action::Undock),
         ] {
@@ -1581,6 +1589,8 @@ mod tests {
                 "{mods:?} {key:?}"
             );
         }
+        // Super+I reaches the focused app: the reader's panels.
+        assert_eq!(action_for(&bindings, SUPER, Keysym::i), None);
     }
 
     fn hyper(shift: bool) -> Mods {
