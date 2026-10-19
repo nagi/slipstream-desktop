@@ -747,7 +747,7 @@ fn paint_tour(look: &Look, step: usize, tried: bool, names: &KeyNames) -> Option
         p.text("TRY IT", cx, keys_y - 26.0, &panel::section_style());
     }
     let mut key_x = cx;
-    for key in lesson.keys {
+    for key in lesson.keys.iter().filter(|key| !names.missing(key)) {
         key_x += p.keycap(&names.cap(key), key_x, keys_y) + KEY_GAP;
     }
     // The lesson that chooses the keys has the three choices there instead, the one in force lit.

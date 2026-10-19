@@ -760,7 +760,6 @@ fn omarchy() -> Vec<Binding> {
         bind(MOD_CTRL, Keysym::p, Action::SwapScreens),
         bind(MOD, Keysym::m, Action::Minimise),
         bind(MOD_SHIFT, Keysym::m, Action::Restore),
-        bind(MOD, Keysym::h, Action::HideAll),
         bind(MOD, Keysym::d, Action::ShowDesktop),
         // Slipstream's own, kept on keys Omarchy leaves free: Windows' virtual desktop keys,
         // with Shift to take the window along, the overview beside Super+Tab, quick settings and
@@ -1297,6 +1296,13 @@ mod tests {
         assert!(!is_hardware_key(Keysym::Escape));
         assert!(!is_hardware_key(Keysym::Print));
         assert!(!is_hardware_key(Keysym::Super_L));
+    }
+
+    #[test]
+    fn the_omarchy_style_has_no_hide_all() {
+        let bindings = super::defaults(KeyStyle::Omarchy);
+        assert_eq!(action_for(&bindings, SUPER, Keysym::h), None);
+        assert!(!bindings.iter().any(|b| b.action == Action::HideAll));
     }
 
     #[test]

@@ -83,6 +83,7 @@ Super is not tapped for the explorer, and Ctrl+Space stays with input methods. T
 | Super+J, Super+Shift+J | Turn the whole layout a quarter, clockwise or back |
 | Super+O | Pop the window out: it floats, and follows its screen to every workspace; again, back into the tiling |
 | Super+U, Super+Shift+U | Dock the window to the bar; bring it back down |
+| Super+H | Nothing: hiding every window at once is left out, so only one window is ever minimised |
 | Super+Tab, Super+Shift+Tab | Next, previous workspace |
 | Super+0, Super+Shift+0 | Go to the tenth workspace; send the window there |
 | Super+Ctrl+← →, with Shift | Previous, next workspace; take the window along |

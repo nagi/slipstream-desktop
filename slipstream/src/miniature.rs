@@ -1385,7 +1385,7 @@ fn sheet(p: &mut Painter, typed: Typed, w: f32, h: f32, names: &KeyNames) {
     p.fill(x, y + 23.0, cw, 0.6, 0.0, fade(panel::divider(), a));
     let shown: Vec<&(&str, &str)> = ROWS
         .iter()
-        .filter(|(_, does)| does.contains(query.as_str()))
+        .filter(|(keys, does)| does.contains(query.as_str()) && !names.missing(keys))
         .collect();
     let columns = if query.is_empty() { 2 } else { 1 };
     let per_column = shown.len().div_ceil(columns);

@@ -1295,7 +1295,11 @@ mod tests {
             let names = crate::keynames::KeyNames::new(style);
             let sheet = names.cap("Super+/");
             for (step, lesson) in LESSONS.iter().enumerate() {
-                let caps = lesson.keys.iter().map(|cap| names.cap(cap));
+                let caps = lesson
+                    .keys
+                    .iter()
+                    .filter(|cap| !names.missing(cap))
+                    .map(|cap| names.cap(cap));
                 for cap in caps.flat_map(|cap| spelled_out(&cap)) {
                     let action = match cap.as_str() {
                         // A tap, which is no binding.
