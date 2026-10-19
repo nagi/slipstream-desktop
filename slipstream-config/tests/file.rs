@@ -70,6 +70,7 @@ fn written_settings_read_back_and_leave_nothing_else_behind() {
         meter: Meter {
             command: "quota --json".into(),
             every_secs: 120,
+            hidden: vec!["Weekly".into()],
         },
         workspaces: Default::default(),
     };

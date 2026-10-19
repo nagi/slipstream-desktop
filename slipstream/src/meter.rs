@@ -114,6 +114,18 @@ pub fn configure(meter: &slipstream_config::Meter) {
     }
 }
 
+/// The report without the sections the settings hide.
+pub fn shown(reading: &Reading, settings: &slipstream_config::Meter) -> Reading {
+    Reading {
+        sections: reading
+            .sections
+            .iter()
+            .filter(|section| settings.shows(&section.name))
+            .cloned()
+            .collect(),
+    }
+}
+
 /// Runs the command and reads its report, or says why there isn't one.
 fn read(command: &str) -> Result<Report, String> {
     let mut sh = crate::launch::command("sh");
@@ -136,6 +148,25 @@ mod tests {
         assert_eq!(ink(75), AMBER);
         assert_eq!(ink(90), HOT);
         assert_eq!(dim(0xffb547ff), 0xffb54772);
+    }
+
+    #[test]
+    fn hidden_sections_are_left_out() {
+        let section = |name: &str| Section {
+            name: name.into(),
+            detail: None,
+            gauges: Vec::new(),
+            note: None,
+            stale: false,
+        };
+        let reading = Reading {
+            sections: vec![section("Storage"), section("Mail")],
+        };
+        let settings = slipstream_config::Meter {
+            hidden: vec!["Storage".into()],
+            ..Default::default()
+        };
+        assert_eq!(shown(&reading, &settings).sections, vec![section("Mail")]);
     }
 
     #[test]

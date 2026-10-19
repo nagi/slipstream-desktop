@@ -43,6 +43,7 @@
 //! [meter]
 //! command = ""
 //! every-secs = 60
+//! hidden = []
 //!
 //! [session]
 //! remember = false
@@ -265,6 +266,8 @@ pub struct Meter {
     pub command: String,
     /// How often the command runs, in seconds. At least 10, at most a day.
     pub every_secs: u64,
+    /// Sections of the report not to show, by name. Quick settings' cog chooses them.
+    pub hidden: Vec<String>,
 }
 
 impl Default for Meter {
@@ -272,11 +275,17 @@ impl Default for Meter {
         Self {
             command: String::new(),
             every_secs: 60,
+            hidden: Vec::new(),
         }
     }
 }
 
 impl Meter {
+    /// Whether the section called `name` is shown.
+    pub fn shows(&self, name: &str) -> bool {
+        !self.hidden.iter().any(|hidden| hidden == name)
+    }
+
     /// `every_secs`, kept between 10 s and a day: a hand-edited huge value would otherwise
     /// overflow the meter's next deadline.
     pub fn every(&self) -> Duration {
@@ -565,6 +574,7 @@ mod tests {
             meter: Meter {
                 command: "df --output=pcent /home | report".into(),
                 every_secs: 300,
+                hidden: vec!["Mail".into()],
             },
             workspaces: Workspaces {
                 list: vec![

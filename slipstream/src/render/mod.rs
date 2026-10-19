@@ -1816,7 +1816,9 @@ fn bar_content(
             .get_keyboard()
             .is_some_and(|keyboard| keyboard.modifier_state().caps_lock),
         awake: state.awake,
-        meter: crate::status::held(&state.meter).clone(),
+        meter: crate::status::held(&state.meter)
+            .as_ref()
+            .map(|reading| crate::meter::shown(reading, &state.settings.meter)),
         // The pane hangs from the bar of the screen the streams are on.
         dock: state
             .docked_on_show()

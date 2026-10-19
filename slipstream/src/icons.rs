@@ -52,6 +52,8 @@ pub const PAUSE: &str = r#"<path d="M8.5 5.5v13M15.5 5.5v13"/>"#;
 pub const CLOSE: &str = r#"<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>"#;
 /// A chevron pointing right (›): more behind this, such as a tile's settings page.
 pub const CHEVRON: &str = r#"<path d="M9.5 6l6 6-6 6"/>"#;
+pub const BACK: &str = r#"<path d="M14.5 6l-6 6 6 6"/>"#;
+pub const COG: &str = r#"<path d="M18.4 13L21.5 15.1L19.4 18.7L16.1 17.1L14.3 18.1L14.1 21.8L9.9 21.8L9.7 18.1L7.9 17.1L4.6 18.7L2.5 15.1L5.6 13L5.6 11L2.5 8.9L4.6 5.3L7.9 6.9L9.7 5.9L9.9 2.2L14.1 2.2L14.3 5.9L16.1 6.9L19.4 5.3L21.5 8.9L18.4 11z"/><circle cx="12" cy="12" r="2.8"/>"#;
 /// Two chevrons, amber and mint. Brings its own fills: draw it without ink.
 pub const LOGO: &str = r##"<path d="M2.5 5.5h9l5.5 6.5-5.5 6.5h-9L8 12z" fill="#ffb547"/><path d="M14 5.5h2.5l5.5 6.5-5.5 6.5H14l5.5-6.5z" fill="#3cf0c0"/>"##;
 
