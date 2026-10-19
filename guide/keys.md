@@ -1,6 +1,6 @@
 # Every key
 
-Super+/ shows this list inside Slipstream, whenever you forget one. Press Enter there for the tour: seventeen short lessons for anyone new to tiling, each one drawn happening on a miniature of the desktop.
+Super+/ shows this list inside Slipstream, whenever you forget one. Press Enter there for the tour: fourteen short lessons for anyone new to tiling, each one drawn happening on a miniature of the desktop.
 
 These are the Windows style's keys, which Slipstream starts with. Settings → Keyboard switches to the [Mac style](#mac-style) or the [Omarchy style](#omarchy-style); the list, the tour and the hints on screen then show that style's keys.
 
