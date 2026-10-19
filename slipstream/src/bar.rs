@@ -30,6 +30,8 @@ use crate::{
 pub const HEIGHT: i32 = 32;
 /// The same height in design pixels, which every size below is given in.
 const TALL: f32 = 40.0;
+/// The book that stands for reading mode's workspace, square.
+const BOOK_W: f32 = 20.0;
 
 /// Everything the bar shows. It's repainted when this changes.
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -282,7 +284,10 @@ fn paint(content: &Content, width: i32, scale: f64) -> Option<(Pixmap, Targets)>
         .collect();
     let widths: Vec<f32> = listed
         .iter()
-        .map(|index| text::width(&content.labels[*index], &Style::new(Face::Mono, 15.0, 0)))
+        .map(|index| match content.labels[*index].as_str() {
+            crate::state::READING => BOOK_W,
+            label => text::width(label, &Style::new(Face::Mono, 15.0, 0)),
+        })
         .collect();
     let names_fit = names_fit(&widths, wide);
     for index in listed {
@@ -300,7 +305,13 @@ fn paint(content: &Content, width: i32, scale: f64) -> Option<(Pixmap, Targets)>
             panel::placeholder()
         };
         let style = Style::new(Face::Mono, 15.0, color);
-        let label_w = text::width(&label, &style);
+        // Reading mode's workspace goes by a book, named or not.
+        let book = content.labels[index] == crate::state::READING;
+        let label_w = if book {
+            BOOK_W
+        } else {
+            text::width(&label, &style)
+        };
         let w = (label_w + 16.0).max(30.0);
         if on && content.keyboard_here {
             p.fill(x, 7.0, w, 26.0, 6.0, palette::accent(0x33ccff26));
@@ -313,7 +324,17 @@ fn paint(content: &Content, width: i32, scale: f64) -> Option<(Pixmap, Targets)>
         if content.home == Some(index) {
             p.border(x, 7.0, w, 26.0, 6.0, 1.0, home_ring());
         }
-        p.text(&label, x + (w - label_w) / 2.0, 20.0, &style);
+        if book {
+            p.icon(
+                icons::BOOK,
+                x + (w - BOOK_W) / 2.0,
+                10.0,
+                BOOK_W,
+                Some(color),
+            );
+        } else {
+            p.text(&label, x + (w - label_w) / 2.0, 20.0, &style);
+        }
         target(Target::Workspace(index), x, w);
         x += w + 6.0;
     }
@@ -949,6 +970,27 @@ mod tests {
             fifth.loc.x - (second.loc.x + second.size.w) < 10.0,
             "side by side"
         );
+    }
+
+    #[test]
+    fn reading_modes_workspace_is_a_book_not_its_name() {
+        let width = |label: &str| {
+            let content = Content {
+                labels: vec!["1".into(), label.into()],
+                occupied: vec![true, true],
+                elsewhere: vec![false; 2],
+                active: 0,
+                ..content()
+            };
+            let (_, targets) = paint(&content, 1536, 1.25).unwrap();
+            targets
+                .into_iter()
+                .find(|(target, _)| *target == Target::Workspace(1))
+                .map(|(_, area)| area.size.w)
+                .unwrap()
+        };
+        assert!(width(crate::state::READING) < width("Studying"));
+        assert!((width(crate::state::READING) - width("1")).abs() < 6.0);
     }
 
     #[test]

@@ -1788,6 +1788,14 @@ fn bar_content(
     let bullet = state.bullet.as_ref().filter(|_| first_output);
     let (highlighted, home) = bullet::bar_workspaces(active, bullet);
     let keyboard_here = first_output;
+    let hide_when_empty: Vec<u32> = state
+        .settings
+        .workspaces
+        .entries()
+        .into_iter()
+        .filter(|entry| entry.hide_when_empty)
+        .map(|entry| entry.id)
+        .collect();
     let title = match bullet {
         Some(_) => state.bullet_bar_title(),
         None if keyboard_here => state.focused_title(),
@@ -1817,11 +1825,19 @@ fn bar_content(
         labels: (0..state.workspaces.count())
             .map(|index| state.workspaces.label(index))
             .collect(),
-        // Each screen lists its own workspaces, except in bullet time, which pans across all.
+        // Each screen lists its own workspaces, except in bullet time, which pans across all. A
+        // workspace set to hide while empty comes and goes with its windows, as an app's does,
+        // but stays while it's on screen.
         hidden: (0..state.workspaces.count())
             .map(|index| {
-                bullet.is_none()
-                    && screen_index.is_some_and(|screen| !state.screens.belongs(index, screen))
+                let elsewhere = bullet.is_none()
+                    && screen_index.is_some_and(|screen| !state.screens.belongs(index, screen));
+                let id = state.workspaces.get(index).id;
+                let empty_and_away = !used.get(index).copied().unwrap_or(true)
+                    && index != highlighted
+                    && state.screens.showing(index).is_none()
+                    && hide_when_empty.contains(&id);
+                elsewhere || empty_and_away
             })
             .collect(),
         title,

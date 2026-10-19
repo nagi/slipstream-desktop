@@ -115,6 +115,7 @@ mod lifecycle;
 mod minimise_one;
 mod popped;
 mod raise;
+pub use raise::READING;
 mod screens;
 mod streams;
 mod ui;

@@ -141,6 +141,7 @@ command = "emacsclient --alternate-editor= --create-frame"
 | The chord, Shift and an app's key | Send the focused window to the app's workspace, and follow it |
 | The chord and 1–0 | Go to a workspace by its number |
 | The chord, Shift and 1–0 | Send the focused window to a workspace by its number |
+| The chord and R | Reading mode, as Super+R, unless an app has R |
 
 Ctrl+Super+Alt is the "hyper" chord a keyd layer on one key gives, for example right Alt as `[hyper_mod:C-M-A]`. A run-or-raise key takes over a built-in key on the same chord. Each app appears on the Super+K list under its workspace's name.
 
@@ -153,3 +154,14 @@ screen = "HDMI-A-1"
 ```
 
 Super+1–9 (and, in the Omarchy style, Super+0) go to the first workspaces in the list, so named run-or-raise workspaces go after those.
+
+An app's workspace can come and go with the app: with `hide-when-empty`, the bar leaves it out while nothing is on it, unless it's on screen.
+
+```toml
+[[workspaces.list]]
+id = 15
+name = "Discord"
+hide-when-empty = true
+```
+
+The workspace named Reading is shown on the bar as a book.

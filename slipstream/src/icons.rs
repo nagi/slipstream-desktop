@@ -44,6 +44,9 @@ pub const KEYBOARD: &str = r#"<rect x="2.5" y="6" width="19" height="12" rx="2"/
 /// A large sparkle and a small one: the AI coding agents, on the bar.
 pub const AGENTS: &str = r#"<path d="M10 4l1.9 5.6L17.5 11.5l-5.6 1.9L10 19l-1.9-5.6L2.5 11.5l5.6-1.9z"/><path d="M18.5 3.5v4M16.5 5.5h4"/>"#;
 
+/// An open book: reading mode's workspace, on the bar.
+pub const BOOK: &str = r#"<path d="M12 6.5C10.2 5 7.2 4.5 3 4.8v13.4c4.2-.3 7.2.2 9 1.7 1.8-1.5 4.8-2 9-1.7V4.8c-4.2-.3-7.2.2-9 1.7z"/><path d="M12 6.5v13.4"/>"#;
+
 /// Two overlapping frames: bullet time's overview, on the bar.
 pub const OVERVIEW: &str = r#"<rect x="3" y="7" width="13" height="10" rx="1.5"/><path d="M8 7V5.5A1.5 1.5 0 0 1 9.5 4h10A1.5 1.5 0 0 1 21 5.5V13a1.5 1.5 0 0 1-1.5 1.5H16"/>"#;
 

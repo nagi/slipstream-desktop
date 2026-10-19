@@ -815,6 +815,8 @@ pub fn bindings(settings: &slipstream_config::RunOrRaise, style: KeyStyle) -> Ve
                     extra.push(bind(raise, key, Action::Workspace(n)));
                     extra.push(bind(send, key, Action::MoveToWorkspace(n)));
                 }
+                // Reading mode too, unless an app above has taken R.
+                extra.push(bind(raise, Keysym::r, Action::Launch(App::Reader)));
             }
             None => tracing::warn!(raise = settings.raise, "run-or-raise: can't read the chord"),
         }
@@ -1653,6 +1655,30 @@ mod tests {
                 Some(Action::ToggleMute { microphone: false })
             );
         }
+    }
+
+    #[test]
+    fn the_hyper_chord_with_r_is_reading_mode_unless_an_app_has_r() {
+        let mut settings = slipstream_config::RunOrRaise {
+            app: vec![slipstream_config::RaiseApp {
+                workspace: "Chrome".into(),
+                key: "c".into(),
+                app: "browser".into(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        let bindings = bindings(&settings, KeyStyle::Omarchy);
+        assert_eq!(
+            action_for(&bindings, hyper(false), Keysym::r),
+            Some(Action::Launch(App::Reader))
+        );
+        settings.app[0].key = "r".into();
+        let bindings = super::bindings(&settings, KeyStyle::Omarchy);
+        assert_eq!(
+            action_for(&bindings, hyper(false), Keysym::r),
+            Some(Action::RunOrRaise(0))
+        );
     }
 
     #[test]
