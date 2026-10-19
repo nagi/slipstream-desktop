@@ -758,27 +758,8 @@ impl Slipstream {
         if self.settings.clipboard.history {
             self.history.add(clip);
         }
-        if !paste {
-            return;
-        }
-        let Some(window) = self.focused_window() else {
-            return;
-        };
-        let terminal = crate::state::window_app_id(&window).is_some_and(|id| is_terminal(&id));
-        tracing::info!(terminal, "pasting");
-        // The paste keys go through the keyboard's own routing, as a debug step's do, so the app
-        // sees an ordinary Ctrl+V.
-        let mut keys = vec![("Control_L", true)];
-        if terminal {
-            keys.push(("Shift_L", true));
-        }
-        keys.extend([("v", true), ("v", false)]);
-        if terminal {
-            keys.push(("Shift_L", false));
-        }
-        keys.push(("Control_L", false));
-        for (key, pressed) in keys {
-            self.inject_key(key, pressed);
+        if paste {
+            self.send_edit(crate::keys::Edit::Paste);
         }
     }
 

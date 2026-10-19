@@ -157,7 +157,7 @@ impl KeyStyle {
             }
             KeyStyle::Omarchy => {
                 "Omarchy's keys: Super+Space opens apps, Super+W closes, Super+T floats, \
-                 Super+Tab moves along the workspaces and Super+K lists every key."
+                 Super+C and Super+V copy and paste in any app, and Super+K lists every key."
             }
         }
     }

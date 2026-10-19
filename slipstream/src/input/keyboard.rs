@@ -120,6 +120,7 @@ impl Slipstream {
             Action::SwapScreens => self.swap_with_next_screen(),
             Action::Close => self.close_focused(),
             Action::Quit => self.quit_focused_app(),
+            Action::Edit(edit) => self.send_edit(edit),
             Action::Launch(app) => self.launch_app(app),
             Action::Screenshot { window } => self.take_screenshot(window),
             Action::ShowDesktop => self.show_desktop(),
@@ -657,7 +658,7 @@ impl Slipstream {
     }
 
     /// The key that types `sym` without modifiers in the active layout.
-    fn keycode_for(&mut self, sym: Keysym) -> Option<Keycode> {
+    pub(crate) fn keycode_for(&mut self, sym: Keysym) -> Option<Keycode> {
         let keyboard = self.seat.get_keyboard()?;
         keyboard.with_xkb_state(self, |context| {
             let xkb = context.xkb().lock().ok()?;

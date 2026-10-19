@@ -29,6 +29,7 @@ mod cursor;
 mod debug;
 mod deck;
 mod dock;
+mod edit;
 mod emoji;
 mod exit;
 mod explorer;

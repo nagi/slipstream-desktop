@@ -84,6 +84,7 @@ Super is not tapped for the explorer, and Ctrl+Space stays with input methods. T
 | Super+Ctrl+↑ | Bullet time |
 | Super+Ctrl+A | Quick settings |
 | Super+Alt+Shift+, | Notifications |
+| Super+C, Super+V, Super+X | Copy, paste and cut in any app; in a terminal they copy and paste without interrupting it |
 | Super+Ctrl+V | Clipboard history |
 | Print, Super+Shift+S | Snip a region or a window; Enter takes the whole screen |
 | Super+Ctrl+L | Lock |

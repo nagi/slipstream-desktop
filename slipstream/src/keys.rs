@@ -35,6 +35,8 @@ pub enum Action {
     Close,
     /// Ask every window of the focused window's app to close.
     Quit,
+    /// Copy, paste or cut in the focused app, by sending it its own keys for that.
+    Edit(Edit),
     /// Start an app.
     Launch(App),
     /// Go to virtual terminal 1–12. Never a binding: Ctrl+Alt+F1–F12 produce it through the
@@ -99,6 +101,14 @@ pub enum Action {
     SwitchFloatingFocus,
 }
 
+/// What `Action::Edit` does in the focused app.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Edit {
+    Copy,
+    Paste,
+    Cut,
+}
+
 /// The shortcut sheet's groups, in the order it shows them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Group {
@@ -143,6 +153,7 @@ impl Action {
             Action::MoveToWorkspaceBy(_) => "send window to previous, next",
             Action::Close => "close window",
             Action::Quit => "quit the app",
+            Action::Edit(_) => "copy, paste, cut in any app",
             Action::Launch(App::Terminal) => "terminal",
             Action::Launch(App::Files) => "files",
             Action::Launch(App::Settings) => "settings",
@@ -187,6 +198,7 @@ impl Action {
             | Action::MoveTile(_)
             | Action::Close
             | Action::Quit
+            | Action::Edit(_)
             | Action::Launch(_)
             | Action::CycleWindows { .. }
             | Action::Explorer
@@ -705,6 +717,10 @@ fn omarchy() -> Vec<Binding> {
         bind(MOD_CTRL, Keysym::l, Action::Lock),
         bind(MOD, Keysym::k, Action::ShortcutSheet),
         bind(MOD_CTRL, Keysym::v, Action::ClipboardHistory),
+        // Its copy, paste and cut, for every app, terminals included.
+        bind(MOD, Keysym::c, Action::Edit(Edit::Copy)),
+        bind(MOD, Keysym::v, Action::Edit(Edit::Paste)),
+        bind(MOD, Keysym::x, Action::Edit(Edit::Cut)),
         // Its audio panel's key: volume heads quick settings.
         bind(MOD_CTRL, Keysym::a, Action::QuickSettings),
         // Its notification history key.
@@ -1119,9 +1135,9 @@ mod tests {
             at(NONE, Keysym::Print),
             Some(Action::Screenshot { window: true })
         );
-        // Its copy and paste keys are left alone, for apps.
-        assert_eq!(at(SUPER, Keysym::c), None);
-        assert_eq!(at(SUPER, Keysym::v), None);
+        assert_eq!(at(SUPER, Keysym::c), Some(Action::Edit(Edit::Copy)));
+        assert_eq!(at(SUPER, Keysym::v), Some(Action::Edit(Edit::Paste)));
+        assert_eq!(at(SUPER, Keysym::x), Some(Action::Edit(Edit::Cut)));
     }
 
     #[test]
