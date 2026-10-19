@@ -87,6 +87,7 @@ mod scope;
 mod screen;
 mod screencopy;
 mod screenshot;
+mod virtual_pointer;
 mod session;
 mod settings;
 mod share;
