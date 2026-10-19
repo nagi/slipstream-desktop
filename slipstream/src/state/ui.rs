@@ -623,17 +623,6 @@ impl Slipstream {
         }
     }
 
-    /// Super+R: the reader's window, wherever it is, or the reader started.
-    pub fn reading_mode(&mut self) {
-        let open = self.all_open_windows().into_iter().find(|window| {
-            window_app_id(window).is_some_and(|id| id.eq_ignore_ascii_case(launch::READER_ID))
-        });
-        match open {
-            Some(window) => self.activate_window(&window),
-            None => self.launch_app(crate::keys::App::Reader),
-        }
-    }
-
     pub(super) fn no_terminal(&mut self) {
         self.show_toast("No terminal", "Install a terminal, or set $TERMINAL.");
     }

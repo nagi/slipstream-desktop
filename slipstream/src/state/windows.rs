@@ -314,6 +314,10 @@ impl Slipstream {
         if self.claim_restored(&window, area) {
             return;
         }
+        // The reader lives on its own workspace.
+        if self.claim_reader(&window, area) {
+            return;
+        }
         // A window a run-or-raise launch is waiting for goes to that app's workspace. Its dialogs
         // float as anyone's do.
         if !crate::floating::opens_floating(&window) && self.claim_launched(&window, area) {

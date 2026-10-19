@@ -2,7 +2,11 @@
 
 use super::*;
 
-use crate::raise::{self, Start, Target};
+use crate::raise::{self, Matcher, Start, Target};
+
+/// The workspace reading mode keeps the reader on, by name. Without one, the reader opens on
+/// whichever workspace is on screen.
+pub const READING: &str = "Reading";
 
 impl Slipstream {
     /// The run-or-raise settings changed, or were read at startup: the keys and the apps follow.
@@ -49,6 +53,11 @@ impl Slipstream {
         let Some((target, workspace)) = self.raise_workspace(index) else {
             return;
         };
+        self.raise_on(target, workspace);
+    }
+
+    /// Run or raise `target` on `workspace`, as `run_or_raise` describes.
+    fn raise_on(&mut self, target: Target, workspace: usize) {
         // Pressed with one of its windows already forward: the press goes on to the next.
         let focused = self.focused_window();
         self.switch_workspace(workspace);
@@ -108,6 +117,61 @@ impl Slipstream {
                 self.show_toast(title, &body);
             }
         }
+    }
+
+    /// Super+R: reading mode. The reader is run or raised on the Reading workspace, full screen,
+    /// and a reader left on any other workspace is brought there first.
+    pub fn reading_mode(&mut self) {
+        let Some(reading) = self.workspaces.named(READING) else {
+            // No Reading workspace: the reader's window wherever it is, or a new one here.
+            let open = self.all_open_windows().into_iter().find(is_reader);
+            match open {
+                Some(window) => self.activate_window(&window),
+                None => self.launch_app(crate::keys::App::Reader),
+            }
+            return;
+        };
+        let strays: Vec<Window> = self
+            .workspaces
+            .all_windows()
+            .into_iter()
+            .filter(|window| is_reader(window) && self.workspaces.find(window) != Some(reading))
+            .collect();
+        if let Some(area) = self.output_area() {
+            for window in strays {
+                self.take_off_workspace(&window);
+                self.workspaces.insert(reading, window, None, area);
+            }
+            self.retile();
+        }
+        let target = Target {
+            workspace: READING.to_string(),
+            matcher: Matcher::new(launch::READER_ID, ""),
+            start: Start::App(crate::keys::App::Reader),
+        };
+        self.raise_on(target, reading);
+    }
+
+    /// A new reader window goes to the Reading workspace, however it was started: by Super+R, or
+    /// by opening a book from the file manager. Returns whether it was taken there.
+    pub(super) fn claim_reader(&mut self, window: &Window, area: Rect) -> bool {
+        if !is_reader(window) {
+            return false;
+        }
+        let Some(reading) = self.workspaces.named(READING) else {
+            return false;
+        };
+        if self.workspaces.find(window) != Some(reading) {
+            self.take_off_workspace(window);
+            self.workspaces.insert(reading, window.clone(), None, area);
+        }
+        self.retile();
+        if self.screens.showing(reading).is_none() {
+            self.switch_workspace(reading);
+        }
+        self.focus_window(window);
+        tracing::info!(workspace = reading + 1, "reading mode: the reader is on its workspace");
+        true
     }
 
     /// Sends the focused window to the app's workspace, and follows it.
@@ -193,6 +257,11 @@ impl Slipstream {
         };
         self.claim_launched(&window, area);
     }
+}
+
+/// Whether `window` is the reader's.
+fn is_reader(window: &Window) -> bool {
+    window_app_id(window).is_some_and(|id| id.eq_ignore_ascii_case(launch::READER_ID))
 }
 
 /// The program a plain command line starts, when it isn't installed. `sh` would start and then
