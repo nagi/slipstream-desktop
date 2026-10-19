@@ -2,6 +2,17 @@
 
 Slipstream is in beta: anything can change between versions, including settings and keys.
 
+## 0.13.0 - 2026-10-19
+
+- **Keys that follow your habits.** Settings → Keyboard picks the Windows style (the default), the Mac style or the Omarchy style. The Mac style treats Super as Command: Super+Space for apps, Super+Tab to switch, Super+Q and Super+W, Super+Shift+3 and 4 for screenshots. The Omarchy style follows Omarchy's keys: Super+Space, Super+W to close, Super+T to float, Super+K for every key. The key list, the tour and the hints on screen all show the keys of the style you chose.
+- **Copy, paste and cut in any app with Super+C, V and X** in the Omarchy style. Terminals get their own copy and paste keys, so nothing running in them is interrupted. Pasting from the clipboard history works the same way.
+- **The Windows style gains Super+S** to search, **Super+Print** to save a screenshot and **Super+X** for lock, log out, restart and shut down.
+- **Three-finger swipes.** On a touchpad, swipe left or right for the next or previous workspace, up for bullet time and down to leave it. In bullet time, swiping sideways looks at the next workspace.
+- **The tour starts by asking whose keys to follow**, and is shorter: fourteen lessons, each in fewer words. Turning the layout, Alt+Tab and maximising are left to the key list.
+- **A tidier key list.** Rows say what happens in plain words and none are cut off. The keys that open apps sit together at the top, keys for moving between screens show only when a second screen is connected, and keys that work the same in every list are no longer listed.
+- **Choose what the meter shows.** The cog beside the meters in quick settings turns each section on or off, in the bar and in quick settings.
+- **Background Apps lists only apps.** A system dialog, such as the file chooser, no longer shows up there after it closes.
+
 ## 0.12.0 - 2026-10-15
 
 - **An AI agent can keep working while you're logged out.** On the same terms as bringing a session back: nothing happens unless your agent can run in the background. Log out and it carries on; at the next login its terminal is back where it was, attached to the same session. It's what you'd usually want a terminal multiplexer for, in the terminal you already like. Notifications from a program working in the background for a terminal now take you to that terminal.
