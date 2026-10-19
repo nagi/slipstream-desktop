@@ -133,8 +133,8 @@ pub const LESSONS: [Lesson; 16] = [
         title: "A workspace for each task",
         why: "Rather than one crowded screen, give each task its own: code on 1, messages on 2, \
               music on 3. Super and a number goes straight there, and with Shift the window comes \
-              too. Each workspace keeps its layout while you're away, so changing task never \
-              means rearranging.",
+              too, and three fingers swiped across a touchpad go to the next. Each workspace \
+              keeps its layout while you're away, so changing task never means rearranging.",
         habit: Some("Windows calls these virtual desktops. Here each one is a single key away."),
         keys: &["Super+1–9", "Super+Shift+1–9"],
         beats: 3,
@@ -145,7 +145,8 @@ pub const LESSONS: [Lesson; 16] = [
         title: "See everything at once",
         why: "Super+Tab tips the desktop back so every workspace sits side by side, with a letter \
               on each window. Press the letter and you're there. While you look, everything slows \
-              to a quarter of its speed so nothing moves under you, and catches up when you leave.",
+              to a quarter of its speed so nothing moves under you, and catches up when you leave. \
+              On a touchpad, swipe three fingers up.",
         habit: None,
         keys: &["Super+Tab"],
         beats: 3,

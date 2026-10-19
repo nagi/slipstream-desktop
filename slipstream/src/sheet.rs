@@ -1,4 +1,4 @@
-//! The shortcut sheet (Super+/): every key, in four groups.
+//! The shortcut sheet (Super+/): every key, and the touchpad's swipes, in four groups.
 //!
 //! It is generated rather than written out: the bindings' rows come from the bindings themselves
 //! and each action's own description, bullet time's from the table its key handling reads, so a
@@ -128,6 +128,10 @@ fn keycaps(bindings: &[(Mods, Keysym)]) -> Vec<String> {
     caps
 }
 
+/// The three-finger swipes' keycaps (`input/swipe.rs`).
+const SWIPE_SIDEWAYS: &str = "3 fingers ← →";
+const SWIPE_UP_DOWN: &str = "3 fingers ↑ ↓";
+
 /// The sheet's sections for `bindings`, in `Group::ALL`'s order: each group's bindings merged by
 /// what they do, bullet time's keys after its own binding, and the panels' shared keys last.
 pub fn sections(bindings: &[Binding]) -> Vec<Section> {
@@ -173,9 +177,19 @@ pub fn sections(bindings: &[Binding]) -> Vec<Section> {
             // A tapped Super is no binding — nothing is held with it — so the sheet says it
             // here, at the top, where the key that opens most things belongs.
             Group::AppsAndWindows => section.rows.insert(0, fixed(&["Super"], "apps")),
-            Group::BulletTime => section
-                .rows
-                .extend(bullet::KEYS.iter().map(|row| fixed(&[row.keys], row.does))),
+            // Fingers move the workspaces as they'd move a page, so ← is the next one.
+            Group::WorkspacesAndArranging => section.rows.push(fixed(
+                &[SWIPE_SIDEWAYS],
+                "touchpad: next, previous workspace",
+            )),
+            Group::BulletTime => {
+                section
+                    .rows
+                    .push(fixed(&[SWIPE_UP_DOWN], "touchpad: bullet time, back"));
+                section
+                    .rows
+                    .extend(bullet::KEYS.iter().map(|row| fixed(&[row.keys], row.does)));
+            }
             // Every panel and card answers these the same way.
             Group::PanelsAndSystem => section.rows.extend([
                 fixed(&["Esc"], "in a panel: back out one level"),
@@ -184,7 +198,6 @@ pub fn sections(bindings: &[Binding]) -> Vec<Section> {
                 fixed(&["Home End", "PgUp PgDn"], "in a panel: jump"),
                 fixed(&["Caps Lock"], "hold: Awake, the screen stays on"),
             ]),
-            _ => {}
         }
     }
     sections
