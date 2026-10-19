@@ -55,6 +55,10 @@ const HERO_H: f32 = 48.0;
 const CHIPS_H: f32 = 30.0;
 const TITLE_H: f32 = 24.0;
 const LIMIT_H: f32 = 54.0;
+/// What a weekly limit's row grows by for the bar of the week gone by.
+const WEEK_BAR_H: f32 = 10.0;
+/// A weekly limit's window.
+const WEEK_SECS: i64 = 7 * 24 * 60 * 60;
 const DAY_H: f32 = 26.0;
 const MODEL_H: f32 = 52.0;
 const BALANCE_H: f32 = 66.0;
@@ -220,7 +224,8 @@ enum Block {
     Chips,
     Problem(usize),
     Balance,
-    Limits(usize),
+    /// The limits, and how many of them are weekly ones with a bar for the week gone by.
+    Limits(usize, usize),
     Days(usize, bool),
     Models(usize),
     Nothing,
@@ -233,7 +238,7 @@ impl Block {
             Block::Chips => CHIPS_H,
             Block::Problem(lines) => 22.0 + lines as f32 * 18.0,
             Block::Balance => BALANCE_H,
-            Block::Limits(n) => TITLE_H + n as f32 * LIMIT_H,
+            Block::Limits(n, weeks) => TITLE_H + n as f32 * LIMIT_H + weeks as f32 * WEEK_BAR_H,
             Block::Days(n, today_line) => {
                 TITLE_H + n as f32 * DAY_H + if today_line { 22.0 } else { 0.0 }
             }
@@ -293,7 +298,8 @@ fn blocks(agent: &Agent, several: bool, room: f32) -> Vec<Block> {
         blocks.push(Block::Balance);
     }
     if !agent.limits.is_empty() {
-        blocks.push(Block::Limits(agent.limits.len()));
+        let weeks = agent.limits.iter().filter(|limit| is_weekly(limit)).count();
+        blocks.push(Block::Limits(agent.limits.len(), weeks));
     }
     if !agent.days.is_empty() {
         blocks.push(Block::Days(agent.days.len(), agent.counts_prompts));
@@ -346,6 +352,19 @@ fn meter_bar(
     if filled > 0.0 {
         p.fill(x, y, filled.max(h), h, h / 2.0, ink);
     }
+}
+
+/// Whether `limit` is a week's allowance that says when it starts over, and so gets the bar of the
+/// week gone by.
+fn is_weekly(limit: &Limit) -> bool {
+    limit.resets.is_some() && limit.title.to_lowercase().contains("weekly")
+}
+
+/// How far through its week a weekly limit is at `now`, 0 to 1. The week is the seven days up to
+/// when it resets, not the calendar's.
+fn week_gone(resets: i64, now: i64) -> f64 {
+    let left = (resets - now).clamp(0, WEEK_SECS);
+    1.0 - left as f64 / WEEK_SECS as f64
 }
 
 fn percent_of(limit: &Limit) -> u8 {
@@ -614,7 +633,7 @@ impl Agents {
                             }
                         }
                     }
-                    (Block::Limits(_), Some(agent)) => {
+                    (Block::Limits(..), Some(agent)) => {
                         p.text("LIMITS", x0, top + 6.0, &section);
                         let mut row = top + TITLE_H;
                         for limit in &agent.limits {
@@ -630,12 +649,41 @@ impl Agents {
                                 row + 8.0,
                                 &style,
                             );
-                            meter_bar(p, x0, row + 22.0, inner, 6.0, limit.used, tint);
-                            if let Some(at) = limit.resets {
-                                let left = agents::time_left(at - unix_from_minute(facts.minute));
-                                p.text(&format!("Resets in {left}"), x0, row + 40.0, &hint);
+                            let now = unix_from_minute(facts.minute);
+                            let week = is_weekly(limit);
+                            // A week's tokens are in the theme's accent, and under them, in grey,
+                            // how much of the week has gone, so the two can be compared at a glance.
+                            let bar_ink = if week {
+                                palette::accent(0x42d3ffff)
+                            } else {
+                                tint
+                            };
+                            meter_bar(p, x0, row + 22.0, inner, 6.0, limit.used, bar_ink);
+                            let mut text_y = row + 40.0;
+                            if let (true, Some(at)) = (week, limit.resets) {
+                                let gone = week_gone(at, now);
+                                meter_bar(
+                                    p,
+                                    x0,
+                                    row + 32.0,
+                                    inner,
+                                    4.0,
+                                    gone,
+                                    palette::tone(0xc3c9d3ff),
+                                );
+                                text_y += WEEK_BAR_H;
                             }
-                            row += LIMIT_H;
+                            if let Some(at) = limit.resets {
+                                let left = agents::time_left(at - now);
+                                let words = if week {
+                                    let gone = (week_gone(at, now) * 100.0).round();
+                                    format!("{gone}% of the week gone · resets in {left}")
+                                } else {
+                                    format!("Resets in {left}")
+                                };
+                                p.text(&words, x0, text_y, &hint);
+                            }
+                            row += LIMIT_H + if week { WEEK_BAR_H } else { 0.0 };
                         }
                     }
                     (Block::Days(_, today_line), Some(agent)) => {
@@ -900,7 +948,7 @@ mod tests {
             full,
             [
                 Block::Hero,
-                Block::Limits(3),
+                Block::Limits(3, 0),
                 Block::Days(7, true),
                 Block::Models(4)
             ]
@@ -914,6 +962,37 @@ mod tests {
             blocks(&broken, false, 400.0)[1],
             Block::Problem(1..=3)
         ));
+    }
+
+    #[test]
+    fn a_weekly_limit_gets_a_bar_for_the_week_gone_by() {
+        let mut agent = agent(0, 0, 2);
+        agent.limits[0].title = "Session".into();
+        agent.limits[0].resets = Some(1_000);
+        agent.limits[1].title = "Weekly".into();
+        assert_eq!(
+            blocks(&agent, false, 400.0)[1],
+            Block::Limits(2, 0),
+            "no reset, no week"
+        );
+        agent.limits[1].resets = Some(1_000);
+        let with_week = blocks(&agent, false, 400.0)[1];
+        assert_eq!(with_week, Block::Limits(2, 1));
+        assert_eq!(
+            with_week.height(),
+            Block::Limits(2, 0).height() + WEEK_BAR_H
+        );
+    }
+
+    #[test]
+    fn the_week_runs_from_the_last_reset_not_from_monday() {
+        let resets = 10 * WEEK_SECS;
+        assert_eq!(week_gone(resets, resets - WEEK_SECS), 0.0);
+        assert_eq!(week_gone(resets, resets - WEEK_SECS / 2), 0.5);
+        assert_eq!(week_gone(resets, resets), 1.0);
+        // A reset more than a week off, or already past, stays on the bar.
+        assert_eq!(week_gone(resets, resets - 2 * WEEK_SECS), 0.0);
+        assert_eq!(week_gone(resets, resets + 60), 1.0);
     }
 
     #[test]
