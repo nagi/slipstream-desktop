@@ -183,9 +183,13 @@ pub fn sections(bindings: &[Binding]) -> Vec<Section> {
                 "touchpad: next, previous workspace",
             )),
             Group::BulletTime => {
-                section
-                    .rows
-                    .push(fixed(&[SWIPE_UP_DOWN], "touchpad: bullet time, back"));
+                section.rows.extend([
+                    fixed(&[SWIPE_UP_DOWN], "touchpad: bullet time, back"),
+                    fixed(
+                        &[SWIPE_SIDEWAYS],
+                        "touchpad: look at the next, previous workspace",
+                    ),
+                ]);
                 section
                     .rows
                     .extend(bullet::KEYS.iter().map(|row| fixed(&[row.keys], row.does)));

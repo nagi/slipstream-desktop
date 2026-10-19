@@ -141,7 +141,7 @@ impl Slipstream {
     }
 
     /// Looks at workspace `index`, choosing its most recent window when `choose` is set.
-    pub(super) fn bullet_pan(&mut self, index: usize, choose: bool) {
+    pub(crate) fn bullet_pan(&mut self, index: usize, choose: bool) {
         let index = index.min(self.workspaces.count().saturating_sub(1));
         let wall = self.wall();
         let here = self.focused_screen_name();

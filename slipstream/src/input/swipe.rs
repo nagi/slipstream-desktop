@@ -1,6 +1,7 @@
-//! Three-finger swipes on a touchpad: left and right step between workspaces, up opens bullet
-//! time, and down (or up again) leaves it. Swipes with any other number of fingers go to the
-//! window under the pointer, as they always have.
+//! Three-finger swipes on a touchpad: left and right step between workspaces (in bullet time,
+//! the workspace being looked at), up opens bullet time, and down (or up again) leaves it.
+//! Swipes with any other number of fingers go to the window under the pointer, as they always
+//! have.
 //!
 //! A swipe acts once, as soon as it has gone far enough in one direction, so the workspace
 //! changes under the fingers rather than when they lift. The rest of that swipe is ignored.
@@ -67,16 +68,25 @@ impl Slipstream {
     }
 
     /// A three-finger swipe went far enough. Fingers move the desktop as they'd move a page:
-    /// swiping left brings in the workspace to the right.
+    /// swiping left brings in the workspace to the right. In bullet time that's the workspace
+    /// being looked at, with its most recent window chosen, as its number key does.
     pub fn swiped(&mut self, direction: Direction) {
         tracing::info!(?direction, "three-finger swipe");
-        match direction {
-            Direction::Up => self.toggle_bullet_time(),
-            Direction::Down if self.bullet.is_some() => self.toggle_bullet_time(),
-            Direction::Left | Direction::Right if self.bullet.is_none() => {
-                self.switch_workspace_by(if direction == Direction::Left { 1 } else { -1 })
+        let step: i32 = match direction {
+            Direction::Up => return self.toggle_bullet_time(),
+            Direction::Down if self.bullet.is_some() => return self.toggle_bullet_time(),
+            Direction::Down => return,
+            Direction::Left => 1,
+            Direction::Right => -1,
+        };
+        match self.bullet.as_ref().map(|mode| mode.view) {
+            Some(view) => {
+                let to = view as i32 + step;
+                if (0..self.workspaces.count() as i32).contains(&to) {
+                    self.bullet_pan(to as usize, true);
+                }
             }
-            _ => {}
+            None => self.switch_workspace_by(step),
         }
     }
 }
