@@ -219,6 +219,7 @@ impl Slipstream {
                 debug::Step::LetGo => self.finish_cycle(),
                 debug::Step::Unlock => self.unlock(),
                 debug::Step::Bullet => self.toggle_bullet_time(),
+                debug::Step::Swipe(direction) => self.swiped(direction),
                 debug::Step::BulletKey(name) => {
                     let (mods, key) = debug::mods_and_key(&name);
                     self.bullet_key(key, mods);

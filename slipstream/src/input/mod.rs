@@ -1,8 +1,10 @@
 //! Input from the backends: pointer motion, the wheel and touchpad gestures here; where a click
-//! goes in `button`, and where a key goes in `keyboard`.
+//! goes in `button`, where a key goes in `keyboard`, and what the desktop's own swipes do in
+//! `swipe`.
 
 mod button;
 mod keyboard;
+pub mod swipe;
 
 use smithay::{
     backend::input::{
@@ -365,11 +367,16 @@ impl Slipstream {
                 pointer.axis(self, frame);
                 pointer.frame(self);
             }
-            // Touchpad swipes, pinches and holds go to the window under the pointer.
+            // Touchpad swipes, pinches and holds go to the window under the pointer, except a
+            // three-finger swipe, which is the desktop's.
             InputEvent::GestureSwipeBegin { event, .. } => {
+                let fingers = event.fingers();
+                if self.takes_swipe(fingers) {
+                    self.swipe = Some(swipe::Swipe::default());
+                    return;
+                }
                 let pointer = self.seat.get_pointer().unwrap();
                 let serial = SERIAL_COUNTER.next_serial();
-                let fingers = event.fingers();
                 pointer.gesture_swipe_begin(
                     self,
                     &GestureSwipeBeginEvent {
@@ -380,8 +387,14 @@ impl Slipstream {
                 );
             }
             InputEvent::GestureSwipeUpdate { event, .. } => {
-                let pointer = self.seat.get_pointer().unwrap();
                 let delta = GestureSwipeUpdateEventTrait::delta(&event);
+                if let Some(swipe) = self.swipe.as_mut() {
+                    if let Some(direction) = swipe.moved(delta.x, delta.y) {
+                        self.swiped(direction);
+                    }
+                    return;
+                }
+                let pointer = self.seat.get_pointer().unwrap();
                 pointer.gesture_swipe_update(
                     self,
                     &GestureSwipeUpdateEvent {
@@ -391,6 +404,9 @@ impl Slipstream {
                 );
             }
             InputEvent::GestureSwipeEnd { event, .. } => {
+                if self.swipe.take().is_some() {
+                    return;
+                }
                 let pointer = self.seat.get_pointer().unwrap();
                 let serial = SERIAL_COUNTER.next_serial();
                 let cancelled = GestureEndEventTrait::cancelled(&event);

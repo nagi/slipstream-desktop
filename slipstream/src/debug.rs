@@ -153,6 +153,8 @@ pub enum Step {
     ButtonHeld(u32, bool),
     Bullet,
     BulletKey(String),
+    /// A three-finger swipe (`swipe:left`, `right`, `up` or `down`).
+    Swipe(crate::input::swipe::Direction),
     BulletClick(f64, f64),
     Quick,
     QuickKey(String),
@@ -404,6 +406,13 @@ impl Script {
                         }
                     }
                     ("bullet", None) => Step::Bullet,
+                    ("swipe", Some(way)) => Step::Swipe(match way {
+                        "left" => crate::input::swipe::Direction::Left,
+                        "right" => crate::input::swipe::Direction::Right,
+                        "up" => crate::input::swipe::Direction::Up,
+                        "down" => crate::input::swipe::Direction::Down,
+                        _ => return None,
+                    }),
                     ("bkey", Some(name)) => Step::BulletKey(name.to_string()),
                     ("bclick", Some(at)) => {
                         let (x, y) = point(at)?;

@@ -389,6 +389,8 @@ pub struct Slipstream {
     pub takeback: crate::takeback::TakeBack,
     /// Bullet time while it's open (Super+Tab).
     pub bullet: Option<bullet::Mode<Window>>,
+    /// A three-finger swipe under way (`input/swipe.rs`).
+    pub swipe: Option<crate::input::swipe::Swipe>,
     /// How far out bullet time's overview is zoomed, 0 to 1, on wall time so it's never slowed.
     pub overview: Tween<1>,
     /// The last labels bullet time used, kept while the same windows are open.
@@ -729,6 +731,7 @@ impl Slipstream {
             keyboard_shortcuts_inhibit_state,
             takeback: Default::default(),
             bullet: None,
+            swipe: None,
             overview: Tween::at_rest([0.0]),
             bullet_labels: Vec::new(),
             overview_hits: Vec::new(),
