@@ -356,7 +356,8 @@ impl Slipstream {
             saver.set_wallpaper(&settings.wallpaper, now);
         }
         self.rain.set_effects(settings.motion.effects);
-        if settings.run_or_raise != self.settings.run_or_raise || settings.keys != self.settings.keys
+        if settings.run_or_raise != self.settings.run_or_raise
+            || settings.keys != self.settings.keys
         {
             self.set_run_or_raise(&settings.run_or_raise, settings.keys.style);
         }

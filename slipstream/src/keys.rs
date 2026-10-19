@@ -1568,7 +1568,11 @@ mod tests {
                 Keysym::_0,
                 Action::MoveToWorkspace(10),
             ),
-            (with(false, true, false), Keysym::Left, Action::WorkspaceBy(-1)),
+            (
+                with(false, true, false),
+                Keysym::Left,
+                Action::WorkspaceBy(-1),
+            ),
             (
                 with(true, true, false),
                 Keysym::Right,

@@ -77,10 +77,10 @@ pub mod battery;
 mod display;
 mod file;
 pub mod meter;
+mod run_or_raise;
 pub mod screens;
 pub mod sun;
 pub mod theme;
-mod run_or_raise;
 mod wallpaper;
 mod workspaces;
 

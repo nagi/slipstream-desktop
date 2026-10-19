@@ -170,7 +170,10 @@ impl Slipstream {
             self.switch_workspace(reading);
         }
         self.focus_window(window);
-        tracing::info!(workspace = reading + 1, "reading mode: the reader is on its workspace");
+        tracing::info!(
+            workspace = reading + 1,
+            "reading mode: the reader is on its workspace"
+        );
         true
     }
 
