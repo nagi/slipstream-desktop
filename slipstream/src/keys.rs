@@ -6,6 +6,8 @@
 
 use smithay::input::keyboard::{Keysym, ModifiersState, xkb};
 
+use slipstream_config::KeyStyle;
+
 use crate::layout::{Direction, Resize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -31,6 +33,8 @@ pub enum Action {
     MoveToWorkspaceBy(i8),
     /// Ask the focused window to close.
     Close,
+    /// Ask every window of the focused window's app to close.
+    Quit,
     /// Start an app.
     Launch(App),
     /// Go to virtual terminal 1–12. Never a binding: Ctrl+Alt+F1–F12 produce it through the
@@ -138,6 +142,7 @@ impl Action {
             Action::MoveToWorkspace(_) => "send window to a workspace",
             Action::MoveToWorkspaceBy(_) => "send window to previous, next",
             Action::Close => "close window",
+            Action::Quit => "quit the app",
             Action::Launch(App::Terminal) => "terminal",
             Action::Launch(App::Files) => "files",
             Action::Launch(App::Settings) => "settings",
@@ -181,6 +186,7 @@ impl Action {
             Action::Focus(_)
             | Action::MoveTile(_)
             | Action::Close
+            | Action::Quit
             | Action::Launch(_)
             | Action::CycleWindows { .. }
             | Action::Explorer
@@ -240,6 +246,8 @@ pub fn key_name(key: Keysym) -> String {
         Keysym::slash => "/",
         Keysym::bracketleft | Keysym::braceleft => "[",
         Keysym::bracketright | Keysym::braceright => "]",
+        Keysym::minus | Keysym::underscore => "-",
+        Keysym::equal | Keysym::plus => "=",
         Keysym::XF86_AudioRaiseVolume => "Volume Up",
         Keysym::XF86_AudioLowerVolume => "Volume Down",
         Keysym::XF86_AudioMute => "Mute",
@@ -277,6 +285,11 @@ pub fn mods_prefix(mods: Mods) -> String {
         }
     }
     prefix
+}
+
+/// The first binding for `action` in `bindings`.
+pub fn binding_for(bindings: &[Binding], action: Action) -> Option<Binding> {
+    bindings.iter().find(|b| b.action == action).copied()
 }
 
 /// A key combination for prose, toasts and keycaps: `Super+Shift+S`.
@@ -330,206 +343,394 @@ pub struct Binding {
     pub action: Action,
 }
 
-pub fn defaults() -> Vec<Binding> {
-    let mod_ = Mods {
-        logo: true,
-        ..Mods::default()
-    };
-    let mod_shift = Mods {
-        shift: true,
-        ..mod_
-    };
-    let mod_ctrl = Mods { ctrl: true, ..mod_ };
-    let mod_alt = Mods { alt: true, ..mod_ };
-    let alt = Mods {
-        alt: true,
-        ..Mods::default()
-    };
-    let ctrl_alt = Mods {
-        ctrl: true,
-        alt: true,
-        ..Mods::default()
-    };
-    let alt_shift = Mods { shift: true, ..alt };
-    let bind = |mods, key, action| Binding { mods, key, action };
-    let mut bindings = vec![
-        // Windows' own security screen, on the chord every Windows user already reaches for
-        // under stress. The kernel never sees it: libinput hands it to us first.
-        bind(ctrl_alt, Keysym::Delete, Action::WayOut),
-        // A game holding the pointer, or a virtual machine holding every key, gives them back.
-        bind(mod_, Keysym::Escape, Action::TakeBack),
-        // Super+arrows move the focus to the neighbouring tile.
-        bind(mod_, Keysym::Left, Action::Focus(Direction::Left)),
-        bind(mod_, Keysym::Right, Action::Focus(Direction::Right)),
-        bind(mod_, Keysym::Up, Action::Focus(Direction::Up)),
-        bind(mod_, Keysym::Down, Action::Focus(Direction::Down)),
-        // Add Alt and the window comes with the focus: the tile swaps places with its
-        // neighbour.
-        bind(mod_alt, Keysym::Left, Action::MoveTile(Direction::Left)),
-        bind(mod_alt, Keysym::Right, Action::MoveTile(Direction::Right)),
-        bind(mod_alt, Keysym::Up, Action::MoveTile(Direction::Up)),
-        bind(mod_alt, Keysym::Down, Action::MoveTile(Direction::Down)),
-        // Resizing: Super+[ ] for width, with Shift for height. Keys are matched on the raw
-        // symbol, so Shift keeps them brackets; a layout that reports braces there works too.
-        bind(mod_, Keysym::bracketright, Action::Resize(Resize::Wider)),
-        bind(mod_, Keysym::bracketleft, Action::Resize(Resize::Narrower)),
-        bind(
-            mod_shift,
-            Keysym::bracketright,
-            Action::Resize(Resize::Taller),
-        ),
-        bind(
-            mod_shift,
-            Keysym::bracketleft,
-            Action::Resize(Resize::Shorter),
-        ),
-        bind(
-            mod_shift,
-            Keysym::braceright,
-            Action::Resize(Resize::Taller),
-        ),
-        bind(
-            mod_shift,
-            Keysym::braceleft,
-            Action::Resize(Resize::Shorter),
-        ),
-        // Windows' virtual desktop keys.
-        bind(mod_ctrl, Keysym::Left, Action::WorkspaceBy(-1)),
-        bind(mod_ctrl, Keysym::Right, Action::WorkspaceBy(1)),
-        bind(mod_shift, Keysym::Left, Action::MoveToWorkspaceBy(-1)),
-        bind(mod_shift, Keysym::Right, Action::MoveToWorkspaceBy(1)),
+const fn mods(logo: bool, ctrl: bool, alt: bool, shift: bool) -> Mods {
+    Mods {
+        ctrl,
+        alt,
+        shift,
+        logo,
+    }
+}
+
+const NONE: Mods = mods(false, false, false, false);
+const ALT: Mods = mods(false, false, true, false);
+const ALT_SHIFT: Mods = mods(false, false, true, true);
+const CTRL_ALT: Mods = mods(false, true, true, false);
+const MOD: Mods = mods(true, false, false, false);
+const MOD_SHIFT: Mods = mods(true, false, false, true);
+const MOD_CTRL: Mods = mods(true, true, false, false);
+const MOD_ALT: Mods = mods(true, false, true, false);
+const MOD_ALT_SHIFT: Mods = mods(true, false, true, true);
+
+fn bind(mods: Mods, key: Keysym, action: Action) -> Binding {
+    Binding { mods, key, action }
+}
+
+/// The four arrows, each with the direction it names.
+const ARROWS: [(Keysym, Direction); 4] = [
+    (Keysym::Left, Direction::Left),
+    (Keysym::Right, Direction::Right),
+    (Keysym::Up, Direction::Up),
+    (Keysym::Down, Direction::Down),
+];
+
+/// The bindings for `style`. The Mac and Omarchy styles list their own keys before the ones
+/// every style shares, so that where an action has both, theirs is named first. The Windows style
+/// is where the shared keys come from, so they sit among its own.
+pub fn defaults(style: KeyStyle) -> Vec<Binding> {
+    match style {
+        KeyStyle::Windows => windows(),
+        KeyStyle::Mac => [mac(), shared()].concat(),
+        KeyStyle::Omarchy => [omarchy(), shared()].concat(),
+    }
+}
+
+/// Whether a tapped Super opens the explorer, as the Windows key opens Start. A Mac's ⌘ and
+/// Omarchy's Super do nothing on their own, and both are held so often that a stray tap would.
+pub fn taps_super(style: KeyStyle) -> bool {
+    style == KeyStyle::Windows
+}
+
+/// Keys every style has: the way out, Alt+F4, the task switcher, the terminal, the arrows and
+/// the laptop's own keys.
+fn shared() -> Vec<Binding> {
+    let mut bindings = vec![way_out()];
+    bindings.extend(focus());
+    bindings.extend(switching());
+    bindings.extend(hardware());
+    bindings
+}
+
+/// Windows' own security screen, on the chord every Windows user already reaches for under
+/// stress. The kernel never sees it: libinput hands it to us first.
+fn way_out() -> Binding {
+    bind(CTRL_ALT, Keysym::Delete, Action::WayOut)
+}
+
+/// Super+arrows move the focus to the neighbouring tile.
+fn focus() -> impl Iterator<Item = Binding> {
+    ARROWS
+        .into_iter()
+        .map(|(key, direction)| bind(MOD, key, Action::Focus(direction)))
+}
+
+/// Alt+F4, the task switcher and the terminal.
+fn switching() -> Vec<Binding> {
+    vec![
         // On real hardware only: nested inside KDE, KWin takes Alt+F4 for its own window.
-        bind(alt, Keysym::F4, Action::Close),
-        // Windows' task switcher. Letting go of Alt settles on the window.
-        bind(alt, Keysym::Tab, Action::CycleWindows { forward: true }),
+        bind(ALT, Keysym::F4, Action::Close),
+        // Letting go of Alt settles on the window.
+        bind(ALT, Keysym::Tab, Action::CycleWindows { forward: true }),
         bind(
-            alt_shift,
+            ALT_SHIFT,
             Keysym::Tab,
             Action::CycleWindows { forward: false },
         ),
         bind(
-            alt_shift,
+            ALT_SHIFT,
             Keysym::ISO_Left_Tab,
             Action::CycleWindows { forward: false },
         ),
-        bind(mod_, Keysym::Return, Action::Launch(App::Terminal)),
-        bind(mod_, Keysym::e, Action::Launch(App::Files)),
-        bind(mod_, Keysym::i, Action::Launch(App::Settings)),
-        bind(mod_, Keysym::b, Action::Launch(App::Browser)),
-        // The app explorer has no binding here: a tapped Super opens it, as the Windows key opens
-        // Start (see `SuperTap`). Super+Space stays IBus's, to switch input methods.
-        //
-        // Windows' own display key: Win+P is where a Windows user looks for anything to do with
-        // screens. With one screen it says there's nowhere to go.
-        bind(mod_, Keysym::p, Action::NextScreen),
-        bind(mod_shift, Keysym::p, Action::MoveToNextScreen),
-        bind(mod_ctrl, Keysym::p, Action::SwapScreens),
-        // Windows' quick settings key.
-        bind(mod_, Keysym::a, Action::QuickSettings),
-        // Windows' screenshot keys: Print for the screen, Win+Shift+S to snip a region or a window
-        // (gamescope keeps it while focused, as it does Super+S).
+        bind(MOD, Keysym::Return, Action::Launch(App::Terminal)),
+    ]
+}
+
+/// The media, volume and brightness keys (the Fn row on laptops), which need no modifier.
+fn hardware() -> Vec<Binding> {
+    vec![
         bind(
-            Mods::default(),
-            Keysym::Print,
-            Action::Screenshot { window: false },
-        ),
-        bind(mod_shift, Keysym::s, Action::Screenshot { window: true }),
-        // Windows' show-desktop key: an empty workspace, and back.
-        bind(mod_, Keysym::d, Action::ShowDesktop),
-        bind(mod_, Keysym::l, Action::Lock),
-        // Windows' clipboard history key.
-        bind(mod_, Keysym::v, Action::ClipboardHistory),
-        // Floating: Super+V is the clipboard history, so these take the V with a modifier.
-        bind(mod_shift, Keysym::v, Action::ToggleFloating),
-        bind(mod_ctrl, Keysym::v, Action::SwitchFloatingFocus),
-        // Windows' notification centre key.
-        bind(mod_, Keysym::n, Action::NotificationCentre),
-        // Every key, one keystroke away.
-        bind(mod_, Keysym::slash, Action::ShortcutSheet),
-        bind(mod_, Keysym::t, Action::ToggleGravity),
-        // Turning the layout, which Windows has no key for.
-        bind(mod_, Keysym::r, Action::Rotate { clockwise: true }),
-        bind(mod_shift, Keysym::r, Action::Rotate { clockwise: false }),
-        // Fill the tiling area, keeping the neighbours' tiles underneath. gamescope keeps Super+F
-        // while it's focused (`passes_to_gamescope`).
-        bind(mod_, Keysym::f, Action::Maximise),
-        // Minimise into the code rain on M: Super+↓, Windows' own minimise key, moves focus here.
-        bind(mod_, Keysym::m, Action::Minimise),
-        // Windows' Task View key.
-        bind(mod_, Keysym::Tab, Action::BulletTime),
-        // Bring back the last window minimised.
-        bind(mod_shift, Keysym::m, Action::Restore),
-        // Windows' own minimise-all key is Super+M, which is one window here, as its restore
-        // key Super+Shift+M is. Super+H is free, and next to them on the keyboard.
-        bind(mod_, Keysym::h, Action::HideAll),
-        // A window docked to the bar as a pane of glass, and back with Shift as Super+M's
-        // restore is. W is free, beside the other window keys, and nothing a game or an input
-        // method relies on.
-        bind(mod_, Keysym::w, Action::Dock),
-        bind(mod_shift, Keysym::w, Action::Undock),
-        // Media keys (the Fn row on laptops) need no modifier, as on Windows.
-        bind(
-            Mods::default(),
+            NONE,
             Keysym::XF86_AudioPlay,
             Action::Media(crate::media::Transport::PlayPause),
         ),
         bind(
-            Mods::default(),
+            NONE,
             Keysym::XF86_AudioPause,
             Action::Media(crate::media::Transport::PlayPause),
         ),
         bind(
-            Mods::default(),
+            NONE,
             Keysym::XF86_AudioNext,
             Action::Media(crate::media::Transport::Next),
         ),
         bind(
-            Mods::default(),
+            NONE,
             Keysym::XF86_AudioPrev,
             Action::Media(crate::media::Transport::Previous),
         ),
         bind(
-            Mods::default(),
+            NONE,
             Keysym::XF86_AudioStop,
             Action::Media(crate::media::Transport::Stop),
         ),
+        bind(NONE, Keysym::XF86_AudioRaiseVolume, Action::Volume(5)),
+        bind(NONE, Keysym::XF86_AudioLowerVolume, Action::Volume(-5)),
         bind(
-            Mods::default(),
-            Keysym::XF86_AudioRaiseVolume,
-            Action::Volume(5),
-        ),
-        bind(
-            Mods::default(),
-            Keysym::XF86_AudioLowerVolume,
-            Action::Volume(-5),
-        ),
-        bind(
-            Mods::default(),
+            NONE,
             Keysym::XF86_AudioMute,
             Action::ToggleMute { microphone: false },
         ),
         bind(
-            Mods::default(),
+            NONE,
             Keysym::XF86_AudioMicMute,
             Action::ToggleMute { microphone: true },
         ),
-        bind(
-            Mods::default(),
-            Keysym::XF86_MonBrightnessUp,
-            Action::Brightness(5),
-        ),
-        bind(
-            Mods::default(),
-            Keysym::XF86_MonBrightnessDown,
-            Action::Brightness(-5),
-        ),
+        bind(NONE, Keysym::XF86_MonBrightnessUp, Action::Brightness(5)),
+        bind(NONE, Keysym::XF86_MonBrightnessDown, Action::Brightness(-5)),
+    ]
+}
+
+/// The tile swapping places with its neighbour, on `mods` and the arrows.
+fn move_tile(mods: Mods) -> impl Iterator<Item = Binding> {
+    ARROWS
+        .into_iter()
+        .map(move |(key, direction)| bind(mods, key, Action::MoveTile(direction)))
+}
+
+/// Width on `narrower` and `wider`, height on the same keys with Shift. Keys are matched on the
+/// raw symbol, so Shift usually keeps them as they are; the shifted symbols a layout may report
+/// instead are bound too.
+fn resize(narrower: [Keysym; 2], wider: [Keysym; 2]) -> Vec<Binding> {
+    let mut bindings = vec![
+        bind(MOD, narrower[0], Action::Resize(Resize::Narrower)),
+        bind(MOD, wider[0], Action::Resize(Resize::Wider)),
     ];
-    // Nine keys reach the first nine workspaces; past that, bullet time and Super+Ctrl+←/→ do.
-    for (i, key) in DIGITS.into_iter().enumerate() {
-        let n = i as u8 + 1;
-        bindings.push(bind(mod_, key, Action::Workspace(n)));
-        bindings.push(bind(mod_shift, key, Action::MoveToWorkspace(n)));
+    for key in narrower {
+        bindings.push(bind(MOD_SHIFT, key, Action::Resize(Resize::Shorter)));
     }
+    for key in wider {
+        bindings.push(bind(MOD_SHIFT, key, Action::Resize(Resize::Taller)));
+    }
+    bindings
+}
+
+/// The number keys: `go` to a workspace, `send` the focused window there. Nine keys reach the
+/// first nine workspaces; past that, bullet time and the previous/next keys do.
+fn workspace_numbers(go: Mods, send: Mods) -> impl Iterator<Item = Binding> {
+    DIGITS.into_iter().enumerate().flat_map(move |(i, key)| {
+        let n = i as u8 + 1;
+        [
+            bind(go, key, Action::Workspace(n)),
+            bind(send, key, Action::MoveToWorkspace(n)),
+        ]
+    })
+}
+
+/// Windows' keys, wherever Windows has one for the job.
+fn windows() -> Vec<Binding> {
+    let mut bindings = vec![
+        way_out(),
+        // A game holding the pointer, or a virtual machine holding every key, gives them back.
+        bind(MOD, Keysym::Escape, Action::TakeBack),
+    ];
+    bindings.extend(focus());
+    // Add Alt and the window comes with the focus: the tile swaps places with its neighbour.
+    bindings.extend(move_tile(MOD_ALT));
+    bindings.extend(resize(
+        [Keysym::bracketleft, Keysym::braceleft],
+        [Keysym::bracketright, Keysym::braceright],
+    ));
+    bindings.extend([
+        // Windows' virtual desktop keys.
+        bind(MOD_CTRL, Keysym::Left, Action::WorkspaceBy(-1)),
+        bind(MOD_CTRL, Keysym::Right, Action::WorkspaceBy(1)),
+        bind(MOD_SHIFT, Keysym::Left, Action::MoveToWorkspaceBy(-1)),
+        bind(MOD_SHIFT, Keysym::Right, Action::MoveToWorkspaceBy(1)),
+    ]);
+    bindings.extend(switching());
+    bindings.extend([
+        bind(MOD, Keysym::e, Action::Launch(App::Files)),
+        bind(MOD, Keysym::i, Action::Launch(App::Settings)),
+        bind(MOD, Keysym::b, Action::Launch(App::Browser)),
+        // A tapped Super opens the explorer, as the Windows key opens Start (see `SuperTap`), and
+        // Win+S opens the same search box. Super+Space stays IBus's, to switch input methods, as
+        // Win+Space switches layouts on Windows.
+        bind(MOD, Keysym::s, Action::Explorer),
+        // Windows' own display key: Win+P is where a Windows user looks for anything to do with
+        // screens. With one screen it says there's nowhere to go.
+        bind(MOD, Keysym::p, Action::NextScreen),
+        bind(MOD_SHIFT, Keysym::p, Action::MoveToNextScreen),
+        bind(MOD_CTRL, Keysym::p, Action::SwapScreens),
+        // Windows' quick settings key.
+        bind(MOD, Keysym::a, Action::QuickSettings),
+        // Windows' screenshot keys: Print and Win+Print for the screen, Win+Shift+S to snip a
+        // region or a window (gamescope keeps it while focused, as it does Super+S).
+        bind(NONE, Keysym::Print, Action::Screenshot { window: false }),
+        bind(MOD, Keysym::Print, Action::Screenshot { window: false }),
+        bind(MOD_SHIFT, Keysym::s, Action::Screenshot { window: true }),
+        // Windows' show-desktop key: an empty workspace, and back.
+        bind(MOD, Keysym::d, Action::ShowDesktop),
+        bind(MOD, Keysym::l, Action::Lock),
+        // Win+X is where Windows keeps shutting down and signing out.
+        bind(MOD, Keysym::x, Action::WayOut),
+        // Windows' clipboard history key.
+        bind(MOD, Keysym::v, Action::ClipboardHistory),
+        // Floating: Super+V is the clipboard history, so these take the V with a modifier.
+        bind(MOD_SHIFT, Keysym::v, Action::ToggleFloating),
+        bind(MOD_CTRL, Keysym::v, Action::SwitchFloatingFocus),
+        // Windows' notification centre key.
+        bind(MOD, Keysym::n, Action::NotificationCentre),
+        // Every key, one keystroke away.
+        bind(MOD, Keysym::slash, Action::ShortcutSheet),
+        bind(MOD, Keysym::t, Action::ToggleGravity),
+        // Turning the layout, which Windows has no key for.
+        bind(MOD, Keysym::r, Action::Rotate { clockwise: true }),
+        bind(MOD_SHIFT, Keysym::r, Action::Rotate { clockwise: false }),
+        // Fill the tiling area, keeping the neighbours' tiles underneath. gamescope keeps Super+F
+        // while it's focused (`passes_to_gamescope`).
+        bind(MOD, Keysym::f, Action::Maximise),
+        // Minimise into the code rain on M: Super+↓, Windows' own minimise key, moves focus here.
+        bind(MOD, Keysym::m, Action::Minimise),
+        // Windows' Task View key.
+        bind(MOD, Keysym::Tab, Action::BulletTime),
+        // Bring back the last window minimised.
+        bind(MOD_SHIFT, Keysym::m, Action::Restore),
+        // Windows' own minimise-all key is Super+M, which is one window here, as its restore
+        // key Super+Shift+M is. Super+H is free, and next to them on the keyboard.
+        bind(MOD, Keysym::h, Action::HideAll),
+        // A window docked to the bar as a pane of glass, and back with Shift as Super+M's
+        // restore is. W is free, beside the other window keys, and nothing a game or an input
+        // method relies on.
+        bind(MOD, Keysym::w, Action::Dock),
+        bind(MOD_SHIFT, Keysym::w, Action::Undock),
+    ]);
+    bindings.extend(hardware());
+    bindings.extend(workspace_numbers(MOD, MOD_SHIFT));
+    bindings
+}
+
+/// A Mac's keys, with Super standing in for ⌘: it is the system's own key on a PC keyboard, and
+/// Alt, which sits where ⌘ does, belongs to apps' menus. Apps keep their own Ctrl keys. A Mac's
+/// Control+arrow keys move between Spaces; on Linux Ctrl+arrows move by word in every app, so
+/// here they take Super as well.
+fn mac() -> Vec<Binding> {
+    let mut bindings = vec![
+        // Spotlight. Ctrl+Space, a Mac's input source key, stays the input methods'.
+        bind(MOD, Keysym::space, Action::Explorer),
+        // ⌘Tab, beside Alt+Tab; letting go of Super settles on the window.
+        bind(MOD, Keysym::Tab, Action::CycleWindows { forward: true }),
+        bind(
+            MOD_SHIFT,
+            Keysym::Tab,
+            Action::CycleWindows { forward: false },
+        ),
+        bind(
+            MOD_SHIFT,
+            Keysym::ISO_Left_Tab,
+            Action::CycleWindows { forward: false },
+        ),
+        // ⌘W closes the window, ⌘Q quits the app.
+        bind(MOD, Keysym::w, Action::Close),
+        bind(MOD, Keysym::q, Action::Quit),
+        // ⌘M minimises; ⌘H hides, which for a window here is the same thing; ⌥⌘M minimises
+        // every window.
+        bind(MOD, Keysym::m, Action::Minimise),
+        bind(MOD, Keysym::h, Action::Minimise),
+        bind(MOD_SHIFT, Keysym::m, Action::Restore),
+        bind(MOD_ALT, Keysym::m, Action::HideAll),
+        // Control-⌘-F: full screen.
+        bind(MOD_CTRL, Keysym::f, Action::Maximise),
+        // Mission Control, and moving between Spaces.
+        bind(MOD_CTRL, Keysym::Up, Action::BulletTime),
+        bind(MOD_CTRL, Keysym::Left, Action::WorkspaceBy(-1)),
+        bind(MOD_CTRL, Keysym::Right, Action::WorkspaceBy(1)),
+        bind(MOD_SHIFT, Keysym::Left, Action::MoveToWorkspaceBy(-1)),
+        bind(MOD_SHIFT, Keysym::Right, Action::MoveToWorkspaceBy(1)),
+        // Shift-⌘-3 for the screen, 4 and 5 to choose a region or a window. A PC keyboard has
+        // Print, so that works too.
+        bind(MOD_SHIFT, Keysym::_3, Action::Screenshot { window: false }),
+        bind(MOD_SHIFT, Keysym::_4, Action::Screenshot { window: true }),
+        bind(MOD_SHIFT, Keysym::_5, Action::Screenshot { window: true }),
+        bind(NONE, Keysym::Print, Action::Screenshot { window: false }),
+        // Control-⌘-Q locks; Shift-⌘-Q asks before logging out, as the way out does.
+        bind(MOD_CTRL, Keysym::q, Action::Lock),
+        bind(MOD_SHIFT, Keysym::q, Action::WayOut),
+        // ⌘, opens an app's settings; here, the desktop's.
+        bind(MOD, Keysym::comma, Action::Launch(App::Settings)),
+        // ⌥⌘D shows the Dock; here it docks the window to the bar.
+        bind(MOD_ALT, Keysym::d, Action::Dock),
+        bind(MOD_ALT_SHIFT, Keysym::d, Action::Undock),
+        // A Mac has no keys for these, so they are the same as in the Windows style.
+        bind(MOD, Keysym::Escape, Action::TakeBack),
+        bind(MOD, Keysym::e, Action::Launch(App::Files)),
+        bind(MOD, Keysym::b, Action::Launch(App::Browser)),
+        bind(MOD, Keysym::p, Action::NextScreen),
+        bind(MOD_SHIFT, Keysym::p, Action::MoveToNextScreen),
+        bind(MOD_CTRL, Keysym::p, Action::SwapScreens),
+        bind(MOD, Keysym::a, Action::QuickSettings),
+        bind(MOD, Keysym::n, Action::NotificationCentre),
+        bind(MOD, Keysym::d, Action::ShowDesktop),
+        bind(MOD, Keysym::v, Action::ClipboardHistory),
+        bind(MOD_SHIFT, Keysym::v, Action::ToggleFloating),
+        bind(MOD_CTRL, Keysym::v, Action::SwitchFloatingFocus),
+        bind(MOD, Keysym::slash, Action::ShortcutSheet),
+        bind(MOD, Keysym::t, Action::ToggleGravity),
+        bind(MOD, Keysym::r, Action::Rotate { clockwise: true }),
+        bind(MOD_SHIFT, Keysym::r, Action::Rotate { clockwise: false }),
+    ];
+    bindings.extend(move_tile(MOD_ALT));
+    bindings.extend(resize(
+        [Keysym::bracketleft, Keysym::braceleft],
+        [Keysym::bracketright, Keysym::braceright],
+    ));
+    // Shift-⌘ and a number is a screenshot, so Alt sends the window, as it moves a tile.
+    bindings.extend(workspace_numbers(MOD, MOD_ALT));
+    bindings
+}
+
+/// Omarchy's keys.
+fn omarchy() -> Vec<Binding> {
+    let mut bindings = vec![
+        // Its launcher. Its input methods switch on Ctrl+Space, which stays theirs.
+        bind(MOD, Keysym::space, Action::Explorer),
+        bind(MOD, Keysym::w, Action::Close),
+        bind(MOD_SHIFT, Keysym::Return, Action::Launch(App::Browser)),
+        bind(MOD_SHIFT, Keysym::b, Action::Launch(App::Browser)),
+        bind(MOD_SHIFT, Keysym::f, Action::Launch(App::Files)),
+        bind(MOD, Keysym::t, Action::ToggleFloating),
+        bind(MOD_SHIFT, Keysym::t, Action::SwitchFloatingFocus),
+        bind(MOD, Keysym::f, Action::Maximise),
+        // Its workspace layout key, and its split toggle.
+        bind(MOD, Keysym::l, Action::ToggleGravity),
+        bind(MOD, Keysym::j, Action::Rotate { clockwise: true }),
+        bind(MOD_SHIFT, Keysym::j, Action::Rotate { clockwise: false }),
+        // Its pop-out key floats a window and pins it over every workspace: here, the dock.
+        bind(MOD, Keysym::o, Action::Dock),
+        bind(MOD_SHIFT, Keysym::o, Action::Undock),
+        bind(MOD, Keysym::Tab, Action::WorkspaceBy(1)),
+        bind(MOD_SHIFT, Keysym::Tab, Action::WorkspaceBy(-1)),
+        bind(MOD_SHIFT, Keysym::ISO_Left_Tab, Action::WorkspaceBy(-1)),
+        // Its system menu, and the lock.
+        bind(MOD, Keysym::Escape, Action::WayOut),
+        bind(MOD_CTRL, Keysym::l, Action::Lock),
+        bind(MOD, Keysym::k, Action::ShortcutSheet),
+        bind(MOD_CTRL, Keysym::v, Action::ClipboardHistory),
+        // Its audio panel's key: volume heads quick settings.
+        bind(MOD_CTRL, Keysym::a, Action::QuickSettings),
+        // Its notification history key.
+        bind(MOD_ALT_SHIFT, Keysym::comma, Action::NotificationCentre),
+        // Print chooses a region or a window, and Enter takes the whole screen.
+        bind(NONE, Keysym::Print, Action::Screenshot { window: true }),
+        bind(MOD_SHIFT, Keysym::s, Action::Screenshot { window: true }),
+        // Omarchy has no keys for these, so they sit where its own keys don't.
+        bind(MOD_SHIFT, Keysym::Escape, Action::TakeBack),
+        bind(MOD_CTRL, Keysym::Up, Action::BulletTime),
+        bind(MOD, Keysym::i, Action::Launch(App::Settings)),
+        bind(MOD, Keysym::p, Action::NextScreen),
+        bind(MOD_SHIFT, Keysym::p, Action::MoveToNextScreen),
+        bind(MOD_CTRL, Keysym::p, Action::SwapScreens),
+        bind(MOD, Keysym::m, Action::Minimise),
+        bind(MOD_SHIFT, Keysym::m, Action::Restore),
+        bind(MOD, Keysym::h, Action::HideAll),
+        bind(MOD, Keysym::d, Action::ShowDesktop),
+    ];
+    // Shift and an arrow swaps the tile with its neighbour.
+    bindings.extend(move_tile(MOD_SHIFT));
+    bindings.extend(resize(
+        [Keysym::minus, Keysym::underscore],
+        [Keysym::equal, Keysym::plus],
+    ));
+    bindings.extend(workspace_numbers(MOD, MOD_SHIFT));
     bindings
 }
 
@@ -601,13 +802,13 @@ pub fn action_for(bindings: &[Binding], mods: Mods, key: Keysym) -> Option<Actio
         .map(|b| b.action)
 }
 
-/// Drops any binding that takes a reserved combination, with a warning. Every binding goes
-/// through this, so a future config file can't break input methods, screen readers or games.
-pub fn checked(bindings: Vec<Binding>) -> Vec<Binding> {
+/// Drops any binding that takes a combination `style` reserves, with a warning. Every binding
+/// goes through this, so a future config file can't break input methods, screen readers or games.
+pub fn checked(bindings: Vec<Binding>, style: KeyStyle) -> Vec<Binding> {
     bindings
         .into_iter()
         .filter(|b| {
-            let reserved = is_reserved(b.mods, b.key);
+            let reserved = is_reserved_in(style, b.mods, b.key);
             if reserved {
                 tracing::warn!(
                     ?b,
@@ -645,6 +846,14 @@ const MODIFIER_KEYS: [Keysym; 9] = [
     Keysym::Super_R,
     Keysym::ISO_Level3_Shift,
 ];
+
+/// Combinations that belong to something other than the window manager in `style`. A Mac and
+/// Omarchy both open their launcher on Super+Space and switch input methods on Ctrl+Space, so
+/// those styles take Super+Space; Ctrl+Space stays reserved in every style.
+pub fn is_reserved_in(style: KeyStyle, mods: Mods, key: Keysym) -> bool {
+    let launcher = mods == MOD && key == Keysym::space && !taps_super(style);
+    is_reserved(mods, key) && !launcher
+}
 
 /// Combinations that belong to something other than the window manager.
 pub fn is_reserved(mods: Mods, key: Keysym) -> bool {
@@ -737,31 +946,186 @@ mod tests {
         logo: true,
     };
 
+    /// The Windows style's keys, which most of these tests are about.
+    fn defaults() -> Vec<Binding> {
+        super::defaults(KeyStyle::Windows)
+    }
+
+    fn windows_checked(bindings: Vec<Binding>) -> Vec<Binding> {
+        checked(bindings, KeyStyle::Windows)
+    }
+
     #[test]
     fn defaults_never_use_reserved_combos() {
-        for b in defaults() {
-            assert!(
-                !is_reserved(b.mods, b.key),
-                "{b:?} takes a reserved combination"
-            );
+        for style in KeyStyle::ALL {
+            for b in super::defaults(style) {
+                assert!(
+                    !is_reserved_in(style, b.mods, b.key),
+                    "{style:?}: {b:?} takes a reserved combination"
+                );
+            }
         }
     }
 
     #[test]
     fn defaults_are_unique() {
-        let all = defaults();
-        for (i, a) in all.iter().enumerate() {
-            assert!(
-                all[i + 1..]
-                    .iter()
-                    .all(|b| (b.mods, b.key) != (a.mods, a.key)),
-                "{a:?} is bound twice"
+        for style in KeyStyle::ALL {
+            let all = super::defaults(style);
+            for (i, a) in all.iter().enumerate() {
+                assert!(
+                    all[i + 1..]
+                        .iter()
+                        .all(|b| (b.mods, b.key) != (a.mods, a.key)),
+                    "{style:?}: {a:?} is bound twice"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn every_style_keeps_the_ways_out_and_the_key_list() {
+        // Whatever the style, a window holding every key can be made to give them back, the
+        // screen can be locked and left, and every key can be looked up.
+        for style in KeyStyle::ALL {
+            let bindings = checked(super::defaults(style), style);
+            for action in [
+                Action::TakeBack,
+                Action::Lock,
+                Action::WayOut,
+                Action::ShortcutSheet,
+                Action::Close,
+                Action::Launch(App::Terminal),
+                Action::BulletTime,
+                Action::Restore,
+                Action::ToggleFloating,
+                Action::ToggleGravity,
+                Action::Maximise,
+                Action::QuickSettings,
+                Action::ClipboardHistory,
+                Action::NotificationCentre,
+            ] {
+                assert!(
+                    binding_for(&bindings, action).is_some(),
+                    "{style:?} has no key for {action:?}"
+                );
+            }
+            let explorer = binding_for(&bindings, Action::Explorer).is_some();
+            assert!(explorer || taps_super(style), "{style:?} can't open apps");
+            assert_eq!(
+                action_for(&bindings, CTRL_ALT, Keysym::Delete),
+                Some(Action::WayOut),
+                "{style:?}: Ctrl+Alt+Del is the way out everywhere"
             );
         }
     }
 
     #[test]
-    fn the_way_out_is_on_ctrl_alt_del_alone() {
+    fn every_style_has_the_keys_every_style_shares() {
+        for style in KeyStyle::ALL {
+            let bindings = super::defaults(style);
+            for shared in shared() {
+                assert!(bindings.contains(&shared), "{style:?} lacks {shared:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn the_settings_apps_highlights_are_the_styles_own_keys() {
+        for style in KeyStyle::ALL {
+            let bindings = checked(super::defaults(style), style);
+            for (does, keys) in style.highlights() {
+                let found = match *keys {
+                    "Super" => taps_super(style) && *does == Action::Explorer.describe(),
+                    _ => bindings
+                        .iter()
+                        .any(|b| label(b.mods, b.key) == *keys && b.action.describe() == *does),
+                };
+                assert!(found, "{style:?}: {keys} doesn't {does}");
+            }
+        }
+    }
+
+    #[test]
+    fn only_the_windows_style_taps_super_and_the_others_take_super_space() {
+        assert!(taps_super(KeyStyle::Windows));
+        let windows = checked(defaults(), KeyStyle::Windows);
+        assert_eq!(action_for(&windows, SUPER, Keysym::space), None);
+        for style in [KeyStyle::Mac, KeyStyle::Omarchy] {
+            assert!(!taps_super(style));
+            let bindings = checked(super::defaults(style), style);
+            assert_eq!(
+                action_for(&bindings, SUPER, Keysym::space),
+                Some(Action::Explorer)
+            );
+            // Ctrl+Space, their input method key, is never taken.
+            assert!(is_reserved_in(style, MOD_CTRL, Keysym::space));
+        }
+    }
+
+    #[test]
+    fn mac_keys_are_where_a_mac_has_them() {
+        let mac = checked(super::defaults(KeyStyle::Mac), KeyStyle::Mac);
+        let at = |mods, key| action_for(&mac, mods, key);
+        assert_eq!(
+            at(SUPER, Keysym::Tab),
+            Some(Action::CycleWindows { forward: true })
+        );
+        assert_eq!(at(SUPER, Keysym::q), Some(Action::Quit));
+        assert_eq!(at(SUPER, Keysym::w), Some(Action::Close));
+        assert_eq!(at(SUPER, Keysym::m), Some(Action::Minimise));
+        assert_eq!(at(MOD_CTRL, Keysym::f), Some(Action::Maximise));
+        assert_eq!(at(MOD_CTRL, Keysym::q), Some(Action::Lock));
+        assert_eq!(at(MOD_CTRL, Keysym::Up), Some(Action::BulletTime));
+        assert_eq!(
+            at(MOD_SHIFT, Keysym::_3),
+            Some(Action::Screenshot { window: false })
+        );
+        assert_eq!(
+            at(MOD_SHIFT, Keysym::_4),
+            Some(Action::Screenshot { window: true })
+        );
+        assert_eq!(at(MOD_ALT, Keysym::_3), Some(Action::MoveToWorkspace(3)));
+        // Ctrl+arrows move by word in apps, so Spaces take Super as well.
+        assert_eq!(at(mods(false, true, false, false), Keysym::Left), None);
+    }
+
+    #[test]
+    fn omarchy_keys_are_where_omarchy_has_them() {
+        let omarchy = checked(super::defaults(KeyStyle::Omarchy), KeyStyle::Omarchy);
+        let at = |mods, key| action_for(&omarchy, mods, key);
+        assert_eq!(at(SUPER, Keysym::w), Some(Action::Close));
+        assert_eq!(at(SUPER, Keysym::t), Some(Action::ToggleFloating));
+        assert_eq!(at(SUPER, Keysym::f), Some(Action::Maximise));
+        assert_eq!(at(SUPER, Keysym::Tab), Some(Action::WorkspaceBy(1)));
+        assert_eq!(at(SUPER, Keysym::Escape), Some(Action::WayOut));
+        assert_eq!(at(SUPER, Keysym::k), Some(Action::ShortcutSheet));
+        assert_eq!(at(MOD_CTRL, Keysym::l), Some(Action::Lock));
+        assert_eq!(at(MOD_CTRL, Keysym::v), Some(Action::ClipboardHistory));
+        assert_eq!(
+            at(MOD_SHIFT, Keysym::Left),
+            Some(Action::MoveTile(Direction::Left))
+        );
+        assert_eq!(at(MOD_SHIFT, Keysym::_2), Some(Action::MoveToWorkspace(2)));
+        assert_eq!(
+            at(MOD_SHIFT, Keysym::Return),
+            Some(Action::Launch(App::Browser))
+        );
+        assert_eq!(at(MOD_SHIFT, Keysym::f), Some(Action::Launch(App::Files)));
+        assert_eq!(
+            at(SUPER, Keysym::minus),
+            Some(Action::Resize(Resize::Narrower))
+        );
+        assert_eq!(
+            at(NONE, Keysym::Print),
+            Some(Action::Screenshot { window: true })
+        );
+        // Its copy and paste keys are left alone, for apps.
+        assert_eq!(at(SUPER, Keysym::c), None);
+        assert_eq!(at(SUPER, Keysym::v), None);
+    }
+
+    #[test]
+    fn the_way_out_is_on_ctrl_alt_del_and_never_on_escape() {
         let bindings = defaults();
         let ctrl_alt = Mods {
             ctrl: true,
@@ -989,8 +1353,8 @@ mod tests {
             key: Keysym::space,
             action: Action::Explorer,
         };
-        let way_out = defaults()[0];
-        assert_eq!(checked(vec![input_method_switch, way_out]), vec![way_out]);
+        let kept = defaults()[0];
+        assert_eq!(windows_checked(vec![input_method_switch, kept]), vec![kept]);
     }
 
     #[test]
@@ -1000,7 +1364,7 @@ mod tests {
             ..Mods::default()
         };
         let alt_shift = Mods { shift: true, ..alt };
-        let bindings = checked(defaults());
+        let bindings = windows_checked(defaults());
         assert_eq!(
             action_for(&bindings, alt, Keysym::Tab),
             Some(Action::CycleWindows { forward: true })
@@ -1022,7 +1386,7 @@ mod tests {
     #[test]
     fn super_f_maximises_and_stays_gamescope_s_while_it_is_focused() {
         assert_eq!(
-            action_for(&checked(defaults()), SUPER, Keysym::f),
+            action_for(&windows_checked(defaults()), SUPER, Keysym::f),
             Some(Action::Maximise)
         );
         assert!(passes_to_gamescope(SUPER, Keysym::f));
@@ -1030,9 +1394,11 @@ mod tests {
 
     #[test]
     fn every_default_binding_is_described() {
-        for b in checked(defaults()) {
-            assert!(!b.action.describe().is_empty(), "{b:?} has no description");
-            assert!(!b.action.group().title().is_empty());
+        for style in KeyStyle::ALL {
+            for b in checked(super::defaults(style), style) {
+                assert!(!b.action.describe().is_empty(), "{b:?} has no description");
+                assert!(!b.action.group().title().is_empty());
+            }
         }
         let super_shift = Mods {
             shift: true,
@@ -1044,7 +1410,7 @@ mod tests {
         assert_eq!(label(Mods::default(), Keysym::Print), "Print");
         assert_eq!(label(SUPER, Keysym::a), "Super+A");
         assert_eq!(
-            action_for(&checked(defaults()), SUPER, Keysym::slash),
+            action_for(&windows_checked(defaults()), SUPER, Keysym::slash),
             Some(Action::ShortcutSheet)
         );
     }

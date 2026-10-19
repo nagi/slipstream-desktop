@@ -11,10 +11,11 @@ use smithay::{
     utils::{Logical, Point, Rectangle, Size},
 };
 
-use slipstream_config::Effects;
+use slipstream_config::{Effects, KeyStyle};
 
 use crate::{
     Slipstream, bullet, icons,
+    keynames::KeyNames,
     keys::{self, Action, Binding, Group, Mods},
     miniature,
     motion::HYPR,
@@ -76,6 +77,8 @@ fn set_rank(key: Keysym) -> Option<u32> {
         Keysym::Down => 3,
         Keysym::bracketleft | Keysym::braceleft => 4,
         Keysym::bracketright | Keysym::braceright => 5,
+        Keysym::minus | Keysym::underscore => 6,
+        Keysym::equal | Keysym::plus => 7,
         _ => 10 + keys::DIGITS.iter().position(|digit| *digit == key)? as u32,
     };
     Some(rank)
@@ -134,7 +137,8 @@ const SWIPE_UP_DOWN: &str = "3 fingers ↑ ↓";
 
 /// The sheet's sections for `bindings`, in `Group::ALL`'s order: each group's bindings merged by
 /// what they do, bullet time's keys after its own binding, and the panels' shared keys last.
-pub fn sections(bindings: &[Binding]) -> Vec<Section> {
+/// `tap` is whether a tapped Super opens the explorer.
+pub fn sections(bindings: &[Binding], tap: bool) -> Vec<Section> {
     let mut sections: Vec<Section> = Group::ALL
         .iter()
         .map(|group| Section {
@@ -174,9 +178,21 @@ pub fn sections(bindings: &[Binding]) -> Vec<Section> {
             bindings: Vec::new(),
         };
         match section.group {
-            // A tapped Super is no binding — nothing is held with it — so the sheet says it
-            // here, at the top, where the key that opens most things belongs.
-            Group::AppsAndWindows => section.rows.insert(0, fixed(&["Super"], "apps")),
+            // The explorer's row goes at the top, where the key that opens most things belongs.
+            // A tapped Super is no binding — nothing is held with it — so the sheet adds it.
+            Group::AppsAndWindows => {
+                let apps = Action::Explorer.describe();
+                let mut row = match section.rows.iter().position(|row| row.does == apps) {
+                    Some(at) => section.rows.remove(at),
+                    None => fixed(&[], apps),
+                };
+                if tap {
+                    row.keys.insert(0, "Super".to_string());
+                }
+                if !row.keys.is_empty() {
+                    section.rows.insert(0, row);
+                }
+            }
             // Fingers move the workspaces as they'd move a page, so ← is the next one.
             Group::WorkspacesAndArranging => section.rows.push(fixed(
                 &[SWIPE_SIDEWAYS],
@@ -245,6 +261,7 @@ struct Look {
     screen: Size<i32, Logical>,
     scale: f64,
     ring: u32,
+    style: KeyStyle,
 }
 
 /// Everything the tour's miniature depends on: the lesson, the moment in its loop and the rain's
@@ -258,6 +275,7 @@ struct StageLook {
     scale: f64,
     ring: u32,
     effects: Effects,
+    style: KeyStyle,
 }
 
 /// Where the tour is.
@@ -323,6 +341,8 @@ pub struct Sheet {
     stage: Option<Painted>,
     /// The card, in logical pixels on the screen.
     frame: Rectangle<f64, Logical>,
+    /// The tour's keys, named in the style the keys follow.
+    names: KeyNames,
 }
 
 impl Sheet {
@@ -457,6 +477,7 @@ impl Sheet {
         scale: f64,
         now: f64,
         bindings: &[Binding],
+        style: KeyStyle,
         ring: u32,
         effects: Effects,
     ) -> Vec<MemoryRenderBufferRenderElement<R>>
@@ -467,19 +488,24 @@ impl Sheet {
         if !self.open {
             return Vec::new();
         }
+        if self.names.style() != style {
+            self.names = KeyNames::new(style);
+        }
         let look = Look {
             query: self.query.clone(),
             tour: self.tour.map(|touring| (touring.step, touring.tried)),
             screen,
             scale,
             ring,
+            style,
         };
         if self.shown.as_ref() != Some(&look) {
             self.painted = match self.tour {
-                Some(touring) => paint_tour(&look, touring.step, touring.tried),
+                Some(touring) => paint_tour(&look, touring.step, touring.tried, &self.names),
                 None => {
-                    let sections = filtered(sections(bindings), &look.query);
-                    paint(&look, &sections)
+                    let tap = keys::taps_super(style);
+                    let sections = filtered(sections(bindings, tap), &look.query);
+                    paint(&look, &sections, &self.names)
                 }
             };
             self.shown = Some(look);
@@ -507,10 +533,14 @@ impl Sheet {
                 scale,
                 ring,
                 effects,
+                style,
             }
         });
         if self.stage_shown != stage_look {
-            self.stage = stage_look.as_ref().and_then(paint_stage);
+            let names = &self.names;
+            self.stage = stage_look
+                .as_ref()
+                .and_then(|look| paint_stage(look, names));
             self.stage_shown = stage_look;
         }
         let Some(painted) = self.painted.as_ref() else {
@@ -570,7 +600,7 @@ fn column_height(sections: &[&Section], pitch: f32) -> f32 {
 /// The tour's card: the chapters across the top, a place for the miniature, why the lesson's
 /// move works the way it does, what it's like for hands that know Windows, its keys to try, and
 /// how far through the tour this is.
-fn paint_tour(look: &Look, step: usize, tried: bool) -> Option<Painted> {
+fn paint_tour(look: &Look, step: usize, tried: bool, names: &KeyNames) -> Option<Painted> {
     let lesson = LESSONS.get(step)?;
     let layout = tour_layout(look.screen);
     let (width, height) = (layout.width, layout.height);
@@ -627,11 +657,12 @@ fn paint_tour(look: &Look, step: usize, tried: bool) -> Option<Painted> {
     }
     y += 8.0;
     let why = Style::new(Face::Body, 16.0, panel::PROSE);
-    for line in text::wrap(lesson.why, &why, cw) {
+    for line in text::wrap(&names.fill(lesson.why), &why, cw) {
         p.text(&line, cx, y, &why);
         y += 24.0;
     }
-    if let Some(habit) = lesson.habit {
+    // What it's like coming from Windows, for hands that follow Windows' keys.
+    if let Some(habit) = lesson.habit.filter(|_| names.style() == KeyStyle::Windows) {
         y += 14.0;
         p.text("FROM WINDOWS", cx, y, &panel::section_style());
         y += 22.0;
@@ -649,7 +680,7 @@ fn paint_tour(look: &Look, step: usize, tried: bool) -> Option<Painted> {
     }
     let mut key_x = cx;
     for key in lesson.keys {
-        key_x += p.keycap(key, key_x, keys_y) + KEY_GAP;
+        key_x += p.keycap(&names.cap(key), key_x, keys_y) + KEY_GAP;
     }
     if tried {
         let ring = look.ring | 0xff;
@@ -698,7 +729,7 @@ fn paint_tour(look: &Look, step: usize, tried: bool) -> Option<Painted> {
 
 /// The tour's miniature at one moment, painted at the screen's scale to sit in the card's place
 /// for it.
-fn paint_stage(look: &StageLook) -> Option<Painted> {
+fn paint_stage(look: &StageLook, names: &KeyNames) -> Option<Painted> {
     let layout = tour_layout(look.screen);
     let (_, _, sw, sh) = layout.stage;
     let logical = Size::<i32, Logical>::from((
@@ -712,6 +743,7 @@ fn paint_stage(look: &StageLook) -> Option<Painted> {
         ring: look.ring,
         effects: look.effects,
         secs: (look.clock as f64 / TOUR_FPS) as f32,
+        keys: names,
     };
     Painted::new(logical, look.scale, |p| {
         // Laid out on the miniature's own grid and scaled to fill its place, so everything in it
@@ -725,7 +757,7 @@ fn paint_stage(look: &StageLook) -> Option<Painted> {
     })
 }
 
-fn paint(look: &Look, sections: &[Section]) -> Option<Painted> {
+fn paint(look: &Look, sections: &[Section], names: &KeyNames) -> Option<Painted> {
     let screen_w = look.screen.w as f32 / DESIGN_PX;
     let screen_h = look.screen.h as f32 / DESIGN_PX;
     let width = WIDTH.min(screen_w - 40.0).max(480.0);
@@ -801,9 +833,9 @@ fn paint(look: &Look, sections: &[Section]) -> Option<Painted> {
         p.fill(x + typed + 2.0, centre - 11.0, 3.0, 22.0, 0.0, panel::AMBER);
     }
     let mut right_x = fx + width - PADDING;
-    for key in ["Esc", "Super+/"] {
-        right_x -= paint::keycap_width(key);
-        p.keycap(key, right_x, centre);
+    for key in ["Esc".to_string(), names.cap("Super+/")] {
+        right_x -= paint::keycap_width(&key);
+        p.keycap(&key, right_x, centre);
         right_x -= KEY_GAP;
     }
     // The way into the tour, to the left of the keys that close the sheet, on the key already
@@ -855,8 +887,14 @@ fn paint(look: &Look, sections: &[Section]) -> Option<Painted> {
             y += TITLE_H;
             for row in &section.rows {
                 let centre = y + pitch / 2.0;
+                // The first keys are the row's own; any that would run into the words are left
+                // to the search, which still finds the row by them.
                 let mut key_x = x0;
                 for key in &row.keys {
+                    let width = paint::keycap_width(key);
+                    if key_x + width > x0 + keys_w {
+                        break;
+                    }
                     key_x += p.keycap(key, key_x, centre) + KEY_GAP;
                 }
                 let does_x = x0 + keys_w + 10.0;
@@ -925,21 +963,35 @@ impl Slipstream {
 mod tests {
     use super::*;
 
+    fn bindings_for(style: KeyStyle) -> Vec<Binding> {
+        keys::checked(keys::defaults(style), style)
+    }
+
     #[test]
     fn every_binding_appears_once_but_the_laptops_own_keys() {
-        let bindings = keys::checked(keys::defaults());
-        let sections = sections(&bindings);
-        for binding in &bindings {
-            let rows = sections
+        for style in KeyStyle::ALL {
+            let bindings = bindings_for(style);
+            let sections = sections(&bindings, keys::taps_super(style));
+            for binding in &bindings {
+                let rows = sections
+                    .iter()
+                    .flat_map(|section| &section.rows)
+                    .filter(|row| row.bindings.contains(&(binding.mods, binding.key)))
+                    .count();
+                // Play, volume, mute and brightness have pictures on them and are the same on
+                // every machine; the sheet is for the keys that aren't written on the keyboard.
+                let want = usize::from(!keys::is_hardware_key(binding.key));
+                assert_eq!(rows, want, "{style:?}: {binding:?}");
+            }
+            let apps = sections
                 .iter()
                 .flat_map(|section| &section.rows)
-                .filter(|row| row.bindings.contains(&(binding.mods, binding.key)))
+                .filter(|row| row.does == "apps")
                 .count();
-            // Play, volume, mute and brightness have pictures on them and are the same on every
-            // machine; the sheet is for the keys that aren't written on the keyboard.
-            let want = usize::from(!keys::is_hardware_key(binding.key));
-            assert_eq!(rows, want, "{binding:?}");
+            assert_eq!(apps, 1, "{style:?}: the explorer's keys share one row");
         }
+        let bindings = bindings_for(KeyStyle::Windows);
+        let sections = sections(&bindings, true);
         // And at least one of each, so this is testing something.
         assert!(bindings.iter().any(|b| keys::is_hardware_key(b.key)));
         assert!(bindings.iter().any(|b| !keys::is_hardware_key(b.key)));
@@ -967,7 +1019,7 @@ mod tests {
         assert_eq!(row("narrower, wider (gravity: weight)"), ["Super+[ ]"]);
         assert_eq!(row("shorter, taller"), ["Super+Shift+[ ]"]);
         assert_eq!(row("switch window"), ["Alt+Tab", "Alt+Shift+Tab"]);
-        assert_eq!(row("apps"), ["Super"]);
+        assert_eq!(row("apps"), ["Super", "Super+S"]);
         let turn = row("turn the layout a quarter, either way");
         assert_eq!(
             turn.first().map(String::as_str),
@@ -981,9 +1033,37 @@ mod tests {
     }
 
     #[test]
+    fn other_styles_list_their_own_keys() {
+        let row = |style: KeyStyle, does: &str| {
+            sections(&bindings_for(style), keys::taps_super(style))
+                .iter()
+                .flat_map(|section| &section.rows)
+                .find(|row| row.does == does)
+                .unwrap_or_else(|| panic!("{style:?}: no row for {does}"))
+                .keys
+                .clone()
+        };
+        assert_eq!(row(KeyStyle::Mac, "apps"), ["Super+Space"]);
+        assert_eq!(
+            row(KeyStyle::Mac, "send window to a workspace"),
+            ["Super+Alt+1–9"]
+        );
+        assert_eq!(row(KeyStyle::Omarchy, "apps"), ["Super+Space"]);
+        assert_eq!(
+            row(KeyStyle::Omarchy, "move the window"),
+            ["Super+Shift+← → ↑ ↓"]
+        );
+        assert_eq!(
+            row(KeyStyle::Omarchy, "narrower, wider (gravity: weight)"),
+            ["Super+- ="]
+        );
+        assert_eq!(row(KeyStyle::Omarchy, "every key"), ["Super+K"]);
+    }
+
+    #[test]
     fn typing_filters_the_rows() {
-        let bindings = keys::checked(keys::defaults());
-        let found = filtered(sections(&bindings), "minim");
+        let bindings = bindings_for(KeyStyle::Windows);
+        let found = filtered(sections(&bindings, true), "minim");
         let rows: Vec<&str> = found
             .iter()
             .flat_map(|section| &section.rows)
@@ -997,7 +1077,7 @@ mod tests {
                 "minimise"
             ]
         );
-        assert!(filtered(sections(&bindings), "nothing like this").is_empty());
+        assert!(filtered(sections(&bindings, true), "nothing like this").is_empty());
         let mut sheet = Sheet::default();
         sheet.open(0.0);
         sheet.key(Keysym::k, Some('k'), 0.0);

@@ -3,6 +3,7 @@
 
 mod about;
 mod appearance;
+mod keyboard;
 mod meter;
 mod notifications;
 mod power;
@@ -33,7 +34,7 @@ pub struct Page {
     pub build: fn(&Store) -> gtk::Widget,
 }
 
-pub const PAGES: [Page; 11] = [
+pub const PAGES: [Page; 12] = [
     Page {
         id: "appearance",
         title: "Appearance",
@@ -98,6 +99,16 @@ pub const PAGES: [Page; 11] = [
             "power-profile-performance-symbolic",
         ],
         build: meter::build,
+    },
+    Page {
+        id: "keyboard",
+        title: "Keyboard",
+        icons: &[
+            "input-keyboard-symbolic",
+            "preferences-desktop-keyboard-shortcuts-symbolic",
+            "preferences-desktop-keyboard-symbolic",
+        ],
+        build: keyboard::build,
     },
     Page {
         id: "workspaces",

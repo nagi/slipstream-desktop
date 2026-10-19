@@ -293,6 +293,8 @@ struct Look {
     /// How far the decode is, in thirtieths of a second; `None` once it's done.
     decode_step: Option<u64>,
     ring: u32,
+    /// The key that opens and closes the history.
+    key: String,
 }
 
 impl History {
@@ -400,6 +402,7 @@ impl History {
         scale: f64,
         now: f64,
         ring: u32,
+        key: String,
     ) -> Option<MemoryRenderBufferRenderElement<R>>
     where
         R: Renderer + ImportMem,
@@ -427,6 +430,7 @@ impl History {
                 }),
             decode_step: (!self.reduced_motion && age < DECODE).then_some((age * 30.0) as u64),
             ring,
+            key,
         };
         if self
             .painted
@@ -522,8 +526,8 @@ impl History {
             centre + 1.0,
             &Style::new(Face::Body, 15.0, panel::PLACEHOLDER),
         );
-        let key_w = paint::keycap_width("Super+V");
-        p.keycap("Super+V", fx + width - PADDING - key_w, centre);
+        let key_w = paint::keycap_width(&look.key);
+        p.keycap(&look.key, fx + width - PADDING - key_w, centre);
         p.fill(fx, fy + HEAD_H, width, 1.0, 0.0, panel::DIVIDER);
 
         let mut rows = Vec::new();

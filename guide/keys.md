@@ -2,11 +2,13 @@
 
 Super+/ shows this list inside Slipstream, whenever you forget one. Press Enter there for the tour: sixteen short lessons for anyone new to tiling, each one drawn happening on a miniature of the desktop.
 
+These are the Windows style's keys, which Slipstream starts with. Settings → Keyboard switches to the [Mac style](#mac-style) or the [Omarchy style](#omarchy-style); the list, the tour and the hints on screen then show that style's keys.
+
 [← back to the README](../README.md)
 
 | Keys | What they do |
 |---|---|
-| Super, tapped on its own | App explorer |
+| Super, tapped on its own, or Super+S | App explorer |
 | Super+Return, Super+E, Super+I | Terminal, files, Settings |
 | Super+B | A new window of your default browser |
 | Alt+Tab, Alt+Shift+Tab | Switch windows, dealt as a deck of glass |
@@ -30,14 +32,64 @@ Super+/ shows this list inside Slipstream, whenever you forget one. Press Enter 
 | Super+Ctrl+P | Swap workspaces with the next screen, windows and all |
 | Super+A, Super+N | Quick settings, notifications |
 | Super+V | Clipboard history |
-| Print, Super+Shift+S | Screenshot of the screen; snip a region or a window |
+| Print, Super+Print, Super+Shift+S | Screenshot of the screen; snip a region or a window |
 | Super+L | Lock |
 | Super+Esc | Take the mouse and keys back from a game or virtual machine holding them |
 | Caps Lock | Tap: Caps Lock. Hold: Awake, the screen stays on and doesn't lock; hold again or click AWAKE on the bar to end it |
-| Ctrl+Alt+Del | The way out: lock, log out, restart, shut down |
+| Ctrl+Alt+Del, Super+X | The way out: lock, log out, restart, shut down |
 | Super+/ | Every key, and Enter there starts the tour |
 
 The volume, mute, brightness and media keys work as marked, with any player that speaks MPRIS, and stay the desktop's even while a game holds every key. Ctrl+Alt+F1–F12 switch virtual terminals as usual. Keys that input methods, screen readers and games rely on are left alone.
+
+## Mac style
+
+Super is ⌘. Apps keep their own shortcuts, so copy and paste are still Ctrl+C and Ctrl+V. Super is not tapped for the explorer, and Ctrl+Space stays with input methods, as on a Mac. These are the keys that differ from the Windows style; Super+/ lists every one.
+
+| Keys | What they do |
+|---|---|
+| Super+Space | App explorer |
+| Super+Tab, Super+Shift+Tab | Switch windows (Alt+Tab works too) |
+| Super+W, Super+Q | Close the window; quit the app, every window of it |
+| Super+M, Super+H | Minimise to a stream |
+| Super+Alt+M | Hide every window on the workspace, and back |
+| Super+Ctrl+F | Fill the tiling area, and back |
+| Super+Ctrl+↑ | Bullet time |
+| Super+Ctrl+← → | Previous, next workspace |
+| Super+Alt+1–9 | Move the window to a workspace |
+| Super+Shift+3, Print | Screenshot of the screen |
+| Super+Shift+4, Super+Shift+5 | Snip a region or a window |
+| Super+Ctrl+Q | Lock |
+| Super+Shift+Q | The way out: lock, log out, restart, shut down |
+| Super+, | Settings |
+| Super+Alt+D, Super+Alt+Shift+D | Dock the window to the bar; bring it back down |
+
+## Omarchy style
+
+Super is not tapped for the explorer, and Ctrl+Space stays with input methods. These are the keys that differ from the Windows style; Super+K lists every one.
+
+| Keys | What they do |
+|---|---|
+| Super+Space | App explorer |
+| Super+W | Close the window |
+| Super+Shift+Return, Super+Shift+B | A new window of your default browser |
+| Super+Shift+F | Files |
+| Super+Shift+arrows | Move the window: it swaps places with the one that way |
+| Super+- and =, with Shift for height | Resize |
+| Super+T, Super+Shift+T | Float the window or tile it; switch between floating and tiled windows |
+| Super+F | Fill the tiling area, and back |
+| Super+L | Tiling or gravity; keep Super held to choose the arrangement |
+| Super+J, Super+Shift+J | Turn the whole layout a quarter, clockwise or back |
+| Super+O, Super+Shift+O | Dock the window to the bar; bring it back down |
+| Super+Tab, Super+Shift+Tab | Next, previous workspace |
+| Super+Ctrl+↑ | Bullet time |
+| Super+Ctrl+A | Quick settings |
+| Super+Alt+Shift+, | Notifications |
+| Super+Ctrl+V | Clipboard history |
+| Print, Super+Shift+S | Snip a region or a window; Enter takes the whole screen |
+| Super+Ctrl+L | Lock |
+| Super+Esc | The way out: lock, log out, restart, shut down |
+| Super+Shift+Esc | Take the mouse and keys back from a game or virtual machine holding them |
+| Super+K | Every key, and Enter there starts the tour |
 
 ## Inside panels and bullet time
 

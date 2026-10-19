@@ -243,6 +243,25 @@ impl Slipstream {
         (channel(r) << 24) | (channel(g) << 16) | (channel(b) << 8) | 0xcc
     }
 
+    /// How `action` is pressed, for hints and toasts: `Super+Shift+M`, or `Super` for the
+    /// explorer where a tapped Super opens it.
+    pub fn key_label(&self, action: crate::keys::Action) -> String {
+        use crate::keys;
+        if action == keys::Action::Explorer && keys::taps_super(self.settings.keys.style) {
+            return "Super".to_string();
+        }
+        keys::binding_for(&self.bindings, action)
+            .map(|binding| keys::label(binding.mods, binding.key))
+            .unwrap_or_default()
+    }
+
+    /// The key `action` is pressed with, without its modifiers: `T` for `Super+T`.
+    pub fn key_name(&self, action: crate::keys::Action) -> String {
+        crate::keys::binding_for(&self.bindings, action)
+            .map(|binding| crate::keys::key_name(binding.key))
+            .unwrap_or_default()
+    }
+
     /// Applies the settings file's new contents straight away (`watch.rs` follows it).
     pub fn apply_settings(&mut self, settings: slipstream_config::Settings) {
         if settings == self.settings {
@@ -267,6 +286,10 @@ impl Slipstream {
             self.night.schedule_changed();
         }
         self.set_reduced_motion(settings.motion.reduced);
+        if settings.keys != self.settings.keys {
+            let style = settings.keys.style;
+            self.bindings = crate::keys::checked(crate::keys::defaults(style), style);
+        }
         // Apps hear about dark and light over the settings portal, and change without restarting.
         crate::appearance::set(settings.appearance.colour_scheme);
         meter::configure(&settings.meter);

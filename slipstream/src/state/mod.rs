@@ -236,6 +236,8 @@ pub struct Slipstream {
     pub focus_history: Vec<Window>,
     /// Alt+Tab's switcher, while Alt is held (`switcher.rs`).
     pub switcher: Option<crate::switcher::Switcher<Window>>,
+    /// Whether the switcher settles when Super is let go, rather than Alt.
+    pub switcher_on_super: bool,
     /// Gravity's arrangements, while Super is held after Super+T (`arrange.rs`).
     pub arrange: Option<crate::arrange::Arrange<Window>>,
     /// The arrangement a quick Super+T turns gravity on at: the last one kept.
@@ -643,7 +645,7 @@ impl Slipstream {
             seat,
             cursor_status: CursorImageStatus::default_named(),
 
-            bindings: keys::checked(keys::defaults()),
+            bindings: keys::checked(keys::defaults(settings.keys.style), settings.keys.style),
             suppressed_keys: Vec::new(),
             caps_key: Default::default(),
             caps_waking: false,
@@ -658,6 +660,7 @@ impl Slipstream {
             pending_focus: None,
             focus_history: Vec::new(),
             switcher: None,
+            switcher_on_super: false,
             arrange: None,
             arrangement: Rung::Centre,
             fullscreen: Vec::new(),

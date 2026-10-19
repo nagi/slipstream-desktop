@@ -25,12 +25,15 @@ pub(super) struct Look {
     pub(super) scale: f64,
     /// How far the answer's decode is, in thirtieths of a second, while it runs.
     pub(super) decode_step: Option<u64>,
+    /// The keys named in it: the explorer's own, and the shortcut sheet's.
+    pub(super) keys: [String; 2],
 }
 
 impl Explorer {
     /// The explorer's elements, front first (the caret, then the painted explorer), for a screen
     /// `width` logical pixels wide at `scale`, repainted only when what it shows changes.
     /// `running` holds the app IDs and X11 classes of open windows, lowercased.
+    #[allow(clippy::too_many_arguments)]
     pub fn element<R>(
         &mut self,
         renderer: &mut R,
@@ -39,6 +42,7 @@ impl Explorer {
         now: f64,
         running: Vec<String>,
         ring: u32,
+        keys: [String; 2],
     ) -> Vec<MemoryRenderBufferRenderElement<R>>
     where
         R: Renderer + ImportMem,
@@ -78,6 +82,7 @@ impl Explorer {
                 width,
                 scale,
                 decode_step,
+                keys,
             }
         };
         if self.shown.as_ref() != Some(&look) {
@@ -208,7 +213,7 @@ impl Explorer {
             &mut p,
             fx + width - panel::HEAD_INSET,
             centre,
-            &["Super"],
+            &[&look.keys[0]],
             "",
         );
         p.fill(fx, fy + SEARCH_H, width, 1.0, 0.0, panel::DIVIDER);
@@ -485,7 +490,7 @@ impl Explorer {
                 &Row {
                     icon: icons::KEYBOARD,
                     label: "Keyboard shortcuts".into(),
-                    trailing: Some("Super+/".into()),
+                    trailing: Some(look.keys[1].clone()),
                     keycap: true,
                     selected: index == look.selected,
                     dim: false,

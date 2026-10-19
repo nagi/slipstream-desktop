@@ -10,6 +10,7 @@ use slipstream_config::Effects;
 
 use crate::{
     icons,
+    keynames::KeyNames,
     paint::Painter,
     panel,
     text::{self, Face, Style},
@@ -22,10 +23,12 @@ pub const WIDTH: f32 = 640.0;
 pub const HEIGHT: f32 = 400.0;
 
 /// What the miniature follows from the real desktop, and the clock its rain falls by.
-pub struct Look {
+pub struct Look<'a> {
     pub ring: u32,
     pub effects: Effects,
     pub secs: f32,
+    /// The keys it shows being pressed, named in the style the keys follow.
+    pub keys: &'a KeyNames,
 }
 
 // The miniature's measurements, in its design pixels.
@@ -272,7 +275,7 @@ pub fn paint(p: &mut Painter, scene: &Scene, look: &Look) {
         explorer(p, typed, w, look);
     }
     if let Some(typed) = scene.sheet {
-        sheet(p, typed, w, h);
+        sheet(p, typed, w, h, look.keys);
     }
     if scene.digest > 0.0 {
         digest(p, scene.digest, w, h);
@@ -1371,7 +1374,7 @@ fn explorer(p: &mut Painter, typed: Typed, w: f32, look: &Look) {
 }
 
 /// The key list, as Super+/ opens it, narrowed as it's typed into.
-fn sheet(p: &mut Painter, typed: Typed, w: f32, h: f32) {
+fn sheet(p: &mut Painter, typed: Typed, w: f32, h: f32, names: &KeyNames) {
     const QUERY: &str = "work";
     const ROWS: [(&str, &str); 16] = [
         ("Super", "apps"),
@@ -1445,7 +1448,7 @@ fn sheet(p: &mut Painter, typed: Typed, w: f32, h: f32) {
         if ry + 5.0 > y + ch {
             continue;
         }
-        let label = keys.to_uppercase();
+        let label = names.cap(keys).to_uppercase();
         let kw = text::width(&label, &cap) + 6.0;
         p.fill(rx, ry - 4.5, kw, 9.0, 2.0, fade(panel::QUIET, a));
         p.border(rx, ry - 4.5, kw, 9.0, 2.0, 0.6, fade(panel::EDGE, a));
@@ -1599,7 +1602,8 @@ fn keys(p: &mut Painter, scene: &Scene, w: f32, h: f32, look: &Look) {
     let plus = Style::new(Face::Body, 8.0, panel::TERTIARY);
     let (pill_h, y) = (20.0, h - EDGE - 24.0);
     if let Some(press) = scene.key {
-        let parts: Vec<String> = press.keys.split('+').map(str::to_uppercase).collect();
+        let named = look.keys.cap(press.keys);
+        let parts: Vec<String> = named.split('+').map(str::to_uppercase).collect();
         let widths: Vec<f32> = parts
             .iter()
             .map(|part| text::width(part, &cap) + 10.0)
@@ -1688,10 +1692,12 @@ mod tests {
 
     #[test]
     fn every_lesson_paints() {
+        let names = KeyNames::default();
         let look = Look {
             ring: 0x42d3ffcc,
             effects: Effects::Matrix,
             secs: 1.3,
+            keys: &names,
         };
         for step in 0..tour::LESSONS.len() {
             for tenth in 0..=10 {

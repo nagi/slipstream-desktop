@@ -119,6 +119,7 @@ impl Slipstream {
             Action::MoveToNextScreen => self.move_focused_to_next_screen(),
             Action::SwapScreens => self.swap_with_next_screen(),
             Action::Close => self.close_focused(),
+            Action::Quit => self.quit_focused_app(),
             Action::Launch(app) => self.launch_app(app),
             Action::Screenshot { window } => self.take_screenshot(window),
             Action::ShowDesktop => self.show_desktop(),
@@ -341,8 +342,11 @@ impl Slipstream {
             .is_some_and(|window| self.is_fullscreen(&window));
         // An app holding the shortcuts gets Super on its own too.
         let inhibited = self.shortcuts_inhibited();
-        let tap_allowed =
-            (injected || !self.nested) && !gamescope_focused && !fullscreen_focused && !inhibited;
+        let tap_allowed = keys::taps_super(self.settings.keys.style)
+            && (injected || !self.nested)
+            && !gamescope_focused
+            && !fullscreen_focused
+            && !inhibited;
         // Whether another key is already down, before `input` counts this one.
         let alone = !keyboard.pressed_keys().iter().any(|held| *held != keycode);
         let millis = time.millis();
@@ -615,8 +619,15 @@ impl Slipstream {
         if tapped {
             self.super_tapped();
         }
-        // Alt+Tab settles when Alt is let go, as on Windows.
-        if self.switcher.is_some() && !keyboard.modifier_state().alt {
+        // The switcher settles when the modifier it was opened with is let go: Alt for Alt+Tab,
+        // Super for a Mac's ⌘Tab.
+        let held = keyboard.modifier_state();
+        let holding = if self.switcher_on_super {
+            held.logo
+        } else {
+            held.alt
+        };
+        if self.switcher.is_some() && !holding {
             self.finish_cycle();
         }
         // Gravity's arrangement settles when Super is let go.

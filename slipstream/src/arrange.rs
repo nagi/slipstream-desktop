@@ -140,6 +140,7 @@ impl<W> Arrange<W> {
         now: f64,
         ring: u32,
         pictures: Vec<Vec<Pane>>,
+        key: String,
     ) -> Option<MemoryRenderBufferRenderElement<R>>
     where
         R: Renderer + ImportMem,
@@ -151,6 +152,7 @@ impl<W> Arrange<W> {
             aspect: screen.h as f32 / screen.w.max(1) as f32,
             scale,
             ring,
+            key,
         };
         if self.shown.as_ref() != Some(&look) {
             self.painted = paint(&look);
@@ -193,6 +195,8 @@ struct Look {
     aspect: f32,
     scale: f64,
     ring: u32,
+    /// Gravity's key, without Super: each further press takes the next arrangement.
+    key: String,
 }
 
 /// A tile's height: the picture at the screen's shape, and the name under it.
@@ -305,7 +309,7 @@ fn paint(look: &Look) -> Option<Painted> {
         &mut p,
         start - panel::HINT_GAP,
         centre,
-        &["T", "←", "→"],
+        &[&look.key, "←", "→"],
         "choose",
     );
 

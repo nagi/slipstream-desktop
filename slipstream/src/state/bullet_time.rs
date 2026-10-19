@@ -287,7 +287,15 @@ impl Slipstream {
             Some(Target::Window(window)) => Some(window.clone()),
             _ => None,
         };
-        let Some(command) = bullet::command(key, mods) else {
+        // Bullet time's own key goes back, whichever style's key it is.
+        let own_key = crate::keys::action_for(&self.bindings, mods, key)
+            == Some(crate::keys::Action::BulletTime);
+        let command = if own_key {
+            Some(bullet::Command::Back)
+        } else {
+            bullet::command(key, mods)
+        };
+        let Some(command) = command else {
             return;
         };
         let count = self.workspaces.count();

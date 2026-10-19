@@ -382,9 +382,10 @@ impl Slipstream {
         };
         let name = self.add_stream(&window, scale);
         self.retile();
+        let restore = self.key_label(crate::keys::Action::Restore);
         self.show_toast(
             "Opened in a stream",
-            &format!("{name}: Super+Shift+M or a click on its stream brings it in."),
+            &format!("{name}: {restore} or a click on its stream brings it in."),
         );
         tracing::info!(
             window = logged_app(&window),
@@ -571,17 +572,19 @@ impl Slipstream {
             return;
         };
         if self.workspaces.is_floating(&window) {
+            let float = self.key_label(crate::keys::Action::ToggleFloating);
             self.show_toast(
                 "This window floats",
-                "Super+Shift+V puts it back in the tiling.",
+                &format!("{float} puts it back in the tiling."),
             );
             return;
         }
         let ws = self.current_workspace();
         if ws.gravity.is_on() {
+            let gravity = self.key_label(crate::keys::Action::ToggleGravity);
             self.show_toast(
                 "Only tiling turns",
-                "Gravity has no rows or columns to turn. Super+T goes back to tiling.",
+                &format!("Gravity has no rows or columns to turn. {gravity} goes back to tiling."),
             );
             return;
         }
@@ -712,6 +715,25 @@ impl Slipstream {
         }
     }
 
+    /// Asks every window of the focused window's app to close, as quitting it would. A window that
+    /// names no app is closed on its own.
+    pub fn quit_focused_app(&mut self) {
+        let Some(focused) = self.focused_window() else {
+            return;
+        };
+        let windows = match window_app_id(&focused) {
+            Some(app) => self
+                .all_open_windows()
+                .into_iter()
+                .filter(|window| window_app_id(window).as_deref() == Some(app.as_str()))
+                .collect(),
+            None => vec![focused],
+        };
+        for window in windows {
+            self.close_window(&window);
+        }
+    }
+
     /// Asks `window` to close. It goes when its app closes it, after any "save changes?" prompt.
     pub fn close_window(&mut self, window: &Window) {
         if let Some(toplevel) = window.toplevel() {
@@ -731,9 +753,11 @@ impl Slipstream {
             return;
         };
         if self.workspaces.is_floating(&window) {
+            let float = self.key_label(crate::keys::Action::ToggleFloating);
+            let maximise = self.key_label(crate::keys::Action::Maximise);
             self.show_toast(
                 "Floating windows keep their size",
-                "Super+Shift+V puts it back in the tiling, where Super+F fills the space.",
+                &format!("{float} puts it back in the tiling, where {maximise} fills the space."),
             );
             return;
         }

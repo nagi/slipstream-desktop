@@ -23,11 +23,7 @@ use smithay::{
     },
 };
 
-use crate::{
-    focus::KeyboardFocus,
-    keys::{self, Action},
-    state::Slipstream,
-};
+use crate::{focus::KeyboardFocus, keys::Action, state::Slipstream};
 
 /// What a window has taken, for its toast.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -233,11 +229,7 @@ impl Slipstream {
 
     /// The key that takes grabs back, as the bindings have it.
     pub fn take_back_label(&self) -> String {
-        self.bindings
-            .iter()
-            .find(|binding| binding.action == Action::TakeBack)
-            .map(|binding| keys::label(binding.mods, binding.key))
-            .unwrap_or_else(|| "Super+Esc".to_string())
+        self.key_label(Action::TakeBack)
     }
 
     /// Super+Esc: takes the pointer and the shortcuts back from the focused window, or, pressed

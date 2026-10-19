@@ -289,6 +289,11 @@ impl Slipstream {
                 .filter(|window| window.alive() && !self.focus_history.contains(window)),
         );
         let now = self.wall();
+        // Opened with Alt held, Alt's release settles it; otherwise Super's does.
+        self.switcher_on_super = !self
+            .seat
+            .get_keyboard()
+            .is_some_and(|keyboard| keyboard.modifier_state().alt);
         self.switcher =
             crate::switcher::Switcher::start(windows, forward, now, self.clock.reduced_motion);
         // The windows lift into a deck of glass panes once Alt has been held a moment; with

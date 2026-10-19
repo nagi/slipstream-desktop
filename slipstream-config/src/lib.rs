@@ -36,6 +36,9 @@
 //! [clipboard]
 //! history = true
 //!
+//! [keys]
+//! style = "windows"
+//!
 //! [lock]
 //! after-idle-mins = 0
 //! before-sleep = true
@@ -106,6 +109,98 @@ pub struct Settings {
     pub privacy: Privacy,
     pub meter: Meter,
     pub workspaces: Workspaces,
+    pub keys: Keys,
+}
+
+/// The keyboard shortcuts.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "kebab-case")]
+pub struct Keys {
+    /// Whose shortcuts the desktop's keys follow.
+    pub style: KeyStyle,
+}
+
+/// Which desktop's habits the shortcuts follow. The actions are the same in each; the keys
+/// differ, and a style leaves out a key its desktop has no habit for.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum KeyStyle {
+    #[default]
+    Windows,
+    Mac,
+    Omarchy,
+}
+
+impl KeyStyle {
+    pub const ALL: [KeyStyle; 3] = [KeyStyle::Windows, KeyStyle::Mac, KeyStyle::Omarchy];
+
+    /// What it's called in the Settings app.
+    pub fn label(self) -> &'static str {
+        match self {
+            KeyStyle::Windows => "Windows style",
+            KeyStyle::Mac => "Mac style",
+            KeyStyle::Omarchy => "Omarchy style",
+        }
+    }
+
+    /// What the style is like, in a line for the Settings app.
+    pub fn summary(self) -> &'static str {
+        match self {
+            KeyStyle::Windows => {
+                "Tap Super to open apps, as the Windows key opens Start. Alt+Tab, Alt+F4, \
+                 Super+L, Super+D and Super+Shift+S do what they do on Windows."
+            }
+            KeyStyle::Mac => {
+                "Super is ⌘: Super+Space opens apps, and Super+Tab, Super+Q, Super+W and \
+                 Super+Shift+3 and 4 do what ⌘ does on a Mac. Apps keep their own shortcuts, so \
+                 copying is still Ctrl+C."
+            }
+            KeyStyle::Omarchy => {
+                "Omarchy's keys: Super+Space opens apps, Super+W closes, Super+T floats, \
+                 Super+Tab moves along the workspaces and Super+K lists every key."
+            }
+        }
+    }
+
+    /// The keys that set the style apart, each beside what it does as the shortcut sheet says
+    /// it. `Super` alone is a tap.
+    pub fn highlights(self) -> &'static [(&'static str, &'static str)] {
+        match self {
+            KeyStyle::Windows => &[
+                ("apps", "Super"),
+                ("switch window", "Alt+Tab"),
+                ("close window", "Alt+F4"),
+                ("bullet time", "Super+Tab"),
+                ("maximise", "Super+F"),
+                ("float the window, or tile it", "Super+Shift+V"),
+                ("snip a region or a window", "Super+Shift+S"),
+                ("lock the screen", "Super+L"),
+                ("every key", "Super+/"),
+            ],
+            KeyStyle::Mac => &[
+                ("apps", "Super+Space"),
+                ("switch window", "Super+Tab"),
+                ("close window", "Super+W"),
+                ("quit the app", "Super+Q"),
+                ("bullet time", "Super+Ctrl+↑"),
+                ("maximise", "Super+Ctrl+F"),
+                ("snip a region or a window", "Super+Shift+4"),
+                ("lock the screen", "Super+Ctrl+Q"),
+                ("every key", "Super+/"),
+            ],
+            KeyStyle::Omarchy => &[
+                ("apps", "Super+Space"),
+                ("close window", "Super+W"),
+                ("float the window, or tile it", "Super+T"),
+                ("tiling or gravity; hold to choose", "Super+L"),
+                ("previous, next workspace", "Super+Tab"),
+                ("bullet time", "Super+Ctrl+↑"),
+                ("snip a region or a window", "Print"),
+                ("lock the screen", "Super+Ctrl+L"),
+                ("every key", "Super+K"),
+            ],
+        }
+    }
 }
 
 /// What apps are told to colour themselves.
@@ -588,9 +683,13 @@ mod tests {
                     },
                 ],
             },
+            keys: Keys {
+                style: KeyStyle::Omarchy,
+            },
         };
         let text = toml::to_string(&settings).unwrap();
         assert!(text.contains("fade-after-secs = 300"), "{text}");
+        assert!(text.contains(r#"style = "omarchy""#), "{text}");
         assert!(
             text.contains(r#"variations = ["vortex", "slipstream"]"#),
             "{text}"

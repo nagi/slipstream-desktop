@@ -154,6 +154,22 @@ window.slipstream-settings headerbar windowcontrols button {
   color: #10141c;
 }
 
+/* A choice of one, round, in the same colours as a tick box. */
+.row checkbutton radio {
+  min-width: 18px;
+  min-height: 18px;
+  border-radius: 9px;
+  border: 1px solid #3a4050;
+  background: #23262f;
+  box-shadow: none;
+}
+
+.row checkbutton radio:checked {
+  border-color: #42d3ff;
+  background: #42d3ff;
+  color: #10141c;
+}
+
 /* "All of them" when only some are ticked: a dash in the same cyan, on the unticked box. */
 .row checkbutton check:indeterminate {
   border-color: #42d3ff;

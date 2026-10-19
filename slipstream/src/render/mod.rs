@@ -1554,6 +1554,7 @@ pub fn output_elements(
                     scale,
                     ui_alpha,
                     (!state.clock.reduced_motion).then_some(wall),
+                    &state.key_label(crate::keys::Action::ShortcutSheet),
                 )
                 .map(OutputElement::Memory),
         );
@@ -1848,10 +1849,14 @@ fn card_elements(
     if state.explorer.is_open() {
         let running = state.running_apps();
         let ring = state.panel_ring();
+        let keys = [
+            state.key_label(crate::keys::Action::Explorer),
+            state.key_label(crate::keys::Action::ShortcutSheet),
+        ];
         elements.extend(
             state
                 .explorer
-                .element(renderer, size.w, scale, now, running, ring)
+                .element(renderer, size.w, scale, now, running, ring, keys)
                 .into_iter()
                 .map(OutputElement::Memory),
         );
@@ -1889,10 +1894,11 @@ fn card_elements(
     if state.history.is_open() {
         let ring = state.panel_ring();
         let now = state.wall();
+        let key = state.key_label(crate::keys::Action::ClipboardHistory);
         elements.extend(
             state
                 .history
-                .element(renderer, size, scale, now, ring)
+                .element(renderer, size, scale, now, ring, key)
                 .map(OutputElement::Memory),
         );
     }
@@ -1902,7 +1908,16 @@ fn card_elements(
         elements.extend(
             state
                 .sheet
-                .element(renderer, size, scale, now, &state.bindings, ring, effects)
+                .element(
+                    renderer,
+                    size,
+                    scale,
+                    now,
+                    &state.bindings,
+                    state.settings.keys.style,
+                    ring,
+                    effects,
+                )
                 .into_iter()
                 .map(OutputElement::Memory),
         );
@@ -2120,7 +2135,7 @@ mod tests {
 
     #[test]
     fn the_key_hint_is_painted_at_the_screen_scale() {
-        let (pixmap, size) = paint_tips(1.25).unwrap();
+        let (pixmap, size) = paint_tips(1.25, "Super+/").unwrap();
         assert_eq!(
             (pixmap.width(), pixmap.height()),
             (

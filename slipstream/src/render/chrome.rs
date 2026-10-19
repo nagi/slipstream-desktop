@@ -14,8 +14,9 @@ pub struct Chrome {
     /// One per distant window drawn this frame.
     pub(super) dims: Vec<SolidColorBuffer>,
     pub(super) tags: HashMap<Rung, Painted>,
-    /// The keyboard-tips prompt on an empty workspace.
+    /// The keyboard-tips prompt on an empty workspace, and the key it names.
     pub(super) tips: Option<Painted>,
+    tips_key: String,
     /// Bullet time's key legend along the foot of the screen.
     pub(super) legend: Option<paint::Painted>,
     /// Bullet time's overlays.
@@ -59,6 +60,7 @@ impl Default for Chrome {
             dims: Vec::new(),
             tags: HashMap::new(),
             tips: None,
+            tips_key: String::new(),
             legend: None,
             overview: Overview::default(),
             stage: tilt::Stage::default(),
@@ -197,6 +199,7 @@ impl Chrome {
     /// `None` under reduced motion, which holds it still at full strength: it drifts a few pixels
     /// up and down and its glow breathes, so it reads as hovering rather than stuck to the
     /// wallpaper. Painted again whenever the scale changes.
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn tips<R>(
         &mut self,
         renderer: &mut R,
@@ -205,18 +208,20 @@ impl Chrome {
         scale: Scale<f64>,
         alpha: f32,
         drifting: Option<f64>,
+        key: &str,
     ) -> Option<MemoryRenderBufferRenderElement<R>>
     where
         R: Renderer + ImportMem,
         R::TextureId: Send + Clone + 'static,
     {
-        if self
+        let stale = self
             .tips
             .as_ref()
-            .is_none_or(|(painted_at, ..)| *painted_at != scale.x)
-        {
-            let (pixmap, size) = paint_tips(scale.x)?;
+            .is_none_or(|(painted_at, ..)| *painted_at != scale.x);
+        if stale || self.tips_key != key {
+            let (pixmap, size) = paint_tips(scale.x, key)?;
             self.tips = Some((scale.x, paint::buffer(&pixmap), size));
+            self.tips_key = key.to_string();
         }
         let (_, buffer, size) = self.tips.as_ref()?;
         let (float, breath) = match drifting {
@@ -323,11 +328,9 @@ pub(super) fn shift_for_workspace(
 }
 
 /// The prompt on an empty workspace: where to find every key, and nothing else, so the wallpaper
-/// stays clear at the one moment it is all there is to look at. Super+/ lists every key, so the
-/// empty workspace only has to say so.
+/// stays clear at the one moment it is all there is to look at. The shortcut sheet lists every
+/// key, so the empty workspace only has to name the sheet's key.
 const TIPS_TEXT: &str = "Keyboard tips";
-
-const TIPS_KEY: &str = "Super+/";
 
 /// Under the pill: how to get the tour, which nothing else says. Quieter than the pill, because
 /// it is the second thing to read, not a second pill. Its words either side of its keycap.
@@ -452,12 +455,12 @@ pub(super) fn paint_legend(scale: f64) -> Option<paint::Painted> {
 /// The keyboard-tips prompt, laid out in design pixels and painted at `scale`: a glass pill
 /// saying what to press, inside a soft glow drawn as rings fading outwards. The glow is baked in
 /// and the whole thing is faded in and out as it floats, so nothing repaints per frame.
-pub(super) fn paint_tips(scale: f64) -> Option<(Pixmap, Size<i32, Logical>)> {
+pub(super) fn paint_tips(scale: f64, key: &str) -> Option<(Pixmap, Size<i32, Logical>)> {
     let words = Style::new(Face::Mono, 14.0, panel::PROSE);
     let pill_w = (TIPS_PAD
         + text::width(TIPS_TEXT, &words)
         + TIPS_GAP
-        + paint::keycap_width(TIPS_KEY)
+        + paint::keycap_width(key)
         + TIPS_PAD)
         .ceil();
     // Room around the pill for the glow to fade out into.
@@ -514,7 +517,7 @@ pub(super) fn paint_tips(scale: f64) -> Option<(Pixmap, Size<i32, Logical>)> {
     let centre = halo + TIPS_H / 2.0;
     p.text(TIPS_TEXT, pill_x + TIPS_PAD, centre, &words);
     p.keycap(
-        TIPS_KEY,
+        key,
         pill_x + TIPS_PAD + text::width(TIPS_TEXT, &words) + TIPS_GAP,
         centre,
     );

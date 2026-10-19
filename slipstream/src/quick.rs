@@ -167,6 +167,8 @@ pub struct Facts {
     pub meter_hidden: Vec<String>,
     /// The keyboard ring's colour, the same as the focused window's.
     pub ring: u32,
+    /// The key that opens and closes the panel.
+    pub key: String,
 }
 
 impl Default for Facts {
@@ -180,6 +182,7 @@ impl Default for Facts {
             meter: None,
             meter_hidden: Vec::new(),
             ring: crate::panel::FOCUS,
+            key: String::new(),
         }
     }
 }
@@ -807,7 +810,7 @@ impl QuickSettings {
                     Control::AllSettings,
                     [x0 - 6.0, centre - 13.0, link_w + 12.0, 26.0, 6.0],
                 ));
-                panel::key_hint(p, x0 + inner, centre, &["Super+A", "Esc"], "");
+                panel::key_hint(p, x0 + inner, centre, &[&look.facts.key, "Esc"], "");
 
                 for (control, [x, y, w, h, radius]) in &shapes {
                     if *control == look.selected {
@@ -1169,6 +1172,7 @@ impl Slipstream {
             meter: crate::status::held(&self.meter).clone(),
             meter_hidden: self.settings.meter.hidden.clone(),
             ring: self.panel_ring(),
+            key: self.key_label(crate::keys::Action::QuickSettings),
         }
     }
 

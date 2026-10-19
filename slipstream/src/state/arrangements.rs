@@ -164,7 +164,8 @@ impl Slipstream {
         let element = if arrange.visible(now) {
             let pictures = self.arrangement_pictures(&arrange.window, arrange.workspace);
             let ring = self.panel_ring();
-            arrange.element(renderer, screen, scale, now, ring, pictures)
+            let key = self.key_name(crate::keys::Action::ToggleGravity);
+            arrange.element(renderer, screen, scale, now, ring, pictures, key)
         } else {
             None
         };

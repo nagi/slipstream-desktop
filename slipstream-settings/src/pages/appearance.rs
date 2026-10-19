@@ -161,9 +161,7 @@ fn night_light(page: &gtk::Box, store: &Store) {
     let sub = row(
         &night,
         "Schedule",
-        Some(
-            "Warmer colours in the evening. Quick settings (Super+A) turns it on and off by hand.",
-        ),
+        Some("Warmer colours in the evening. Quick settings turns it on and off by hand."),
         &schedule,
     );
 

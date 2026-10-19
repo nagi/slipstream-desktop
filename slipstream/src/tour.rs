@@ -31,11 +31,13 @@ pub struct Lesson {
     pub chapter: usize,
     pub title: &'static str,
     /// Why it works this way. Said before what to press, because the why is what makes the keys
-    /// stick.
+    /// stick. Keys are written in braces with the Windows style's names, and shown in the style
+    /// the keys follow (`KeyNames::fill`).
     pub why: &'static str,
-    /// What it's like for hands that know Windows, where that helps.
+    /// What it's like for hands that know Windows, where that helps. Shown in the Windows style.
     pub habit: Option<&'static str>,
-    /// The keys it teaches, drawn as keycaps. None where there is nothing to press.
+    /// The keys it teaches, drawn as keycaps, in the Windows style's names (`KeyNames::cap`).
+    /// None where there is nothing to press.
     pub keys: &'static [&'static str],
     /// How many moves the miniature makes before it starts again.
     pub beats: usize,
@@ -60,7 +62,7 @@ pub const LESSONS: [Lesson; 16] = [
     Lesson {
         chapter: 0,
         title: "Open anything by name",
-        why: "Tap Super on its own and type a few letters of what you want. Enter opens it beside \
+        why: "{tap} and type a few letters of what you want. Enter opens it beside \
               what you were doing, so it's quicker than any menu once your hands know it. The \
               same box finds recent files, does sums and converts units.",
         habit: Some("The Start menu habit — tap the key, type, Enter — works unchanged."),
@@ -85,7 +87,7 @@ pub const LESSONS: [Lesson; 16] = [
     Lesson {
         chapter: 1,
         title: "Move a window, not the mouse",
-        why: "Hold Alt as well and the window comes with you, swapping places with its neighbour. \
+        why: "Hold {mod:Super+Alt+←} as well and the window comes with you, swapping places with its neighbour. \
               Layouts are built by moving windows into place rather than by dragging edges to \
               the pixel, so they come out tidy every time.",
         habit: Some("With a mouse, hold Super and drag one window onto another."),
@@ -96,7 +98,7 @@ pub const LESSONS: [Lesson; 16] = [
     Lesson {
         chapter: 1,
         title: "Give it more room",
-        why: "Super+] gives a window more of the space it shares and Super+[ gives it less; with \
+        why: "{Super+]} gives a window more of the space it shares and {Super+[} gives it less; with \
               Shift they do the same for height. The split moves, not the window, so its \
               neighbour always takes up the rest and there is never a gap to tidy. Halves and \
               thirds catch as you pass them.",
@@ -109,7 +111,7 @@ pub const LESSONS: [Lesson; 16] = [
         chapter: 1,
         title: "Turn the whole layout",
         why: "When the shape is right but the wrong way round, with a wide window across the top \
-              that you wanted down the side, Super+R turns the layout a quarter with every window \
+              that you wanted down the side, {Super+R} turns the layout a quarter with every window \
               in it. Shift turns it back. Nothing has to be closed or moved by hand.",
         habit: None,
         keys: &["Super+R", "Super+Shift+R"],
@@ -120,8 +122,8 @@ pub const LESSONS: [Lesson; 16] = [
         chapter: 1,
         title: "Or let them place themselves",
         why: "Tiling puts windows where you put them. Gravity arranges them round the one you're \
-              in: in the centre, wide, in a spotlight or in a grid. Super+T switches between the \
-              two. Keep Super held and each further T takes the next arrangement; let go on the \
+              in: in the centre, wide, in a spotlight or in a grid. {Super+T} switches between the \
+              two. Keep Super held and each further {key:Super+T} takes the next arrangement; let go on the \
               one you want.",
         habit: None,
         keys: &["Super+T"],
@@ -132,8 +134,8 @@ pub const LESSONS: [Lesson; 16] = [
         chapter: 2,
         title: "A workspace for each task",
         why: "Rather than one crowded screen, give each task its own: code on 1, messages on 2, \
-              music on 3. Super and a number goes straight there, and with Shift the window comes \
-              too, and three fingers swiped across a touchpad go to the next. Each workspace \
+              music on 3. Super and a number goes straight there, and with {mod:Super+Shift+1} the window \
+              comes too, and three fingers swiped across a touchpad go to the next. Each workspace \
               keeps its layout while you're away, so changing task never means rearranging.",
         habit: Some("Windows calls these virtual desktops. Here each one is a single key away."),
         keys: &["Super+1–9", "Super+Shift+1–9"],
@@ -143,7 +145,7 @@ pub const LESSONS: [Lesson; 16] = [
     Lesson {
         chapter: 2,
         title: "See everything at once",
-        why: "Super+Tab tips the desktop back so every workspace sits side by side, with a letter \
+        why: "{Super+Tab} tips the desktop back so every workspace sits side by side, with a letter \
               on each window. Press the letter and you're there. While you look, everything slows \
               to a quarter of its speed so nothing moves under you, and catches up when you leave. \
               On a touchpad, swipe three fingers up.",
@@ -170,7 +172,7 @@ pub const LESSONS: [Lesson; 16] = [
     Lesson {
         chapter: 3,
         title: "One thing at a time",
-        why: "Super+F lets a window fill the whole area while you concentrate on it. Press it \
+        why: "{Super+F} lets a window fill the whole area while you concentrate on it. Press it \
               again and everything is back exactly where it was, because nothing else was closed \
               or moved.",
         habit: Some("Maximise, without losing the layout underneath."),
@@ -182,8 +184,8 @@ pub const LESSONS: [Lesson; 16] = [
         chapter: 3,
         title: "Lift a window off the tiles",
         why: "A calculator, a video or a chat you only glance at doesn't want a tile. \
-              Super+Shift+V lifts a window off to float above the rest, and again puts it back. \
-              Super+Ctrl+V takes the keyboard down to the tiles, and back up.",
+              {Super+Shift+V} lifts a window off to float above the rest, and again puts it back. \
+              {Super+Ctrl+V} takes the keyboard down to the tiles, and back up.",
         habit: Some(
             "The kind of window Windows has. Hold Super and drag to move it with the \
                      mouse.",
@@ -195,9 +197,9 @@ pub const LESSONS: [Lesson; 16] = [
     Lesson {
         chapter: 3,
         title: "Out of sight, still running",
-        why: "Super+M pours a window into a stream at the edge of the screen instead of a taskbar. \
+        why: "{Super+M} pours a window into a stream at the edge of the screen instead of a taskbar. \
               The stream is a live readout of its app: slow and grey while it's idle, fast and \
-              bright green when it's busy, so a build finishing catches your eye. Super+H puts \
+              bright green when it's busy, so a build finishing catches your eye. {Super+H} puts \
               every window there at once.",
         habit: Some("Minimise and Win+D, with the apps still in sight."),
         keys: &["Super+M", "Super+Shift+M", "Super+H"],
@@ -207,7 +209,7 @@ pub const LESSONS: [Lesson; 16] = [
     Lesson {
         chapter: 3,
         title: "Keep one window in view",
-        why: "A build, a call or a video is for watching, not working in. Super+W hangs the \
+        why: "A build, a call or a video is for watching, not working in. {Super+W} hangs the \
               window from the bar as a pane of glass, in front of every workspace. Super+Up from \
               the top row puts the keyboard in it; Super and any arrow brings it back out.",
         habit: Some("Always on top, for one window, on every desktop at once."),
@@ -231,7 +233,7 @@ pub const LESSONS: [Lesson; 16] = [
     Lesson {
         chapter: 4,
         title: "Every key, one press away",
-        why: "You don't need to remember any of this. Super+/ lists every key, and typing narrows \
+        why: "You don't need to remember any of this. {Super+/} lists every key, and typing narrows \
               the list to what you're after. Enter there brings this tour back, and an empty \
               workspace always says how to find it.",
         habit: None,
@@ -1177,21 +1179,25 @@ mod tests {
 
     #[test]
     fn every_lesson_says_why_in_a_few_lines() {
-        // The card's column holds about eight lines of it.
-        for lesson in &LESSONS {
-            assert!(
-                lesson.why.len() <= 330,
-                "{}: too long to read",
-                lesson.title
-            );
-            // The card's prose face has no arrows: they belong on keycaps.
-            let prose = [lesson.title, lesson.why, lesson.habit.unwrap_or_default()].concat();
-            assert!(
-                !prose.contains(['←', '→', '↑', '↓', '⏎']),
-                "{}: a symbol the prose can't draw",
-                lesson.title
-            );
-            assert!((0.0..=1.0).contains(&lesson.still));
+        // The card's column holds about eight lines of it, in whichever style's keys.
+        for style in slipstream_config::KeyStyle::ALL {
+            let names = crate::keynames::KeyNames::new(style);
+            for lesson in &LESSONS {
+                let why = names.fill(lesson.why);
+                assert!(
+                    why.len() <= 330,
+                    "{style:?}, {}: too long to read",
+                    lesson.title
+                );
+                // The card's prose face has no arrows: they belong on keycaps.
+                let prose = [lesson.title, &why, lesson.habit.unwrap_or_default()].concat();
+                assert!(
+                    !prose.contains(['←', '→', '↑', '↓', '⏎', '{', '}']),
+                    "{style:?}, {}: a symbol the prose can't draw",
+                    lesson.title
+                );
+                assert!((0.0..=1.0).contains(&lesson.still));
+            }
         }
     }
 
@@ -1391,25 +1397,52 @@ mod tests {
 
     #[test]
     fn a_lessons_keys_play_on_the_miniature_never_on_the_real_windows() {
-        let bindings = crate::keys::defaults();
-        for (step, lesson) in LESSONS.iter().enumerate() {
-            for cap in lesson.keys.iter().flat_map(|cap| spelled_out(cap)) {
-                let action = match cap.as_str() {
-                    // A tap, which is no binding.
-                    "Super" => Action::Explorer,
-                    // The key list is where the last lesson says this goes, tour or no tour.
-                    "Super+/" => continue,
-                    _ => {
-                        bindings
-                            .iter()
-                            .find(|b| crate::keys::label(b.mods, b.key) == cap)
-                            .unwrap_or_else(|| panic!("{}: {cap} is no key", lesson.title))
-                            .action
-                    }
-                };
+        for style in slipstream_config::KeyStyle::ALL {
+            let bindings = crate::keys::defaults(style);
+            let names = crate::keynames::KeyNames::new(style);
+            let sheet = names.cap("Super+/");
+            for (step, lesson) in LESSONS.iter().enumerate() {
+                let caps = lesson.keys.iter().map(|cap| names.cap(cap));
+                for cap in caps.flat_map(|cap| spelled_out(&cap)) {
+                    let action = match cap.as_str() {
+                        // A tap, which is no binding.
+                        "Super" => Action::Explorer,
+                        // The key list is where the last lesson says this goes, tour or no tour.
+                        _ if cap == sheet => continue,
+                        _ => {
+                            bindings
+                                .iter()
+                                .find(|b| crate::keys::label(b.mods, b.key) == cap)
+                                .unwrap_or_else(|| {
+                                    panic!("{style:?}, {}: {cap} is no key", lesson.title)
+                                })
+                                .action
+                        }
+                    };
+                    assert!(
+                        practise(step, &action, 0.0).is_some(),
+                        "{style:?}, {}: {cap} would leave the tour and act on the real desktop",
+                        lesson.title
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_lesson_marks_every_key_that_differs_between_styles() {
+        // Keys every style shares may be written plainly; any other would read the same in
+        // every style, and be wrong in all but one.
+        const SHARED: [&str; 2] = ["Alt+Tab", "Super+Up"];
+        for lesson in &LESSONS {
+            let unmarked: String = lesson.why.split(['{', '}']).step_by(2).collect();
+            let plain = SHARED
+                .iter()
+                .fold(unmarked.clone(), |text, shared| text.replace(shared, ""));
+            for modifier in ["Super+", "Alt+", "Ctrl+"] {
                 assert!(
-                    practise(step, &action, 0.0).is_some(),
-                    "{}: {cap} would leave the tour and act on the real desktop",
+                    !plain.contains(modifier),
+                    "{}: a {modifier} key outside braces",
                     lesson.title
                 );
             }

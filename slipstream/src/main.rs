@@ -50,6 +50,7 @@ mod idle;
 mod ime;
 mod inhibit;
 mod input;
+mod keynames;
 mod keys;
 mod known;
 mod launch;

@@ -73,6 +73,7 @@ fn written_settings_read_back_and_leave_nothing_else_behind() {
             hidden: vec!["Weekly".into()],
         },
         workspaces: Default::default(),
+        keys: Default::default(),
     };
     write(&path, &settings).unwrap();
     assert_eq!(read(&path).unwrap(), settings);
