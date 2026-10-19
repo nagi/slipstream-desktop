@@ -70,6 +70,7 @@ mod screen;
 mod screencopy;
 mod screensaver;
 mod screenshot;
+mod virtual_pointer;
 mod session;
 mod settings;
 mod shell;
