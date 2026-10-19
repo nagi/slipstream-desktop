@@ -178,9 +178,17 @@ pub fn sections(bindings: &[Binding], tap: bool) -> Vec<Section> {
             bindings: Vec::new(),
         };
         match section.group {
-            // The explorer's row goes at the top, where the key that opens most things belongs.
+            // The explorer's row goes at the top, where the key that opens most things belongs,
+            // and the keys that open one app each come next, ahead of the keys for windows.
             // A tapped Super is no binding — nothing is held with it — so the sheet adds it.
             Group::AppsAndWindows => {
+                let launches = |row: &Row| {
+                    bindings.iter().any(|binding| {
+                        matches!(binding.action, Action::Launch(_))
+                            && row.bindings.contains(&(binding.mods, binding.key))
+                    })
+                };
+                section.rows.sort_by_key(|row| !launches(row));
                 let apps = Action::Explorer.describe();
                 let mut row = match section.rows.iter().position(|row| row.does == apps) {
                     Some(at) => section.rows.remove(at),
@@ -198,29 +206,40 @@ pub fn sections(bindings: &[Binding], tap: bool) -> Vec<Section> {
                 &[SWIPE_SIDEWAYS],
                 "touchpad: next, previous workspace",
             )),
+            // Inside bullet time the sideways swipe still moves along the workspaces, as on the
+            // desktop, so it isn't listed twice.
             Group::BulletTime => {
-                section.rows.extend([
-                    fixed(&[SWIPE_UP_DOWN], "touchpad: bullet time, back"),
-                    fixed(
-                        &[SWIPE_SIDEWAYS],
-                        "touchpad: look at the next, previous workspace",
-                    ),
-                ]);
+                section
+                    .rows
+                    .push(fixed(&[SWIPE_UP_DOWN], "touchpad: open, and back out"));
                 section
                     .rows
                     .extend(bullet::KEYS.iter().map(|row| fixed(&[row.keys], row.does)));
             }
-            // Every panel and card answers these the same way.
-            Group::PanelsAndSystem => section.rows.extend([
-                fixed(&["Esc"], "in a panel: back out one level"),
-                fixed(&["Tab", "← → ↑ ↓"], "in a panel: move"),
-                fixed(&["⏎"], "in a panel: press"),
-                fixed(&["Home End", "PgUp PgDn"], "in a panel: jump"),
-                fixed(&["Caps Lock"], "hold: Awake, the screen stays on"),
-            ]),
+            // The panels' own keys (Esc, Tab, the arrows, Enter) are the ones every list answers
+            // to, so they aren't listed. A held Caps Lock is nobody's habit.
+            Group::PanelsAndSystem => section
+                .rows
+                .push(fixed(&["Caps Lock"], "hold: keep the screen on, or stop")),
         }
     }
     sections
+}
+
+/// The bindings worth listing with `screens` screens: the ones that move between screens only
+/// once there is a second.
+fn for_screens(bindings: &[Binding], screens: usize) -> Vec<Binding> {
+    bindings
+        .iter()
+        .filter(|binding| {
+            screens > 1
+                || !matches!(
+                    binding.action,
+                    Action::NextScreen | Action::MoveToNextScreen | Action::SwapScreens
+                )
+        })
+        .copied()
+        .collect()
 }
 
 /// The rows of `sections` that match `query` by what they do or by their keys, and the sections
@@ -264,6 +283,8 @@ struct Look {
     scale: f64,
     ring: u32,
     style: KeyStyle,
+    /// How many screens there are: with one, the keys between screens have nothing to do.
+    screens: usize,
 }
 
 /// Everything the tour's miniature depends on: the lesson, the moment in its loop and the rain's
@@ -492,6 +513,7 @@ impl Sheet {
         style: KeyStyle,
         ring: u32,
         effects: Effects,
+        screens: usize,
     ) -> Vec<MemoryRenderBufferRenderElement<R>>
     where
         R: Renderer + ImportMem,
@@ -510,14 +532,16 @@ impl Sheet {
             scale,
             ring,
             style,
+            screens,
         };
         if self.shown.as_ref() != Some(&look) {
             self.painted = match self.tour {
                 Some(touring) => paint_tour(&look, touring.step, touring.tried, &self.names),
                 None => {
                     let tap = keys::taps_super(style);
-                    let sections = filtered(sections(bindings, tap), &look.query);
-                    paint(&look, &sections, &self.names)
+                    let bindings = for_screens(bindings, screens);
+                    let sections = filtered(sections(&bindings, tap), &look.query);
+                    paint(&look, &sections)
                 }
             };
             self.shown = Some(look);
@@ -629,7 +653,8 @@ fn paint_tour(look: &Look, step: usize, tried: bool, names: &KeyNames) -> Option
     let (fx, fy) = (MARGIN, MARGIN);
     panel::glass(&mut p, fx, fy, width, height);
 
-    // The head: the chapters, this one lit, then how far along and the way out.
+    // The head: the chapters, this one lit, and the way out. The marks along the foot say how
+    // far along.
     let centre = fy + HEAD_H / 2.0;
     let mut x = fx + PADDING;
     for (n, chapter) in CHAPTERS.iter().enumerate() {
@@ -644,12 +669,8 @@ fn paint_tour(look: &Look, step: usize, tried: bool, names: &KeyNames) -> Option
         }
         x += w + 26.0;
     }
-    let mut right_x = fx + width - PADDING - paint::keycap_width("Esc");
+    let right_x = fx + width - PADDING - paint::keycap_width("Esc");
     p.keycap("Esc", right_x, centre);
-    let count = format!("{} of {}", step + 1, LESSONS.len());
-    let count_style = Style::new(Face::Mono, 12.0, panel::TERTIARY);
-    right_x -= 14.0 + text::width(&count, &count_style);
-    p.text(&count, right_x, centre, &count_style);
     p.fill(fx, fy + HEAD_H, width, 1.0, 0.0, panel::DIVIDER);
 
     // The miniature's place, filled in case a frame shows before it's painted.
@@ -783,7 +804,7 @@ fn paint_stage(look: &StageLook, names: &KeyNames) -> Option<Painted> {
     })
 }
 
-fn paint(look: &Look, sections: &[Section], names: &KeyNames) -> Option<Painted> {
+fn paint(look: &Look, sections: &[Section]) -> Option<Painted> {
     let screen_w = look.screen.w as f32 / DESIGN_PX;
     let screen_h = look.screen.h as f32 / DESIGN_PX;
     let width = WIDTH.min(screen_w - 40.0).max(480.0);
@@ -858,14 +879,11 @@ fn paint(look: &Look, sections: &[Section], names: &KeyNames) -> Option<Painted>
         );
         p.fill(x + typed + 2.0, centre - 11.0, 3.0, 22.0, 0.0, panel::AMBER);
     }
-    let mut right_x = fx + width - PADDING;
-    for key in ["Esc".to_string(), names.cap("Super+/")] {
-        right_x -= paint::keycap_width(&key);
-        p.keycap(&key, right_x, centre);
-        right_x -= KEY_GAP;
-    }
-    // The way into the tour, to the left of the keys that close the sheet, on the key already
-    // under a finger. Laid out from where those finished, so the two can never run together.
+    let mut right_x = fx + width - PADDING - paint::keycap_width("Esc");
+    p.keycap("Esc", right_x, centre);
+    right_x -= KEY_GAP;
+    // The way into the tour, to the left of the key that closes the sheet, on the key already
+    // under a finger. Laid out from where that finished, so the two can never run together.
     if look.query.is_empty() {
         let says = "take the tour";
         let hint = Style::new(Face::Body, 15.0, panel::PLACEHOLDER);
@@ -1016,7 +1034,7 @@ mod tests {
             let apps = sections
                 .iter()
                 .flat_map(|section| &section.rows)
-                .filter(|row| row.does == "apps")
+                .filter(|row| row.does == "search apps and files")
                 .count();
             assert_eq!(apps, 1, "{style:?}: the explorer's keys share one row");
         }
@@ -1046,10 +1064,10 @@ mod tests {
         };
         assert_eq!(row("move focus"), ["Super+← → ↑ ↓"]);
         assert_eq!(row("go to a workspace"), ["Super+1–9"]);
-        assert_eq!(row("narrower, wider (gravity: weight)"), ["Super+[ ]"]);
+        assert_eq!(row("narrower, wider"), ["Super+[ ]"]);
         assert_eq!(row("shorter, taller"), ["Super+Shift+[ ]"]);
         assert_eq!(row("switch window"), ["Alt+Tab", "Alt+Shift+Tab"]);
-        assert_eq!(row("apps"), ["Super", "Super+S"]);
+        assert_eq!(row("search apps and files"), ["Super", "Super+S"]);
         let turn = row("turn the layout a quarter, either way");
         assert_eq!(
             turn.first().map(String::as_str),
@@ -1059,7 +1077,7 @@ mod tests {
         assert!(turn.len() <= 2, "both ways on one row: {turn:?}");
         assert_eq!(row("maximise"), ["Super+F"]);
         assert_eq!(row("every key"), ["Super+/"]);
-        assert_eq!(row("jump to a label"), ["J K L…"]);
+        assert_eq!(row("go to a window by its letter"), ["J K L…"]);
     }
 
     #[test]
@@ -1073,20 +1091,20 @@ mod tests {
                 .keys
                 .clone()
         };
-        assert_eq!(row(KeyStyle::Mac, "apps"), ["Super+Space"]);
+        assert_eq!(row(KeyStyle::Mac, "search apps and files"), ["Super+Space"]);
         assert_eq!(
             row(KeyStyle::Mac, "send window to a workspace"),
             ["Super+Alt+1–9"]
         );
-        assert_eq!(row(KeyStyle::Omarchy, "apps"), ["Super+Space"]);
+        assert_eq!(
+            row(KeyStyle::Omarchy, "search apps and files"),
+            ["Super+Space"]
+        );
         assert_eq!(
             row(KeyStyle::Omarchy, "move the window"),
             ["Super+Shift+← → ↑ ↓"]
         );
-        assert_eq!(
-            row(KeyStyle::Omarchy, "narrower, wider (gravity: weight)"),
-            ["Super+- ="]
-        );
+        assert_eq!(row(KeyStyle::Omarchy, "narrower, wider"), ["Super+- ="]);
         assert_eq!(row(KeyStyle::Omarchy, "every key"), ["Super+K"]);
     }
 
@@ -1109,6 +1127,19 @@ mod tests {
             sheet.key(Keysym::m, Some('m'), 0.0),
             Outcome::Nothing
         ));
+    }
+
+    #[test]
+    fn the_keys_between_screens_show_once_there_is_a_second() {
+        let bindings = bindings_for(KeyStyle::Windows);
+        let listed = |screens: usize| {
+            sections(&for_screens(&bindings, screens), true)
+                .iter()
+                .flat_map(|section| &section.rows)
+                .any(|row| row.does == Action::NextScreen.describe())
+        };
+        assert!(!listed(1));
+        assert!(listed(2));
     }
 
     #[test]

@@ -1917,6 +1917,7 @@ fn card_elements(
                     state.settings.keys.style,
                     ring,
                     effects,
+                    state.space.outputs().count(),
                 )
                 .into_iter()
                 .map(OutputElement::Memory),

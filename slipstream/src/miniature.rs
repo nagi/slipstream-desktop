@@ -3,8 +3,7 @@
 //! at the edge in the chosen effects, and the key being pressed shown underneath.
 //!
 //! Everything is laid out in the stage's own design pixels and scaled with the window it sits in,
-//! so the same painting serves a tile, a pane in Alt+Tab's deck and a workspace far off in
-//! bullet time.
+//! so the same painting serves a tile and a workspace far off in bullet time.
 
 use slipstream_config::Effects;
 
@@ -14,7 +13,7 @@ use crate::{
     paint::Painter,
     panel,
     text::{self, Face, Style},
-    tour::{self, Choosing, Deck, Kind, Rect, Scene, Stream, Typed},
+    tour::{self, Choosing, Kind, Rect, Scene, Stream, Typed},
 };
 
 /// The miniature's own grid, which the caller scales to whatever size it's shown at: a screen of
@@ -247,7 +246,7 @@ pub fn paint(p: &mut Painter, scene: &Scene, look: &Look) {
                 );
             }
             window(p, win.kind, x, y, ww, wh, frame.scale, win.alpha, scene);
-            if scene.focus == Some(index) && scene.deck.is_none() {
+            if scene.focus == Some(index) {
                 p.border(
                     x - 1.0,
                     y - 1.0,
@@ -265,9 +264,6 @@ pub fn paint(p: &mut Painter, scene: &Scene, look: &Look) {
     }
     streams(p, &scene.streams, &frame, look);
     bar(p, scene, w, look);
-    if let Some(deck) = &scene.deck {
-        deal(p, deck, scene, &frame, look);
-    }
     if let Some(choosing) = scene.choosing {
         arrangements(p, choosing, w, h, look);
     }
@@ -1212,87 +1208,6 @@ fn chat(p: &mut Painter, x: f32, y: f32, w: f32, h: f32, k: f32, alpha: f32) {
     }
 }
 
-/// Alt+Tab's deck: the windows as panes of glass stacked in depth, the front one going round to
-/// the back as Tab is pressed.
-fn deal(p: &mut Painter, deck: &Deck, scene: &Scene, frame: &Frame, look: &Look) {
-    let (ax, ay, aw, ah) = frame.area;
-    p.fill(
-        ax - EDGE,
-        ay - EDGE,
-        aw + 2.0 * EDGE,
-        ah + 2.0 * EDGE,
-        0.0,
-        fade(0x000000ff, 0.75 * deck.alpha),
-    );
-    let count = deck.order.len().max(1) as f32;
-    // Each pane's depth: the front one travels to the back as the rest come forward.
-    let mut panes: Vec<(f32, usize)> = deck
-        .order
-        .iter()
-        .enumerate()
-        .map(|(n, window)| {
-            let depth = if n == 0 {
-                deck.turn * (count - 1.0)
-            } else {
-                n as f32 - deck.turn
-            };
-            (depth, *window)
-        })
-        .collect();
-    panes.sort_by(|a, b| b.0.total_cmp(&a.0));
-    let (cx, cy) = (ax + aw / 2.0, ay + ah / 2.0);
-    for (depth, window) in panes {
-        let Some(win) = scene.windows.get(window) else {
-            continue;
-        };
-        let k = 0.6 - depth * 0.04;
-        let (pw, ph) = (aw * k, ah * k);
-        // The pane going round dips out below the others on its way.
-        let dip = if depth > 0.0 && window == deck.order[0] {
-            (deck.turn * std::f32::consts::PI).sin() * ah * 0.18
-        } else {
-            0.0
-        };
-        // Fanned up and to the right, the fan centred on the area.
-        let spread = depth - (count - 1.0) / 2.0;
-        let x = cx - pw / 2.0 + spread * 46.0;
-        let y = cy - ph / 2.0 - spread * 30.0 + dip;
-        // Panes are solid glass: the ones further back are darker, not see-through.
-        let alpha = deck.alpha;
-        window_pane(p, win.kind, x, y, pw, ph, k, alpha, scene);
-        p.fill(
-            x,
-            y,
-            pw,
-            ph,
-            3.0,
-            fade(0x000000ff, alpha * (depth * 0.28).min(0.7)),
-        );
-        let edge = if depth < 0.5 {
-            fade(look.ring, alpha)
-        } else {
-            fade(0xffffff40, alpha)
-        };
-        p.border(x, y, pw, ph, 3.0, 1.0, edge);
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-fn window_pane(
-    p: &mut Painter,
-    kind: Kind,
-    x: f32,
-    y: f32,
-    w: f32,
-    h: f32,
-    k: f32,
-    alpha: f32,
-    scene: &Scene,
-) {
-    p.shadow(x, y, w, h, 3.0, 5.0, 12.0, fade(0x000000aa, alpha));
-    window(p, kind, x, y, w, h, k, alpha, scene);
-}
-
 /// The app explorer, as tapping Super opens it: a search box, and what it finds.
 fn explorer(p: &mut Painter, typed: Typed, w: f32, look: &Look) {
     const QUERY: &str = "music";
@@ -1377,18 +1292,18 @@ fn explorer(p: &mut Painter, typed: Typed, w: f32, look: &Look) {
 fn sheet(p: &mut Painter, typed: Typed, w: f32, h: f32, names: &KeyNames) {
     const QUERY: &str = "work";
     const ROWS: [(&str, &str); 16] = [
-        ("Super", "apps"),
+        ("Super", "search apps and files"),
         ("Super+← → ↑ ↓", "move focus"),
         ("Super+Alt+← → ↑ ↓", "move the window"),
         ("Alt+Tab", "switch window"),
         ("Alt+F4", "close window"),
-        ("Super+F", "fill the area"),
+        ("Super+F", "maximise"),
         ("Super+R", "turn the layout"),
         ("Super+T", "tiling or gravity"),
         ("Super+1–9", "go to a workspace"),
         ("Super+Shift+1–9", "send window to a workspace"),
         ("Super+Ctrl+← →", "previous, next workspace"),
-        ("Super+Tab", "bullet time"),
+        ("Super+Tab", "every workspace at once"),
         ("Super+M", "minimise to a stream"),
         ("Super+H", "hide every window"),
         ("Super+N", "notifications"),
@@ -1677,7 +1592,7 @@ mod tests {
 
     #[test]
     fn workspaces_sit_side_by_side_and_bullet_time_shrinks_them() {
-        let mut scene = tour::scene(8, 0.0);
+        let mut scene = tour::scene(7, 0.0);
         scene.camera = 0.0;
         let frame = Frame::new(WIDTH, HEIGHT, &scene);
         let (first, ..) = frame.screen(0);

@@ -464,7 +464,7 @@ pub const KEYS: [KeyRow; 11] = [
     KeyRow {
         kind: Kind::Jump,
         keys: "J K L…",
-        does: "jump to a label",
+        does: "go to a window by its letter",
         legend: Some("j k l… jump"),
         example: (Keysym::j, false),
     },
@@ -478,7 +478,7 @@ pub const KEYS: [KeyRow; 11] = [
     KeyRow {
         kind: Kind::Go,
         keys: "⏎",
-        does: "go",
+        does: "go there",
         legend: Some("⏎ go"),
         example: (Keysym::Return, false),
     },
@@ -499,7 +499,7 @@ pub const KEYS: [KeyRow; 11] = [
     KeyRow {
         kind: Kind::Weigh,
         keys: "PgUp PgDn",
-        does: "heavier, lighter",
+        does: "bigger, smaller",
         legend: Some("PgUp/PgDn weigh"),
         example: (Keysym::Next, false),
     },

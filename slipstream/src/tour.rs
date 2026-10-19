@@ -59,13 +59,13 @@ pub const STYLE_KEYS: [(Keysym, &str, KeyStyle); 3] = [
     (Keysym::o, "O", KeyStyle::Omarchy),
 ];
 
-pub const LESSONS: [Lesson; 17] = [
+pub const LESSONS: [Lesson; 14] = [
     Lesson {
         chapter: 0,
         title: "Keys your hands already know",
-        why: "Coming from Windows, a Mac or Omarchy? Press W, M or O and the desktop's keys follow \
-              the habits you already have. Every lesson after this one, the key list and the hints \
-              on screen show those keys, and the Keyboard page in Settings changes them later.",
+        why: "Coming from Windows, a Mac or Omarchy? Pick one and the desktop's keys follow the \
+              habits you already have, in this tour and everywhere else. The Keyboard page in \
+              Settings changes it later.",
         habit: None,
         // The choice is drawn in place of keys to try.
         keys: &[],
@@ -75,10 +75,9 @@ pub const LESSONS: [Lesson; 17] = [
     Lesson {
         chapter: 0,
         title: "Windows arrange themselves",
-        why: "Elsewhere, each new window lands on top of the last, and the day goes on dragging, \
-              resizing and digging for the one underneath. Here a new window takes a share of the \
-              screen and the others make room. Nothing is buried, and nothing needs the mouse to \
-              put it where it goes.",
+        why: "Elsewhere, new windows pile up on top of each other and the day goes on dragging \
+              them apart. Here a new window takes a share of the screen and the others make room, \
+              so nothing is ever buried and nothing needs the mouse.",
         habit: Some("Like snapping a window to the side, except every window is snapped, always."),
         keys: &["Super+⏎"],
         beats: 4,
@@ -87,9 +86,8 @@ pub const LESSONS: [Lesson; 17] = [
     Lesson {
         chapter: 0,
         title: "Open anything by name",
-        why: "{tap} and type a few letters of what you want. Enter opens it beside \
-              what you were doing, so it's quicker than any menu once your hands know it. The \
-              same box finds recent files, does sums and converts units.",
+        why: "{tap} and type a few letters of what you want, and Enter opens it beside what you \
+              were doing. The same box finds recent files, does sums and converts units.",
         habit: Some("The Start menu habit — tap the key, type, Enter — works unchanged."),
         keys: &["Super"],
         beats: 3,
@@ -98,9 +96,9 @@ pub const LESSONS: [Lesson; 17] = [
     Lesson {
         chapter: 0,
         title: "The keyboard goes where you point",
-        why: "Super and an arrow send your typing to the window in that direction. A direction is \
-              easier than a list: you know where a window is without remembering when you last \
-              used it. The ring shows which window has the keyboard, and clicking still works.",
+        why: "Super and an arrow send your typing to the window in that direction. You always know \
+              where a window is, even when you don't remember when you last used it. The ring \
+              shows which window has the keyboard, and clicking still works.",
         habit: Some(
             "Win+arrows snap a window elsewhere. Here windows are already in place, so \
                      the arrows move you between them.",
@@ -112,10 +110,12 @@ pub const LESSONS: [Lesson; 17] = [
     Lesson {
         chapter: 1,
         title: "Move a window, not the mouse",
-        why: "Hold {mod:Super+Alt+←} as well and the window comes with you, swapping places with its neighbour. \
-              Layouts are built by moving windows into place rather than by dragging edges to \
-              the pixel, so they come out tidy every time.",
-        habit: Some("With a mouse, hold Super and drag one window onto another."),
+        why: "Hold {mod:Super+Alt+←} as well and the window comes with you, swapping places with \
+              its neighbour. Layouts are built by moving windows into place, not by dragging \
+              edges to the pixel, so they come out tidy every time.",
+        habit: Some(
+            "Instead of dragging a title bar, hold Super and drag one window onto another.",
+        ),
         keys: &["Super+Alt+← → ↑ ↓"],
         beats: 3,
         still: 0.34,
@@ -123,10 +123,9 @@ pub const LESSONS: [Lesson; 17] = [
     Lesson {
         chapter: 1,
         title: "Give it more room",
-        why: "{Super+]} gives a window more of the space it shares and {Super+[} gives it less; with \
-              Shift they do the same for height. The split moves, not the window, so its \
-              neighbour always takes up the rest and there is never a gap to tidy. Halves and \
-              thirds catch as you pass them.",
+        why: "{Super+]} gives a window more of the space it shares and {Super+[} gives it less; \
+              with Shift they do the same for height. Its neighbour always takes the rest, so \
+              there is never a gap to tidy, and halves and thirds catch as you pass them.",
         habit: None,
         keys: &["Super+]", "Super+["],
         beats: 3,
@@ -134,22 +133,10 @@ pub const LESSONS: [Lesson; 17] = [
     },
     Lesson {
         chapter: 1,
-        title: "Turn the whole layout",
-        why: "When the shape is right but the wrong way round, with a wide window across the top \
-              that you wanted down the side, {Super+R} turns the layout a quarter with every window \
-              in it. Shift turns it back. Nothing has to be closed or moved by hand.",
-        habit: None,
-        keys: &["Super+R", "Super+Shift+R"],
-        beats: 2,
-        still: 0.5,
-    },
-    Lesson {
-        chapter: 1,
         title: "Or let them place themselves",
-        why: "Tiling puts windows where you put them. Gravity arranges them round the one you're \
-              in: in the centre, wide, in a spotlight or in a grid. {Super+T} switches between the \
-              two. Keep Super held and each further {key:Super+T} takes the next arrangement; let go on the \
-              one you want.",
+        why: "Tiling keeps windows where you put them. Gravity arranges them round the one you're \
+              in: in the centre, wide, in a spotlight or in a grid. {Super+T} switches between \
+              the two; keep Super held and press {key:Super+T} again to step through them.",
         habit: None,
         keys: &["Super+T"],
         beats: 4,
@@ -158,10 +145,10 @@ pub const LESSONS: [Lesson; 17] = [
     Lesson {
         chapter: 2,
         title: "A workspace for each task",
-        why: "Rather than one crowded screen, give each task its own: code on 1, messages on 2, \
-              music on 3. Super and a number goes straight there, and with {mod:Super+Shift+1} the window \
-              comes too, and three fingers swiped across a touchpad go to the next. Each workspace \
-              keeps its layout while you're away, so changing task never means rearranging.",
+        why: "Give each task a workspace of its own: code on 1, messages on 2, music on 3. Super \
+              and a number goes straight there, and with {mod:Super+Shift+1} the window comes \
+              too. On a touchpad, swipe three fingers sideways. Each one keeps its layout while \
+              you're away.",
         habit: Some("Windows calls these virtual desktops. Here each one is a single key away."),
         keys: &["Super+1–9", "Super+Shift+1–9"],
         beats: 3,
@@ -171,39 +158,13 @@ pub const LESSONS: [Lesson; 17] = [
         chapter: 2,
         title: "See everything at once",
         why: "{Super+Tab} tips the desktop back so every workspace sits side by side, with a letter \
-              on each window. Press the letter and you're there. While you look, everything slows \
-              to a quarter of its speed so nothing moves under you, and catches up when you leave. \
-              On a touchpad, swipe three fingers up.",
+              on each window: press the letter and you're there. Everything slows to a quarter \
+              speed while you look, so nothing moves under you. On a touchpad, swipe three \
+              fingers up.",
         habit: None,
         keys: &["Super+Tab"],
         beats: 3,
         still: 0.32,
-    },
-    Lesson {
-        chapter: 2,
-        title: "Back to the one before",
-        why: "Alt+Tab deals every open window as a deck of glass, the latest in front, whichever \
-              workspace it's on. One quick tap flips between the two you're working in. Hold Alt \
-              and keep tapping Tab to go further back, and let go when the one you want is at \
-              the front.",
-        habit: Some(
-            "Alt+Tab as you know it. Alt+F4, Super+L, Super+E and Print are where you left \
-                     them too.",
-        ),
-        keys: &["Alt+Tab"],
-        beats: 3,
-        still: 0.3,
-    },
-    Lesson {
-        chapter: 3,
-        title: "One thing at a time",
-        why: "{Super+F} lets a window fill the whole area while you concentrate on it. Press it \
-              again and everything is back exactly where it was, because nothing else was closed \
-              or moved.",
-        habit: Some("Maximise, without losing the layout underneath."),
-        keys: &["Super+F"],
-        beats: 2,
-        still: 0.5,
     },
     Lesson {
         chapter: 3,
@@ -222,10 +183,10 @@ pub const LESSONS: [Lesson; 17] = [
     Lesson {
         chapter: 3,
         title: "Out of sight, still running",
-        why: "{Super+M} pours a window into a stream at the edge of the screen instead of a taskbar. \
-              The stream is a live readout of its app: slow and grey while it's idle, fast and \
-              bright green when it's busy, so a build finishing catches your eye. {Super+H} puts \
-              every window there at once.",
+        why: "{Super+M} pours a window into a stream at the edge of the screen, where a taskbar \
+              would be. The stream shows its app at work, slow and grey when idle and fast and \
+              bright when busy, so a build finishing catches your eye. {Super+H} puts every \
+              window there at once.",
         habit: Some("Minimise and Win+D, with the apps still in sight."),
         keys: &["Super+M", "Super+Shift+M", "Super+H"],
         beats: 3,
@@ -245,10 +206,9 @@ pub const LESSONS: [Lesson; 17] = [
     Lesson {
         chapter: 4,
         title: "Nothing breaks your concentration",
-        why: "Most desktops let any app interrupt you mid-sentence. Here, notifications that \
-              arrive while you're typing wait for a natural pause and then come as one card, and \
-              a window you didn't ask for goes to the edge instead of taking your keyboard. \
-              Critical alerts still come straight through.",
+        why: "Notifications that arrive while you're typing wait for a pause, then come as one \
+              card. A window you didn't ask for goes to the edge instead of taking your \
+              keyboard. Critical alerts still come straight through.",
         habit: None,
         // Nothing to press: the point is what happens when you do nothing.
         keys: &[],
@@ -258,9 +218,8 @@ pub const LESSONS: [Lesson; 17] = [
     Lesson {
         chapter: 4,
         title: "Every key, one press away",
-        why: "You don't need to remember any of this. {Super+/} lists every key, and typing narrows \
-              the list to what you're after. Enter there brings this tour back, and an empty \
-              workspace always says how to find it.",
+        why: "You don't need to remember any of this. {Super+/} lists every key, and typing \
+              narrows the list to what you're after. Enter there brings this tour back.",
         habit: None,
         keys: &["Super+/"],
         beats: 2,
@@ -359,15 +318,6 @@ pub struct Typed {
     pub alpha: f32,
 }
 
-/// Alt+Tab's deck: which windows are in it front to back, how far the front one has gone round
-/// to the back, and how visible it is.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Deck {
-    pub order: Vec<usize>,
-    pub turn: f32,
-    pub alpha: f32,
-}
-
 /// Super+T's strip of arrangements while Super is held: which one is in force, counted along
 /// `arrangements()`, and how visible the strip is.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -394,7 +344,6 @@ pub struct Scene {
     /// Words in the key's place, when what's happening isn't a key.
     pub caption: Option<&'static str>,
     pub explorer: Option<Typed>,
-    pub deck: Option<Deck>,
     pub choosing: Option<Choosing>,
     /// The bell's count on the bar.
     pub bell: u8,
@@ -419,7 +368,6 @@ impl Scene {
             key: None,
             caption: None,
             explorer: None,
-            deck: None,
             choosing: None,
             bell: 0,
             digest: 0.0,
@@ -785,29 +733,9 @@ pub fn scene(step: usize, t: f32) -> Scene {
             scene.key = press("Super+]", &b);
             scene
         }
-        // A wide window across the top turns to run down the right, and back.
-        6 => {
-            let (top, bottom) = split_y(FULL, 0.5);
-            let (bottom_left, bottom_right) = split_x(bottom, 0.5);
-            let (left, right) = split_x(FULL, 0.5);
-            let (left_top, left_bottom) = split_y(left, 0.5);
-            let across = [top, bottom_left, bottom_right];
-            let down = [right, left_top, left_bottom];
-            let (from, to, keys) = match b.index {
-                0 => (across, down, "Super+R"),
-                _ => (down, across, "Super+Shift+R"),
-            };
-            let kinds = [Kind::Browser, Kind::Terminal, Kind::Editor];
-            let windows = (0..3)
-                .map(|n| win(kinds[n], tween(from[n], to[n], b.moved)))
-                .collect();
-            let mut scene = Scene::desk(windows, Some(0));
-            scene.key = press(keys, &b);
-            scene
-        }
         // Super+T turns gravity on round the editor and, with Super still down, shows the
         // arrangements; each further T takes the next one; letting go of Super keeps it.
-        7 => {
+        6 => {
             let all = arrangements();
             let (from, to) = match b.index {
                 0 => (0, 2),
@@ -839,7 +767,7 @@ pub fn scene(step: usize, t: f32) -> Scene {
             scene
         }
         // Workspace 1 to 2 to 3 and home again, the screens sliding past.
-        8 => {
+        7 => {
             let path = [(0u8, 1u8, "Super+2"), (1, 2, "Super+3"), (2, 0, "Super+1")];
             let (from, to, keys) = path[b.index.min(2)];
             let now = if b.pressed { to } else { from };
@@ -850,7 +778,7 @@ pub fn scene(step: usize, t: f32) -> Scene {
             scene
         }
         // Bullet time opens, F goes to the browser on 2, and Super+1 comes home.
-        9 => {
+        8 => {
             let mut scene = Scene::desk(workspaces(), Some(focused_on(0)));
             match b.index {
                 0 => {
@@ -875,59 +803,9 @@ pub fn scene(step: usize, t: f32) -> Scene {
             }
             scene
         }
-        // Alt+Tab deals the deck, Tab sends another round, and letting go of Alt lands on the
-        // terminal.
-        10 => {
-            let windows = three();
-            let mut scene;
-            match b.index {
-                0 => {
-                    scene = Scene::desk(windows, Some(2));
-                    if b.pressed {
-                        scene.deck = Some(Deck {
-                            order: vec![2, 1, 0],
-                            turn: b.moved,
-                            alpha: (b.moved * 3.0).clamp(0.2, 1.0),
-                        });
-                    }
-                    scene.key = press("Alt+Tab", &b);
-                }
-                1 => {
-                    scene = Scene::desk(windows, Some(2));
-                    scene.deck = Some(Deck {
-                        order: vec![1, 0, 2],
-                        turn: if b.pressed { b.moved } else { 0.0 },
-                        alpha: 1.0,
-                    });
-                    scene.key = press("Tab", &b);
-                }
-                _ => {
-                    scene = Scene::desk(windows, Some(if b.pressed { 0 } else { 2 }));
-                    scene.deck = Some(Deck {
-                        order: vec![0, 2, 1],
-                        turn: 0.0,
-                        alpha: if b.pressed { 1.0 - b.moved } else { 1.0 },
-                    });
-                    scene.caption = Some("let go of Alt");
-                }
-            }
-            scene
-        }
-        // The editor fills the area over the others, and goes back.
-        11 => {
-            let mut windows = three();
-            let (from, to) = match b.index {
-                0 => (windows[2].at, FULL),
-                _ => (FULL, windows[2].at),
-            };
-            windows[2].at = tween(from, to, b.moved);
-            let mut scene = Scene::desk(windows, Some(2));
-            scene.key = press("Super+F", &b);
-            scene
-        }
         // The browser lifts off its tile and the editor takes the room; it is nudged across and
         // made wider; then the keyboard goes down to the tiles under it.
-        12 => {
+        9 => {
             let tiled = dwindle(3);
             let (_, right) = split_x(FULL, 0.5);
             let lifted = Rect {
@@ -959,7 +837,7 @@ pub fn scene(step: usize, t: f32) -> Scene {
             scene
         }
         // The busy terminal pours into the rain, then the idle browser, then the browser comes back.
-        13 => {
+        10 => {
             let (top, bottom) = split_y(FULL, 0.5);
             let mut windows = three();
             let gone = |from: Rect| Rect {
@@ -1016,7 +894,7 @@ pub fn scene(step: usize, t: f32) -> Scene {
         }
         // The terminal goes up to the bar and the others take its room; it grows a size; the
         // workspace changes behind it; and it comes down among the windows it finds there.
-        14 => {
+        11 => {
             let tiled = dwindle(3);
             let (top, bottom) = split_y(FULL, 0.5);
             let (chat, music) = split_x(FULL, 0.42);
@@ -1077,7 +955,7 @@ pub fn scene(step: usize, t: f32) -> Scene {
         }
         // Typing, while three notifications arrive and only the bell counts them; then a pause, and
         // they come as one card.
-        15 => {
+        12 => {
             let (left, right) = split_x(FULL, 0.55);
             let mut scene = Scene::desk(
                 vec![win(Kind::Terminal, left), win(Kind::Browser, right)],
@@ -1147,23 +1025,19 @@ pub fn practise(step: usize, action: &Action, t: f32) -> Option<f32> {
         (3, Action::Focus(_)) => 0,
         (4, Action::MoveTile(_)) => 0,
         (5, Action::Resize(_)) => 0,
-        (6, Action::Rotate { clockwise: true }) => 0,
-        (6, Action::Rotate { clockwise: false }) => 1,
         // Each T with Super still held is the next arrangement along.
-        (7, Action::ToggleGravity) => next_beat(7, t, 2),
-        (8, Action::Workspace(_) | Action::MoveToWorkspace(_)) => 0,
-        (9, Action::BulletTime) => 0,
-        (10, Action::CycleWindows { .. }) => 0,
-        (11, Action::Maximise) => 0,
-        (12, Action::ToggleFloating) => 0,
-        (12, Action::MoveTile(_)) => 1,
-        (12, Action::Resize(_)) => 2,
-        (12, Action::SwitchFloatingFocus) => 3,
-        (13, Action::Minimise | Action::HideAll) => 0,
-        (13, Action::Restore) => 2,
+        (6, Action::ToggleGravity) => next_beat(6, t, 2),
+        (7, Action::Workspace(_) | Action::MoveToWorkspace(_)) => 0,
+        (8, Action::BulletTime) => 0,
+        (9, Action::ToggleFloating) => 0,
+        (9, Action::MoveTile(_)) => 1,
+        (9, Action::Resize(_)) => 2,
+        (9, Action::SwitchFloatingFocus) => 3,
+        (10, Action::Minimise | Action::HideAll) => 0,
+        (10, Action::Restore) => 2,
         // On the docked window, the key again is its next size.
-        (14, Action::Dock) => next_beat(14, t, 1),
-        (14, Action::Undock) => 3,
+        (11, Action::Dock) => next_beat(11, t, 1),
+        (11, Action::Undock) => 3,
         _ => return None,
     };
     Some(press_at(step, index))
@@ -1194,9 +1068,6 @@ mod tests {
                         "lesson {step}: the ring is on no window"
                     );
                 }
-                if let Some(deck) = &scene.deck {
-                    assert!(deck.order.iter().all(|n| *n < scene.windows.len()));
-                }
                 if let Some(key) = scene.key {
                     assert!((0.0..=1.0).contains(&key.glow));
                 }
@@ -1217,13 +1088,13 @@ mod tests {
 
     #[test]
     fn every_lesson_says_why_in_a_few_lines() {
-        // The card's column holds about eight lines of it, in whichever style's keys.
+        // Five lines or so of the card's column, in whichever style's keys.
         for style in slipstream_config::KeyStyle::ALL {
             let names = crate::keynames::KeyNames::new(style);
             for lesson in &LESSONS {
                 let why = names.fill(lesson.why);
                 assert!(
-                    why.len() <= 330,
+                    why.len() <= 280,
                     "{style:?}, {}: too long to read",
                     lesson.title
                 );
@@ -1270,21 +1141,6 @@ mod tests {
     }
 
     #[test]
-    fn turning_the_layout_turns_it_a_quarter() {
-        let before = scene(6, 0.0);
-        assert!(
-            before.windows[0].at.w > before.windows[0].at.h,
-            "wide across the top"
-        );
-        let after = scene(6, 0.49);
-        assert!(
-            after.windows[0].at.h > after.windows[0].at.w,
-            "tall down the side"
-        );
-        assert!(after.windows[0].at.x > 0.4, "on the right");
-    }
-
-    #[test]
     fn resizing_catches_on_two_thirds() {
         let end = scene(5, 1.0);
         let share = end.windows[0].at.w / (end.windows[0].at.w + end.windows[1].at.w);
@@ -1293,31 +1149,31 @@ mod tests {
 
     #[test]
     fn minimising_opens_a_stream_and_the_tiles_close_up() {
-        let after = scene(13, 0.33);
+        let after = scene(10, 0.33);
         assert_eq!(after.streams.len(), 1);
         assert_eq!(after.streams[0].open, 1.0);
         assert_eq!(after.windows[0].alpha, 0.0);
-        let still = scene(13, LESSONS[13].still);
+        let still = scene(10, LESSONS[10].still);
         assert_eq!(still.streams.len(), 2, "a busy stream and an idle one");
         assert!(still.streams[0].busy > still.streams[1].busy);
     }
 
     #[test]
     fn notifications_wait_for_the_pause() {
-        let typing = scene(15, 0.6);
+        let typing = scene(12, 0.6);
         assert!(typing.bell >= 2, "the bell counts them");
         assert_eq!(typing.digest, 0.0, "but nothing pops up");
-        let pause = scene(15, 1.0);
+        let pause = scene(12, 1.0);
         assert_eq!(pause.bell, 3);
         assert_eq!(pause.digest, 1.0);
     }
 
     #[test]
     fn workspaces_slide_and_the_bar_follows_the_press() {
-        let t = press_at(8, 0);
-        assert_eq!(scene(8, t - 0.01).bar_workspace, 0);
-        assert_eq!(scene(8, t + 0.001).bar_workspace, 1);
-        assert_eq!(scene(8, 0.333).camera, 1.0);
+        let t = press_at(7, 0);
+        assert_eq!(scene(7, t - 0.01).bar_workspace, 0);
+        assert_eq!(scene(7, t + 0.001).bar_workspace, 1);
+        assert_eq!(scene(7, 0.333).camera, 1.0);
     }
 
     #[test]
@@ -1329,7 +1185,7 @@ mod tests {
             None,
             "not this lesson's key"
         );
-        assert_eq!(practise(13, &Action::Restore, 0.0), Some(press_at(13, 2)));
+        assert_eq!(practise(10, &Action::Restore, 0.0), Some(press_at(10, 2)));
         for step in 0..LESSONS.len() {
             for action in [Action::Explorer, Action::Maximise, Action::BulletTime] {
                 if let Some(t) = practise(step, &action, 0.0) {
@@ -1341,11 +1197,10 @@ mod tests {
 
     #[test]
     fn reduced_motion_holds_what_the_lesson_is_about() {
-        assert!(scene(9, LESSONS[9].still).zoom > 0.99, "in bullet time");
-        assert_eq!(scene(11, LESSONS[11].still).windows[2].at, FULL, "filled");
-        assert!(scene(12, LESSONS[12].still).windows[1].floating, "floating");
-        assert_eq!(scene(14, LESSONS[14].still).windows[4].dock, 1.0, "docked");
-        let gravity = scene(7, LESSONS[7].still);
+        assert!(scene(8, LESSONS[8].still).zoom > 0.99, "in bullet time");
+        assert!(scene(9, LESSONS[9].still).windows[1].floating, "floating");
+        assert_eq!(scene(11, LESSONS[11].still).windows[4].dock, 1.0, "docked");
+        let gravity = scene(6, LESSONS[6].still);
         assert!(
             gravity.choosing.is_some_and(|strip| strip.alpha == 1.0),
             "the arrangements on show"
@@ -1354,16 +1209,16 @@ mod tests {
 
     #[test]
     fn holding_super_and_tapping_t_goes_along_the_arrangements() {
-        let on = |t: f32| scene(7, t).choosing.unwrap();
+        let on = |t: f32| scene(6, t).choosing.unwrap();
         assert_eq!(on(0.0).alpha, 0.0, "nothing shows before the key");
-        let mut t = practise(7, &Action::ToggleGravity, 0.0).unwrap();
+        let mut t = practise(6, &Action::ToggleGravity, 0.0).unwrap();
         let mut seen = vec![on(t).selected];
         for _ in 0..2 {
-            t = practise(7, &Action::ToggleGravity, t).unwrap();
+            t = practise(6, &Action::ToggleGravity, t).unwrap();
             seen.push(on(t).selected);
         }
         assert_eq!(seen, [2, 3, 4], "centre, wide, spotlight");
-        let kept = scene(7, 1.0);
+        let kept = scene(6, 1.0);
         assert_eq!(
             kept.choosing.unwrap().alpha,
             0.0,
@@ -1383,37 +1238,37 @@ mod tests {
 
     #[test]
     fn the_dock_key_again_is_the_next_size() {
-        let first = practise(14, &Action::Dock, 0.0).unwrap();
-        assert_eq!(first, press_at(14, 0));
-        assert_eq!(practise(14, &Action::Dock, first), Some(press_at(14, 1)));
+        let first = practise(11, &Action::Dock, 0.0).unwrap();
+        assert_eq!(first, press_at(11, 0));
+        assert_eq!(practise(11, &Action::Dock, first), Some(press_at(11, 1)));
     }
 
     #[test]
     fn a_floated_window_leaves_its_tile_to_the_others() {
-        let before = scene(12, 0.0);
+        let before = scene(9, 0.0);
         assert!(!before.windows[1].floating);
-        let after = scene(12, 0.24);
+        let after = scene(9, 0.24);
         assert!(after.windows[1].floating);
         assert!(
             after.windows[2].at.h > before.windows[2].at.h,
             "its neighbour takes the room"
         );
-        let t = press_at(12, 3);
-        assert_eq!(scene(12, t - 0.01).focus, Some(1), "in the floating window");
-        assert_eq!(scene(12, t + 0.001).focus, Some(2), "down in the tiles");
+        let t = press_at(9, 3);
+        assert_eq!(scene(9, t - 0.01).focus, Some(1), "in the floating window");
+        assert_eq!(scene(9, t + 0.001).focus, Some(2), "down in the tiles");
     }
 
     #[test]
     fn a_docked_window_stays_put_while_the_workspace_changes() {
-        let docked = scene(14, 0.5);
-        let away = scene(14, 0.74);
+        let docked = scene(11, 0.5);
+        let away = scene(11, 0.74);
         assert_eq!(away.camera, 1.0, "on the next workspace");
         assert_eq!(away.windows[4].at, docked.windows[4].at);
         assert_eq!(away.windows[4].dock, 1.0);
         assert!(away.slot.is_some(), "its strip stays in the bar");
-        let small = scene(14, 0.24).windows[4].at;
+        let small = scene(11, 0.24).windows[4].at;
         assert!(docked.windows[4].at.w > small.w, "the next size is larger");
-        let down = scene(14, 1.0);
+        let down = scene(11, 1.0);
         assert_eq!(down.windows[4].dock, 0.0);
         assert_eq!(down.windows[4].workspace, 1, "down where it was looking");
         assert!(down.slot.is_none());
