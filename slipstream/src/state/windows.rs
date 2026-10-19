@@ -393,14 +393,18 @@ impl Slipstream {
     }
 
     /// The client that closed its last window is now running invisibly in the background; record
-    /// it for the notification centre. Called after `remove_window` so the closing window is
-    /// already gone from `all_open_windows`.
+    /// it for the notification centre. Only apps from the apps list count: a portal's file
+    /// chooser or a password prompt closing leaves a system service running, not an app. Called
+    /// after `remove_window` so the closing window is already gone from `all_open_windows`.
     pub(crate) fn track_closed_app(&mut self, wl_surface: &WlSurface) {
         let Some(client) = wl_surface.client() else {
             return;
         };
         let client_id = client.id();
         let Some(app_id) = toplevel_data(wl_surface, |data| data.app_id.clone()) else {
+            return;
+        };
+        let Some(name) = self.explorer.app_name(&app_id) else {
             return;
         };
         let still_open = self.all_open_windows().into_iter().any(|w| {
@@ -414,10 +418,6 @@ impl Slipstream {
                 .iter()
                 .any(|a| a.client_id == client_id)
         {
-            let name = self
-                .explorer
-                .app_name(&app_id)
-                .unwrap_or_else(|| pretty_name(&app_id));
             self.background_apps.push(BackgroundApp {
                 name,
                 app_id,
