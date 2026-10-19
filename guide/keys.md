@@ -12,22 +12,22 @@ These are the Windows style's keys, which Slipstream starts with. Settings → K
 | Super+Return, Super+E, Super+I | Terminal, files, Settings |
 | Super+B | A new window of your default browser |
 | Alt+Tab, Alt+Shift+Tab | Switch windows, dealt as a deck of glass |
-| Super+W, Alt+F4 | Close the window |
+| Alt+F4 | Close the window |
 | Super+arrows | Move focus. Up from the top row goes into a docked window; from a floating or docked window they lead back to the tiles |
-| Super+Shift+arrows | Move the window: it swaps places with the one that way, the two passing through each other. Under gravity, moving into the centre takes it. A floating window moves a step |
-| Super+- and =, with Shift for height | Resize, tiled or floating; under gravity, lighter and heavier |
-| Super+Alt+R, Super+Alt+Shift+R | Turn the whole layout a quarter, clockwise or back |
+| Super+Alt+arrows | Move the window: it swaps places with the one that way, the two passing through each other. Under gravity, moving into the centre takes it. A floating window moves a step |
+| Super+[ and ], with Shift for height | Resize, tiled or floating; under gravity, lighter and heavier |
+| Super+R, Super+Shift+R | Turn the whole layout a quarter, clockwise or back |
 | Super+F | Fill the tiling area, and back, in tiling or gravity |
 | Super+M, Super+Shift+M | Minimise to a stream at the edge, bring back |
-| Super+O | Dock the window to the bar, in front of every workspace; again, its next size of three |
-| Super+Shift+O | Bring the docked window back down as a standard window |
+| Super+W | Dock the window to the bar, in front of every workspace; again, its next size of three |
+| Super+Shift+W | Bring the docked window back down as a standard window |
 | Super+H | Hide every window on the workspace; again, bring them back |
-| Super+T, Super+Alt+V | Float the window or tile it; switch between floating and tiled windows |
+| Super+Shift+V, Super+Ctrl+V | Float the window or tile it; switch between floating and tiled windows |
 | Super+D | Show the desktop, and back |
-| Super+Alt+Tab | Bullet time |
-| Super+G | Tiling or gravity; keep Super held to choose the arrangement |
-| Super+1–0, Super+Tab, Super+Shift+Tab, Super+Ctrl+← → | Go to a workspace; the next or previous one |
-| Super+Shift+1–0, Super+Ctrl+Shift+← → | Move the window to a workspace |
+| Super+Tab | Bullet time |
+| Super+T | Tiling or gravity; keep Super held to choose the arrangement |
+| Super+1–9, Super+Ctrl+← → | Go to a workspace |
+| Super+Shift+1–9, Super+Shift+← → | Move the window to a workspace |
 | Super+P, Super+Shift+P | Next screen, move the window there |
 | Super+Ctrl+P | Swap workspaces with the next screen, windows and all |
 | Super+A, Super+N | Quick settings, notifications |
@@ -105,9 +105,9 @@ In any panel or card, Esc backs out one level, Tab and the arrows move, Enter pr
 |---|---|
 | Arrows, Tab | Choose a window; every window in turn |
 | The letter on a window | Jump to it |
-| 1–0 | Look at a workspace |
+| 1–9 | Look at a workspace |
 | Enter | Go |
-| Shift+1–0, Shift+← → | Send the window to a workspace, or the one beside |
+| Shift+1–9, Shift+← → | Send the window to a workspace, or the one beside |
 | M, Del | Minimise, close |
 | Esc | Back, with nothing changed |
 
@@ -152,4 +152,4 @@ id = 6
 screen = "HDMI-A-1"
 ```
 
-Super+1–0 go to the first ten workspaces in the list, so named run-or-raise workspaces go after those ten.
+Super+1–9 (and, in the Omarchy style, Super+0) go to the first workspaces in the list, so named run-or-raise workspaces go after those.
