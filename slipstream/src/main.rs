@@ -30,6 +30,7 @@ mod emoji;
 mod fallback;
 mod files;
 mod floating;
+mod follow;
 mod focus;
 mod gamma;
 mod grabs;
