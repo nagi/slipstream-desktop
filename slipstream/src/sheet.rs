@@ -249,6 +249,8 @@ fn filtered(sections: Vec<Section>, query: &str) -> Vec<Section> {
 pub enum Outcome {
     Nothing,
     Close,
+    /// The keys are to follow this style from now on.
+    KeyStyle(KeyStyle),
 }
 
 /// Everything the painted sheet depends on.
@@ -426,6 +428,16 @@ impl Sheet {
     /// closes.
     pub fn key(&mut self, sym: Keysym, ch: Option<char>, now: f64) -> Outcome {
         if let Some(Touring { step, .. }) = self.tour {
+            let chosen = tour::STYLE_KEYS
+                .iter()
+                .find(|(key, ..)| step == tour::CHOOSE_KEYS && *key == sym);
+            if let Some((_, _, style)) = chosen {
+                if let Some(touring) = self.tour.as_mut() {
+                    touring.tried = true;
+                }
+                self.shown = None;
+                return Outcome::KeyStyle(*style);
+            }
             match sym {
                 Keysym::Escape => self.tour = None,
                 Keysym::Return | Keysym::KP_Enter | Keysym::Right | Keysym::Down => {
@@ -682,7 +694,21 @@ fn paint_tour(look: &Look, step: usize, tried: bool, names: &KeyNames) -> Option
     for key in lesson.keys {
         key_x += p.keycap(&names.cap(key), key_x, keys_y) + KEY_GAP;
     }
-    if tried {
+    // The lesson that chooses the keys has the three choices there instead, the one in force lit.
+    if step == tour::CHOOSE_KEYS {
+        p.text("CHOOSE", cx, keys_y - 26.0, &panel::section_style());
+        let ring = look.ring | 0xff;
+        for (_, cap, style) in tour::STYLE_KEYS {
+            key_x += p.keycap(cap, key_x, keys_y) + 8.0;
+            let name = style.label().trim_end_matches(" style");
+            let (face, ink) = match style == names.style() {
+                true => (Face::BodyBold, ring),
+                false => (Face::Body, panel::SECONDARY),
+            };
+            key_x += p.text(name, key_x, keys_y, &Style::new(face, 15.0, ink)) + 22.0;
+        }
+    }
+    if tried && step != tour::CHOOSE_KEYS {
         let ring = look.ring | 0xff;
         p.icon(icons::TICK, key_x + 6.0, keys_y - 8.0, 16.0, Some(ring));
         p.text(
@@ -938,8 +964,12 @@ impl Slipstream {
 
     pub fn sheet_key(&mut self, sym: Keysym, ch: Option<char>) {
         let now = self.clock.tick();
-        if let Outcome::Close = self.sheet.key(sym, ch, now) {
-            self.sheet.close();
+        match self.sheet.key(sym, ch, now) {
+            Outcome::Nothing => {}
+            Outcome::Close => self.sheet.close(),
+            Outcome::KeyStyle(style) => {
+                self.change_settings(|settings| settings.keys.style = style)
+            }
         }
     }
 
@@ -1058,6 +1088,27 @@ mod tests {
             ["Super+- ="]
         );
         assert_eq!(row(KeyStyle::Omarchy, "every key"), ["Super+K"]);
+    }
+
+    #[test]
+    fn the_tour_starts_by_choosing_whose_keys_to_follow() {
+        let mut sheet = Sheet::default();
+        sheet.open(0.0);
+        sheet.start_tour(0.0);
+        assert!(matches!(
+            sheet.key(Keysym::m, Some('m'), 0.0),
+            Outcome::KeyStyle(KeyStyle::Mac)
+        ));
+        assert!(matches!(
+            sheet.key(Keysym::o, Some('o'), 0.0),
+            Outcome::KeyStyle(KeyStyle::Omarchy)
+        ));
+        // On any later lesson the same letters choose nothing.
+        sheet.key(Keysym::Return, None, 0.0);
+        assert!(matches!(
+            sheet.key(Keysym::m, Some('m'), 0.0),
+            Outcome::Nothing
+        ));
     }
 
     #[test]

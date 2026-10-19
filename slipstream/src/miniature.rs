@@ -1677,7 +1677,7 @@ mod tests {
 
     #[test]
     fn workspaces_sit_side_by_side_and_bullet_time_shrinks_them() {
-        let mut scene = tour::scene(7, 0.0);
+        let mut scene = tour::scene(8, 0.0);
         scene.camera = 0.0;
         let frame = Frame::new(WIDTH, HEIGHT, &scene);
         let (first, ..) = frame.screen(0);

@@ -14,6 +14,9 @@
 //! The scenes are plain data in unit squares, so what happens is decided and tested here without
 //! a compositor; `miniature.rs` paints them and `sheet.rs` holds the card.
 
+use slipstream_config::KeyStyle;
+use smithay::input::keyboard::Keysym;
+
 use crate::keys::{Action, App};
 
 /// The parts the lessons are grouped into, named across the top of the card.
@@ -46,7 +49,29 @@ pub struct Lesson {
     pub still: f32,
 }
 
-pub const LESSONS: [Lesson; 16] = [
+/// The lesson that asks whose keys to follow, first so that every lesson after it shows them.
+pub const CHOOSE_KEYS: usize = 0;
+
+/// The keys that choose a style on that lesson, each with its keycap.
+pub const STYLE_KEYS: [(Keysym, &str, KeyStyle); 3] = [
+    (Keysym::w, "W", KeyStyle::Windows),
+    (Keysym::m, "M", KeyStyle::Mac),
+    (Keysym::o, "O", KeyStyle::Omarchy),
+];
+
+pub const LESSONS: [Lesson; 17] = [
+    Lesson {
+        chapter: 0,
+        title: "Keys your hands already know",
+        why: "Coming from Windows, a Mac or Omarchy? Press W, M or O and the desktop's keys follow \
+              the habits you already have. Every lesson after this one, the key list and the hints \
+              on screen show those keys, and the Keyboard page in Settings changes them later.",
+        habit: None,
+        // The choice is drawn in place of keys to try.
+        keys: &[],
+        beats: 1,
+        still: 0.66,
+    },
     Lesson {
         chapter: 0,
         title: "Windows arrange themselves",
@@ -645,8 +670,20 @@ pub fn scene(step: usize, t: f32) -> Scene {
     let beats = LESSONS.get(step).map_or(1, |lesson| lesson.beats);
     let b = beat(t, beats);
     match step {
+        // The explorer opening on the chosen style's key, which the miniature names.
+        CHOOSE_KEYS => {
+            let (left, right) = split_x(FULL, 0.5);
+            let windows = vec![win(Kind::Terminal, left), win(Kind::Browser, right)];
+            let mut scene = Scene::desk(windows, Some(1));
+            scene.explorer = Some(Typed {
+                chars: 0,
+                alpha: if b.pressed { b.moved.max(0.15) } else { 0.0 },
+            });
+            scene.key = press("Super", &b);
+            scene
+        }
         // Windows open one after another, each taking a share and the others making room.
-        0 => {
+        1 => {
             let kinds = [Kind::Terminal, Kind::Browser, Kind::Editor, Kind::Files];
             let (before, after) = (dwindle(b.index), dwindle(b.index + 1));
             let windows = (0..=b.index)
@@ -671,7 +708,7 @@ pub fn scene(step: usize, t: f32) -> Scene {
             scene
         }
         // The explorer: tap Super, type, Enter, and the app opens beside what you were doing.
-        1 => {
+        2 => {
             let (left, right) = split_x(FULL, 0.5);
             let (top, bottom) = split_y(right, 0.5);
             let mut windows = vec![win(Kind::Terminal, left), win(Kind::Browser, right)];
@@ -710,7 +747,7 @@ pub fn scene(step: usize, t: f32) -> Scene {
             scene
         }
         // The ring goes right, down, then back left.
-        2 => {
+        3 => {
             let path = [(0, 1, "Super+→"), (1, 2, "Super+↓"), (2, 0, "Super+←")];
             let (from, to, keys) = path[b.index.min(2)];
             let mut scene = Scene::desk(three(), Some(if b.pressed { to } else { from }));
@@ -718,7 +755,7 @@ pub fn scene(step: usize, t: f32) -> Scene {
             scene
         }
         // The terminal swaps its way right, down, then back left.
-        3 => {
+        4 => {
             let p = dwindle(3);
             let places = [
                 [p[0], p[1], p[2]],
@@ -736,7 +773,7 @@ pub fn scene(step: usize, t: f32) -> Scene {
             scene
         }
         // Three presses widen the terminal, the last one catching on two thirds.
-        4 => {
+        5 => {
             let ratios = [0.5, 0.55, 0.6, 2.0 / 3.0];
             let i = b.index.min(2);
             let ratio = between(ratios[i], ratios[i + 1], b.moved);
@@ -749,7 +786,7 @@ pub fn scene(step: usize, t: f32) -> Scene {
             scene
         }
         // A wide window across the top turns to run down the right, and back.
-        5 => {
+        6 => {
             let (top, bottom) = split_y(FULL, 0.5);
             let (bottom_left, bottom_right) = split_x(bottom, 0.5);
             let (left, right) = split_x(FULL, 0.5);
@@ -770,7 +807,7 @@ pub fn scene(step: usize, t: f32) -> Scene {
         }
         // Super+T turns gravity on round the editor and, with Super still down, shows the
         // arrangements; each further T takes the next one; letting go of Super keeps it.
-        6 => {
+        7 => {
             let all = arrangements();
             let (from, to) = match b.index {
                 0 => (0, 2),
@@ -802,7 +839,7 @@ pub fn scene(step: usize, t: f32) -> Scene {
             scene
         }
         // Workspace 1 to 2 to 3 and home again, the screens sliding past.
-        7 => {
+        8 => {
             let path = [(0u8, 1u8, "Super+2"), (1, 2, "Super+3"), (2, 0, "Super+1")];
             let (from, to, keys) = path[b.index.min(2)];
             let now = if b.pressed { to } else { from };
@@ -813,7 +850,7 @@ pub fn scene(step: usize, t: f32) -> Scene {
             scene
         }
         // Bullet time opens, F goes to the browser on 2, and Super+1 comes home.
-        8 => {
+        9 => {
             let mut scene = Scene::desk(workspaces(), Some(focused_on(0)));
             match b.index {
                 0 => {
@@ -840,7 +877,7 @@ pub fn scene(step: usize, t: f32) -> Scene {
         }
         // Alt+Tab deals the deck, Tab sends another round, and letting go of Alt lands on the
         // terminal.
-        9 => {
+        10 => {
             let windows = three();
             let mut scene;
             match b.index {
@@ -877,7 +914,7 @@ pub fn scene(step: usize, t: f32) -> Scene {
             scene
         }
         // The editor fills the area over the others, and goes back.
-        10 => {
+        11 => {
             let mut windows = three();
             let (from, to) = match b.index {
                 0 => (windows[2].at, FULL),
@@ -890,7 +927,7 @@ pub fn scene(step: usize, t: f32) -> Scene {
         }
         // The browser lifts off its tile and the editor takes the room; it is nudged across and
         // made wider; then the keyboard goes down to the tiles under it.
-        11 => {
+        12 => {
             let tiled = dwindle(3);
             let (_, right) = split_x(FULL, 0.5);
             let lifted = Rect {
@@ -922,7 +959,7 @@ pub fn scene(step: usize, t: f32) -> Scene {
             scene
         }
         // The busy terminal pours into the rain, then the idle browser, then the browser comes back.
-        12 => {
+        13 => {
             let (top, bottom) = split_y(FULL, 0.5);
             let mut windows = three();
             let gone = |from: Rect| Rect {
@@ -979,7 +1016,7 @@ pub fn scene(step: usize, t: f32) -> Scene {
         }
         // The terminal goes up to the bar and the others take its room; it grows a size; the
         // workspace changes behind it; and it comes down among the windows it finds there.
-        13 => {
+        14 => {
             let tiled = dwindle(3);
             let (top, bottom) = split_y(FULL, 0.5);
             let (chat, music) = split_x(FULL, 0.42);
@@ -1040,7 +1077,7 @@ pub fn scene(step: usize, t: f32) -> Scene {
         }
         // Typing, while three notifications arrive and only the bell counts them; then a pause, and
         // they come as one card.
-        14 => {
+        15 => {
             let (left, right) = split_x(FULL, 0.55);
             let mut scene = Scene::desk(
                 vec![win(Kind::Terminal, left), win(Kind::Browser, right)],
@@ -1104,28 +1141,29 @@ fn next_beat(step: usize, t: f32, last: usize) -> usize {
 /// key plays it at once. Anything else isn't the tour's to answer.
 pub fn practise(step: usize, action: &Action, t: f32) -> Option<f32> {
     let index = match (step, action) {
-        (0, Action::Launch(App::Terminal)) => 1,
-        (1, Action::Explorer) => 0,
-        (2, Action::Focus(_)) => 0,
-        (3, Action::MoveTile(_)) => 0,
-        (4, Action::Resize(_)) => 0,
-        (5, Action::Rotate { clockwise: true }) => 0,
-        (5, Action::Rotate { clockwise: false }) => 1,
+        (CHOOSE_KEYS, Action::Explorer) => 0,
+        (1, Action::Launch(App::Terminal)) => 1,
+        (2, Action::Explorer) => 0,
+        (3, Action::Focus(_)) => 0,
+        (4, Action::MoveTile(_)) => 0,
+        (5, Action::Resize(_)) => 0,
+        (6, Action::Rotate { clockwise: true }) => 0,
+        (6, Action::Rotate { clockwise: false }) => 1,
         // Each T with Super still held is the next arrangement along.
-        (6, Action::ToggleGravity) => next_beat(6, t, 2),
-        (7, Action::Workspace(_) | Action::MoveToWorkspace(_)) => 0,
-        (8, Action::BulletTime) => 0,
-        (9, Action::CycleWindows { .. }) => 0,
-        (10, Action::Maximise) => 0,
-        (11, Action::ToggleFloating) => 0,
-        (11, Action::MoveTile(_)) => 1,
-        (11, Action::Resize(_)) => 2,
-        (11, Action::SwitchFloatingFocus) => 3,
-        (12, Action::Minimise | Action::HideAll) => 0,
-        (12, Action::Restore) => 2,
+        (7, Action::ToggleGravity) => next_beat(7, t, 2),
+        (8, Action::Workspace(_) | Action::MoveToWorkspace(_)) => 0,
+        (9, Action::BulletTime) => 0,
+        (10, Action::CycleWindows { .. }) => 0,
+        (11, Action::Maximise) => 0,
+        (12, Action::ToggleFloating) => 0,
+        (12, Action::MoveTile(_)) => 1,
+        (12, Action::Resize(_)) => 2,
+        (12, Action::SwitchFloatingFocus) => 3,
+        (13, Action::Minimise | Action::HideAll) => 0,
+        (13, Action::Restore) => 2,
         // On the docked window, the key again is its next size.
-        (13, Action::Dock) => next_beat(13, t, 1),
-        (13, Action::Undock) => 3,
+        (14, Action::Dock) => next_beat(14, t, 1),
+        (14, Action::Undock) => 3,
         _ => return None,
     };
     Some(press_at(step, index))
@@ -1212,9 +1250,9 @@ mod tests {
 
     #[test]
     fn each_new_window_takes_a_share_and_the_others_make_room() {
-        let before = scene(0, 0.0);
+        let before = scene(1, 0.0);
         assert_eq!(before.windows[0].alpha, 0.0, "the desktop starts empty");
-        let end = scene(0, 1.0);
+        let end = scene(1, 1.0);
         assert_eq!(end.windows.len(), 4);
         let area: f32 = end.windows.iter().map(|w| w.at.w * w.at.h).sum();
         assert!(
@@ -1226,19 +1264,19 @@ mod tests {
 
     #[test]
     fn the_ring_moves_on_the_press_not_after_the_animation() {
-        let t = press_at(2, 0);
-        assert_eq!(scene(2, t - 0.01).focus, Some(0));
-        assert_eq!(scene(2, t + 0.001).focus, Some(1));
+        let t = press_at(3, 0);
+        assert_eq!(scene(3, t - 0.01).focus, Some(0));
+        assert_eq!(scene(3, t + 0.001).focus, Some(1));
     }
 
     #[test]
     fn turning_the_layout_turns_it_a_quarter() {
-        let before = scene(5, 0.0);
+        let before = scene(6, 0.0);
         assert!(
             before.windows[0].at.w > before.windows[0].at.h,
             "wide across the top"
         );
-        let after = scene(5, 0.49);
+        let after = scene(6, 0.49);
         assert!(
             after.windows[0].at.h > after.windows[0].at.w,
             "tall down the side"
@@ -1248,50 +1286,50 @@ mod tests {
 
     #[test]
     fn resizing_catches_on_two_thirds() {
-        let end = scene(4, 1.0);
+        let end = scene(5, 1.0);
         let share = end.windows[0].at.w / (end.windows[0].at.w + end.windows[1].at.w);
         assert!((share - 2.0 / 3.0).abs() < 0.01, "{share}");
     }
 
     #[test]
     fn minimising_opens_a_stream_and_the_tiles_close_up() {
-        let after = scene(12, 0.33);
+        let after = scene(13, 0.33);
         assert_eq!(after.streams.len(), 1);
         assert_eq!(after.streams[0].open, 1.0);
         assert_eq!(after.windows[0].alpha, 0.0);
-        let still = scene(12, LESSONS[12].still);
+        let still = scene(13, LESSONS[13].still);
         assert_eq!(still.streams.len(), 2, "a busy stream and an idle one");
         assert!(still.streams[0].busy > still.streams[1].busy);
     }
 
     #[test]
     fn notifications_wait_for_the_pause() {
-        let typing = scene(14, 0.6);
+        let typing = scene(15, 0.6);
         assert!(typing.bell >= 2, "the bell counts them");
         assert_eq!(typing.digest, 0.0, "but nothing pops up");
-        let pause = scene(14, 1.0);
+        let pause = scene(15, 1.0);
         assert_eq!(pause.bell, 3);
         assert_eq!(pause.digest, 1.0);
     }
 
     #[test]
     fn workspaces_slide_and_the_bar_follows_the_press() {
-        let t = press_at(7, 0);
-        assert_eq!(scene(7, t - 0.01).bar_workspace, 0);
-        assert_eq!(scene(7, t + 0.001).bar_workspace, 1);
-        assert_eq!(scene(7, 0.333).camera, 1.0);
+        let t = press_at(8, 0);
+        assert_eq!(scene(8, t - 0.01).bar_workspace, 0);
+        assert_eq!(scene(8, t + 0.001).bar_workspace, 1);
+        assert_eq!(scene(8, 0.333).camera, 1.0);
     }
 
     #[test]
     fn trying_a_key_jumps_to_its_move() {
-        let t = practise(2, &Action::Focus(Direction::Right), 0.0).unwrap();
-        assert!(scene(2, t).key.is_some_and(|key| key.glow > 0.99), "lit");
+        let t = practise(3, &Action::Focus(Direction::Right), 0.0).unwrap();
+        assert!(scene(3, t).key.is_some_and(|key| key.glow > 0.99), "lit");
         assert_eq!(
-            practise(2, &Action::Minimise, 0.0),
+            practise(3, &Action::Minimise, 0.0),
             None,
             "not this lesson's key"
         );
-        assert_eq!(practise(12, &Action::Restore, 0.0), Some(press_at(12, 2)));
+        assert_eq!(practise(13, &Action::Restore, 0.0), Some(press_at(13, 2)));
         for step in 0..LESSONS.len() {
             for action in [Action::Explorer, Action::Maximise, Action::BulletTime] {
                 if let Some(t) = practise(step, &action, 0.0) {
@@ -1303,11 +1341,11 @@ mod tests {
 
     #[test]
     fn reduced_motion_holds_what_the_lesson_is_about() {
-        assert!(scene(8, LESSONS[8].still).zoom > 0.99, "in bullet time");
-        assert_eq!(scene(10, LESSONS[10].still).windows[2].at, FULL, "filled");
-        assert!(scene(11, LESSONS[11].still).windows[1].floating, "floating");
-        assert_eq!(scene(13, LESSONS[13].still).windows[4].dock, 1.0, "docked");
-        let gravity = scene(6, LESSONS[6].still);
+        assert!(scene(9, LESSONS[9].still).zoom > 0.99, "in bullet time");
+        assert_eq!(scene(11, LESSONS[11].still).windows[2].at, FULL, "filled");
+        assert!(scene(12, LESSONS[12].still).windows[1].floating, "floating");
+        assert_eq!(scene(14, LESSONS[14].still).windows[4].dock, 1.0, "docked");
+        let gravity = scene(7, LESSONS[7].still);
         assert!(
             gravity.choosing.is_some_and(|strip| strip.alpha == 1.0),
             "the arrangements on show"
@@ -1316,16 +1354,16 @@ mod tests {
 
     #[test]
     fn holding_super_and_tapping_t_goes_along_the_arrangements() {
-        let on = |t: f32| scene(6, t).choosing.unwrap();
+        let on = |t: f32| scene(7, t).choosing.unwrap();
         assert_eq!(on(0.0).alpha, 0.0, "nothing shows before the key");
-        let mut t = practise(6, &Action::ToggleGravity, 0.0).unwrap();
+        let mut t = practise(7, &Action::ToggleGravity, 0.0).unwrap();
         let mut seen = vec![on(t).selected];
         for _ in 0..2 {
-            t = practise(6, &Action::ToggleGravity, t).unwrap();
+            t = practise(7, &Action::ToggleGravity, t).unwrap();
             seen.push(on(t).selected);
         }
         assert_eq!(seen, [2, 3, 4], "centre, wide, spotlight");
-        let kept = scene(6, 1.0);
+        let kept = scene(7, 1.0);
         assert_eq!(
             kept.choosing.unwrap().alpha,
             0.0,
@@ -1345,37 +1383,37 @@ mod tests {
 
     #[test]
     fn the_dock_key_again_is_the_next_size() {
-        let first = practise(13, &Action::Dock, 0.0).unwrap();
-        assert_eq!(first, press_at(13, 0));
-        assert_eq!(practise(13, &Action::Dock, first), Some(press_at(13, 1)));
+        let first = practise(14, &Action::Dock, 0.0).unwrap();
+        assert_eq!(first, press_at(14, 0));
+        assert_eq!(practise(14, &Action::Dock, first), Some(press_at(14, 1)));
     }
 
     #[test]
     fn a_floated_window_leaves_its_tile_to_the_others() {
-        let before = scene(11, 0.0);
+        let before = scene(12, 0.0);
         assert!(!before.windows[1].floating);
-        let after = scene(11, 0.24);
+        let after = scene(12, 0.24);
         assert!(after.windows[1].floating);
         assert!(
             after.windows[2].at.h > before.windows[2].at.h,
             "its neighbour takes the room"
         );
-        let t = press_at(11, 3);
-        assert_eq!(scene(11, t - 0.01).focus, Some(1), "in the floating window");
-        assert_eq!(scene(11, t + 0.001).focus, Some(2), "down in the tiles");
+        let t = press_at(12, 3);
+        assert_eq!(scene(12, t - 0.01).focus, Some(1), "in the floating window");
+        assert_eq!(scene(12, t + 0.001).focus, Some(2), "down in the tiles");
     }
 
     #[test]
     fn a_docked_window_stays_put_while_the_workspace_changes() {
-        let docked = scene(13, 0.5);
-        let away = scene(13, 0.74);
+        let docked = scene(14, 0.5);
+        let away = scene(14, 0.74);
         assert_eq!(away.camera, 1.0, "on the next workspace");
         assert_eq!(away.windows[4].at, docked.windows[4].at);
         assert_eq!(away.windows[4].dock, 1.0);
         assert!(away.slot.is_some(), "its strip stays in the bar");
-        let small = scene(13, 0.24).windows[4].at;
+        let small = scene(14, 0.24).windows[4].at;
         assert!(docked.windows[4].at.w > small.w, "the next size is larger");
-        let down = scene(13, 1.0);
+        let down = scene(14, 1.0);
         assert_eq!(down.windows[4].dock, 0.0);
         assert_eq!(down.windows[4].workspace, 1, "down where it was looking");
         assert!(down.slot.is_none());
