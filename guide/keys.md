@@ -74,7 +74,8 @@ Super is not tapped for the explorer, and Ctrl+Space stays with input methods. T
 | Super+Shift+Return, Super+Shift+B | A new window of your default browser |
 | Super+Shift+F | Files |
 | Super+S | Settings |
-| Super+R | Reading mode: your book, full screen, on the workspace named Reading. Super+I in it brings out the chapters and the colours |
+| Super+R | Reading mode: your book, full screen, on the workspace named Reading. Ctrl+I in it brings out the chapters, the colours and the font |
+| Ctrl+H, Ctrl+Shift+H, Ctrl+D | In reading mode, with a Kobo: highlight the selection, add a note to it, bookmark the page |
 | Super+Shift+arrows | Move the window: it swaps places with the one that way |
 | Super+- and =, with Shift for height | Resize |
 | Super+T, Super+Shift+T or Super+Alt+V | Float the window or tile it; switch between floating and tiled windows |
