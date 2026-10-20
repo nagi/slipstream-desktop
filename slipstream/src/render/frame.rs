@@ -725,9 +725,15 @@ fn bar_elements(
     let mut elements = Vec::new();
     let content = bar_content(state, v.active, v.screen_index, v.first, used);
     let docked = content.dock.is_some();
-    let bar = chrome
-        .bar
-        .element(renderer, content, v.geo.size.w, v.scale.x, v.ui_alpha);
+    let explorer = &mut state.explorer;
+    let bar = chrome.bar.element(
+        renderer,
+        content,
+        v.geo.size.w,
+        v.scale.x,
+        v.ui_alpha,
+        &mut |name, px| explorer.named_icon(name, px),
+    );
     let (ring, reduced_motion, demand) = (
         state.ring_rgb,
         state.clock.reduced_motion,

@@ -193,6 +193,9 @@ fn bar_content(
         labels: (0..state.workspaces.count())
             .map(|index| state.workspaces.label(index))
             .collect(),
+        icons: (0..state.workspaces.count())
+            .map(|index| state.workspace_icon(index))
+            .collect(),
         // Each screen lists its own workspaces, except in bullet time, which pans across all. A
         // workspace set to hide while empty comes and goes with its windows, as an app's does,
         // but stays while it's on screen.
