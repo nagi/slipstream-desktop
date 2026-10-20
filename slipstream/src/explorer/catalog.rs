@@ -67,6 +67,42 @@ impl Explorer {
         self.app_for(id).map(|app| app.name)
     }
 
+    /// The icon name of the app with this app ID or X11 class or, failing that, of the app called
+    /// `name`, as a web app's entry is when its window class isn't written in it, or else of the
+    /// app that runs `program`.
+    pub fn icon_name_for(&self, class: &str, name: &str, program: &str) -> Option<String> {
+        let catalog = self.catalog.lock().unwrap();
+        let by_class = || {
+            catalog.apps.iter().find(|app| {
+                !class.is_empty()
+                    && (app.id.eq_ignore_ascii_case(class)
+                        || app
+                            .wm_class
+                            .as_deref()
+                            .is_some_and(|wm_class| wm_class.eq_ignore_ascii_case(class)))
+            })
+        };
+        let by_name = || {
+            catalog
+                .apps
+                .iter()
+                .find(|app| !name.is_empty() && app.name.eq_ignore_ascii_case(name))
+        };
+        let by_program = || {
+            catalog.apps.iter().find(|app| {
+                !program.is_empty()
+                    && app.exec.first().is_some_and(|exec| {
+                        std::path::Path::new(exec).file_name() == Some(program.as_ref())
+                    })
+            })
+        };
+        by_class()
+            .or_else(by_name)
+            .or_else(by_program)?
+            .icon
+            .clone()
+    }
+
     /// The icon of the app with this app ID or X11 class, `px` pixels square.
     pub fn app_icon(&mut self, id: &str, px: u32) -> Option<Pixmap> {
         let app = self

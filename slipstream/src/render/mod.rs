@@ -495,9 +495,15 @@ pub fn output_elements(
     if tiling_output && ui > 0.0 && !state.fullscreen_on(active) {
         let content = bar_content(state, active, screen_index, first_output, &used);
         let docked = content.dock.is_some();
-        let bar = chrome
-            .bar
-            .element(renderer, content, output_geo.size.w, scale.x, ui_alpha);
+        let explorer = &mut state.explorer;
+        let bar = chrome.bar.element(
+            renderer,
+            content,
+            output_geo.size.w,
+            scale.x,
+            ui_alpha,
+            &mut |name, px| explorer.named_icon(name, px),
+        );
         let (ring, still, demand) = (
             state.ring_rgb,
             state.clock.reduced_motion,
@@ -1824,6 +1830,9 @@ fn bar_content(
         keyboard_here,
         labels: (0..state.workspaces.count())
             .map(|index| state.workspaces.label(index))
+            .collect(),
+        icons: (0..state.workspaces.count())
+            .map(|index| state.workspace_icon(index))
             .collect(),
         // Each screen lists its own workspaces, except in bullet time, which pans across all. A
         // workspace set to hide while empty comes and goes with its windows, as an app's does,

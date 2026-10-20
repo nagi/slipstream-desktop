@@ -30,8 +30,13 @@ use crate::{
 pub const HEIGHT: i32 = 32;
 /// The same height in design pixels, which every size below is given in.
 const TALL: f32 = 40.0;
-/// The book that stands for reading mode's workspace, square.
+/// The book that stands for reading mode's workspace, square, and the app icon an app's
+/// workspace goes by.
 const BOOK_W: f32 = 20.0;
+/// How much of an app's icon shows, greyed, on a workspace that isn't the one highlighted: more
+/// when something's on it.
+const ICON_AWAY: f32 = 0.6;
+const ICON_EMPTY: f32 = 0.35;
 
 /// Everything the bar shows. It's repainted when this changes.
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -52,6 +57,9 @@ pub struct Content {
     pub keyboard_here: bool,
     /// One per workspace: its name, or its number.
     pub labels: Vec<String>,
+    /// One per workspace: the icon of the app kept there, by icon name or path, which the bar
+    /// shows instead of the name. Shorter than `labels` (empty, say) gives none past its end.
+    pub icons: Vec<Option<String>>,
     /// One per workspace: whether it's pinned to another screen, so this bar leaves it out.
     /// Shorter than `labels` (empty, say) hides none past its end.
     pub hidden: Vec<bool>,
@@ -166,6 +174,7 @@ impl Bar {
         width: i32,
         scale: f64,
         alpha: f32,
+        icon: &mut dyn FnMut(&str, u32) -> Option<Pixmap>,
     ) -> Option<MemoryRenderBufferRenderElement<R>>
     where
         R: Renderer + ImportMem,
@@ -173,7 +182,7 @@ impl Bar {
     {
         let key = (content, width, scale);
         if self.shown.as_ref() != Some(&key) {
-            let (pixmap, targets) = paint(&key.0, width, scale)?;
+            let (pixmap, targets) = paint_with(&key.0, width, scale, icon)?;
             let size = Size::from((pixmap.width() as i32, pixmap.height() as i32));
             self.buffer = Some((paint::buffer(&pixmap), size));
             self.targets = targets;
@@ -229,8 +238,39 @@ fn live() -> u32 {
 /// The alpha of the faint pills that say a state is on: Caps Lock, Awake, sharing.
 const PILL: u32 = 0x24;
 
-/// Paints the bar for a screen `width` logical pixels wide, and says where its buttons are.
+/// An app's icon as it shows on a workspace that isn't highlighted: grey, and `alpha` as strong.
+fn greyed(icon: &Pixmap, alpha: f32) -> Option<Pixmap> {
+    let mut out = icon.clone();
+    for pixel in out.pixels_mut() {
+        // Premultiplied, so the grey stays inside the alpha it's scaled with.
+        let grey =
+            0.3 * pixel.red() as f32 + 0.59 * pixel.green() as f32 + 0.11 * pixel.blue() as f32;
+        let grey = (grey * alpha).round() as u8;
+        let a = (pixel.alpha() as f32 * alpha).round() as u8;
+        *pixel = resvg::tiny_skia::PremultipliedColorU8::from_rgba(
+            grey.min(a),
+            grey.min(a),
+            grey.min(a),
+            a,
+        )?;
+    }
+    Some(out)
+}
+
+/// Paints the bar with no app icons, as the tests look at it.
+#[cfg(test)]
 fn paint(content: &Content, width: i32, scale: f64) -> Option<(Pixmap, Targets)> {
+    paint_with(content, width, scale, &mut |_, _| None)
+}
+
+/// Paints the bar for a screen `width` logical pixels wide, and says where its buttons are.
+/// `icon` rasterises an app's icon by name, so many device pixels square.
+fn paint_with(
+    content: &Content,
+    width: i32,
+    scale: f64,
+    icon: &mut dyn FnMut(&str, u32) -> Option<Pixmap>,
+) -> Option<(Pixmap, Targets)> {
     let device_w = (width as f64 * scale).round() as u32;
     let device_h = (HEIGHT as f64 * scale).round() as u32;
     let f = device_h as f32 / TALL;
@@ -282,9 +322,18 @@ fn paint(content: &Content, width: i32, scale: f64) -> Option<(Pixmap, Targets)>
     let listed: Vec<usize> = (0..content.labels.len())
         .filter(|index| !content.hidden.get(*index).copied().unwrap_or(false))
         .collect();
+    // An app's workspace goes by the app's icon, when there is one to draw.
+    let icon_px = (BOOK_W * f).round() as u32;
+    let app_icons: Vec<Option<Pixmap>> = (0..content.labels.len())
+        .map(|index| {
+            let name = content.icons.get(index)?.as_deref()?;
+            listed.contains(&index).then(|| icon(name, icon_px))?
+        })
+        .collect();
     let widths: Vec<f32> = listed
         .iter()
         .map(|index| match content.labels[*index].as_str() {
+            _ if app_icons[*index].is_some() => BOOK_W,
             crate::state::READING => BOOK_W,
             label => text::width(label, &Style::new(Face::Mono, 15.0, 0)),
         })
@@ -306,8 +355,9 @@ fn paint(content: &Content, width: i32, scale: f64) -> Option<(Pixmap, Targets)>
         };
         let style = Style::new(Face::Mono, 15.0, color);
         // Reading mode's workspace goes by a book, named or not.
-        let book = content.labels[index] == crate::state::READING;
-        let label_w = if book {
+        let app_icon = app_icons[index].as_ref();
+        let book = app_icon.is_none() && content.labels[index] == crate::state::READING;
+        let label_w = if book || app_icon.is_some() {
             BOOK_W
         } else {
             text::width(&label, &style)
@@ -324,7 +374,19 @@ fn paint(content: &Content, width: i32, scale: f64) -> Option<(Pixmap, Targets)>
         if content.home == Some(index) {
             p.border(x, 7.0, w, 26.0, 6.0, 1.0, home_ring());
         }
-        if book {
+        if let Some(app_icon) = app_icon {
+            // In colour on the workspace highlighted; grey on the rest.
+            let (ix, iy) = (x + (w - BOOK_W) / 2.0, 10.0);
+            if on {
+                p.image(app_icon, ix, iy);
+            } else {
+                let occupied = content.occupied.get(index).copied().unwrap_or(false);
+                let alpha = if occupied { ICON_AWAY } else { ICON_EMPTY };
+                if let Some(grey) = greyed(app_icon, alpha) {
+                    p.image(&grey, ix, iy);
+                }
+            }
+        } else if book {
             p.icon(
                 icons::BOOK,
                 x + (w - BOOK_W) / 2.0,
@@ -647,6 +709,7 @@ mod tests {
             elsewhere: vec![false; 5],
             keyboard_here: true,
             labels: (1..=5).map(|n| n.to_string()).collect(),
+            icons: Vec::new(),
             hidden: Vec::new(),
             title: "Firefox".into(),
             mode: Some(("BULLET TIME", amber())),
@@ -991,6 +1054,64 @@ mod tests {
         };
         assert!(width(crate::state::READING) < width("Studying"));
         assert!((width(crate::state::READING) - width("1")).abs() < 6.0);
+    }
+
+    #[test]
+    fn an_apps_workspace_goes_by_its_icon_in_colour_only_when_highlighted() {
+        let content = |active| Content {
+            labels: vec!["1".into(), "Chrome".into(), "Nothing".into()],
+            icons: vec![None, Some("chromium".into()), Some("missing".into())],
+            occupied: vec![true; 3],
+            elsewhere: vec![false; 3],
+            active,
+            ..content()
+        };
+        let red = |name: &str, px: u32| {
+            let mut pixmap = Pixmap::new(px, px)?;
+            (name == "chromium")
+                .then(|| pixmap.fill(resvg::tiny_skia::Color::from_rgba8(255, 0, 0, 255)))?;
+            Some(pixmap)
+        };
+        let paint =
+            |active| paint_with(&content(active), 1536, 1.25, &mut |n, px| red(n, px)).unwrap();
+        let width = |targets: &Targets, index| {
+            targets
+                .iter()
+                .find(|(target, _)| *target == Target::Workspace(index))
+                .map(|(_, area)| area.size.w)
+                .unwrap()
+        };
+        // Within workspace 1's button only.
+        let reddest = |pixmap: &Pixmap, targets: &Targets| {
+            let area = targets
+                .iter()
+                .find(|(target, _)| *target == Target::Workspace(1))
+                .map(|(_, area)| *area)
+                .unwrap();
+            let (left, right) = (
+                (area.loc.x * 1.25) as u32,
+                ((area.loc.x + area.size.w) * 1.25) as u32,
+            );
+            (left..right)
+                .flat_map(|x| (0..pixmap.height()).map(move |y| (x, y)))
+                .filter_map(|(x, y)| pixmap.pixel(x, y))
+                .map(|px| px.red() as i32 - px.green() as i32)
+                .max()
+                .unwrap()
+        };
+        let (on, targets) = paint(1);
+        let (_, by_name) = paint_with(&content(1), 1536, 1.25, &mut |_, _| None).unwrap();
+        assert!(
+            width(&targets, 1) < width(&by_name, 1),
+            "the icon is narrower than the name"
+        );
+        assert!(
+            (width(&targets, 2) - width(&by_name, 2)).abs() < 0.01,
+            "no icon, so the name"
+        );
+        assert!(reddest(&on, &targets) > 200, "in colour while highlighted");
+        let (away, targets) = paint(0);
+        assert!(reddest(&away, &targets) < 30, "grey otherwise");
     }
 
     #[test]

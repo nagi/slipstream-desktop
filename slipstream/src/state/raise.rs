@@ -32,6 +32,29 @@ impl Slipstream {
             .collect()
     }
 
+    /// The icon workspace `index` goes by on the bar, when a run-or-raise app is kept there: the
+    /// app's own, from its desktop entry (found by its window class, its name or its command), or
+    /// one named after its window class.
+    pub fn workspace_icon(&self, index: usize) -> Option<String> {
+        let target = self
+            .raise_targets
+            .iter()
+            .flatten()
+            .find(|target| self.workspaces.named(&target.workspace) == Some(index))?;
+        let class = &target.matcher.class;
+        let program = match &target.start {
+            Start::Shell(command) => command
+                .split_whitespace()
+                .next()
+                .and_then(|word| word.rsplit('/').next())
+                .unwrap_or_default(),
+            Start::App(_) => "",
+        };
+        self.explorer
+            .icon_name_for(class, &target.workspace, program)
+            .or_else(|| (!class.is_empty()).then(|| class.clone()))
+    }
+
     /// The run-or-raise app at `index`'s workspace, by name, or a toast saying it isn't there.
     fn raise_workspace(&mut self, index: u8) -> Option<(Target, usize)> {
         let target = self.raise_targets.get(usize::from(index))?.clone()?;

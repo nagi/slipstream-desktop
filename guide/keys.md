@@ -165,4 +165,4 @@ name = "Discord"
 hide-when-empty = true
 ```
 
-The workspace named Reading is shown on the bar as a book.
+The workspace named Reading is shown on the bar as a book, and a run-or-raise app's workspace as that app's icon: in colour while it's the one you're on, grey otherwise. The icon comes from the app's desktop entry, found by its `class`, by the workspace's name (so a web app called Discord finds Discord's entry) or by the program its `command` runs; with none found, the workspace keeps its name.
