@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Switch to Omarchy
+Comment=Log out and back in to Omarchy (Hyprland)
+Exec=/home/nagi/.local/bin/desktop-switch omarchy
+Icon=system-log-out
+Terminal=false
+OnlyShowIn=Slipstream;

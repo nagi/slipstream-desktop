@@ -1,0 +1,2 @@
+# Lets nagi point SDDM's autologin at Omarchy or Slipstream without a password.
+nagi ALL=(root) NOPASSWD: /usr/local/bin/slipstream-set-autologin omarchy, /usr/local/bin/slipstream-set-autologin slipstream

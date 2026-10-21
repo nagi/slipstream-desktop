@@ -1,0 +1,22 @@
+#!/bin/sh
+# Switches between Omarchy and Slipstream: points SDDM's autologin at the other one and logs out,
+# and SDDM logs straight back in to it. Run with no argument to go to whichever you're not in, or
+# name one; add --no-logout to only change where the next login goes. The choice sticks across
+# reboots.
+set -eu
+current=${XDG_SESSION_DESKTOP:-}
+case ${1:-} in
+    omarchy | slipstream) target=$1 ;;
+    "") if [ "$current" = slipstream ]; then target=omarchy; else target=slipstream; fi ;;
+    *) echo "usage: desktop-switch [omarchy|slipstream] [--no-logout]" >&2; exit 2 ;;
+esac
+sudo -n /usr/local/bin/slipstream-set-autologin "$target"
+[ "${2:-}" = --no-logout ] && exit 0
+if [ "$current" = slipstream ] || [ -z "${WAYLAND_DISPLAY:-}" ]; then
+    # Slipstream, or a text console: end this login's graphical session.
+    session=$(loginctl show-user "$(id -un)" -p Display --value)
+    exec loginctl terminate-session "$session"
+else
+    # Omarchy's own logout closes apps gracefully first, then stops uwsm.
+    exec omarchy-system-logout
+fi
