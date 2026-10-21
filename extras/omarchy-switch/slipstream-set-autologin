@@ -1,0 +1,18 @@
+#!/bin/sh
+# Points SDDM's autologin at Omarchy or Slipstream. Root-owned, and the only thing the sudoers rule
+# in /etc/sudoers.d/slipstream-switch lets you run without a password, so it takes one word and
+# rewrites one line.
+set -eu
+conf=/etc/sddm.conf.d/autologin.conf
+case ${1:-} in
+    omarchy) session=omarchy.desktop ;;
+    slipstream) session=slipstream.desktop ;;
+    *) echo "usage: slipstream-set-autologin omarchy|slipstream" >&2; exit 2 ;;
+esac
+[ -f "$conf" ] || { echo "slipstream-set-autologin: $conf isn't there" >&2; exit 1; }
+grep -q '^Session=' "$conf" || { echo "slipstream-set-autologin: no Session= line in $conf" >&2; exit 1; }
+tmp=$(mktemp /etc/sddm.conf.d/.autologin.XXXXXX)
+sed "s/^Session=.*/Session=$session/" "$conf" > "$tmp"
+chmod 644 "$tmp"
+mv -f "$tmp" "$conf"
+echo "Autologin now goes to $session"
