@@ -556,8 +556,8 @@ find_autologin() {
                 # can't work there. extras/omarchy-switch adds a switch either way instead.
                 if [ -d "$root/usr/share/sddm/themes/omarchy" ]; then
                     if [ -x "$root/usr/local/bin/slipstream-set-autologin" ]; then
-                        autologin_note="desktop-switch moves between Omarchy and Slipstream (Hyper+S in
-    Omarchy, \"Switch to Omarchy\" in Slipstream)."
+                        autologin_note="Ctrl+Alt+Delete switches: in Omarchy straight to Slipstream, in
+    Slipstream through the way out (O for Omarchy)."
                     else
                         autologin_note="Omarchy's login screen can't choose a session. Run
     extras/omarchy-switch/install to switch between Omarchy and Slipstream with one key."
