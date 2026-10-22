@@ -31,7 +31,7 @@ pub enum Power {
 impl Power {
     pub fn for_intent(intent: Intent) -> Option<Self> {
         match intent {
-            Intent::LogOut => None,
+            Intent::LogOut | Intent::Omarchy => None,
             Intent::Restart => Some(Power::Restart),
             Intent::ShutDown => Some(Power::ShutDown),
         }

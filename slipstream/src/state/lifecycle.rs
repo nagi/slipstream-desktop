@@ -50,6 +50,7 @@ impl Slipstream {
             wall,
             self.clock.reduced_motion,
             self.settings.session.remember,
+            std::path::Path::new(crate::exit::OMARCHY_SWITCH).exists(),
         ));
     }
 
@@ -858,6 +859,22 @@ impl Slipstream {
                         tracing::info!("logging out");
                         self.loop_signal.stop();
                     }
+                    // Point the next automatic login at Omarchy, then log out as above; SDDM
+                    // logs straight back in there. If the switch says no, logging out would
+                    // only come back to Slipstream, so the session stays and says why.
+                    Intent::Omarchy => match switch_to_omarchy() {
+                        Ok(()) => {
+                            tracing::info!("logging out to Omarchy");
+                            self.loop_signal.stop();
+                        }
+                        Err(why) => {
+                            tracing::warn!("couldn't switch to Omarchy: {why}");
+                            self.exit = None;
+                            self.exit_record = None;
+                            self.wake_ui();
+                            self.notify_self("Couldn't switch to Omarchy", &why, false);
+                        }
+                    },
                     // These end the session the same way, having asked every app first.
                     Intent::Restart | Intent::ShutDown => {
                         if let Some(power) = crate::power::Power::for_intent(intent) {
@@ -947,4 +964,26 @@ fn with_agent_session(win: session::Win, agent: Option<resume::Session>) -> sess
         search_path: agent.search_path,
         ..win
     }
+}
+
+/// Asks extras/omarchy-switch's helper, through the sudo rule it installed, to point the next
+/// automatic login at Omarchy.
+fn switch_to_omarchy() -> Result<(), String> {
+    let output = crate::launch::command("sudo")
+        .args(["-n", crate::exit::OMARCHY_SWITCH, "omarchy"])
+        .output()
+        .map_err(|err| format!("couldn't run sudo: {err}"))?;
+    if output.status.success() {
+        return Ok(());
+    }
+    let said = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    Err(if said.is_empty() {
+        format!(
+            "{} exited with {}",
+            crate::exit::OMARCHY_SWITCH,
+            output.status
+        )
+    } else {
+        said
+    })
 }

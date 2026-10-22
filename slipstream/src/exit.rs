@@ -1,9 +1,10 @@
-//! The way out: Lock, Log out, Restart and Shut down all come through here.
+//! The way out: Lock, Log out, Restart and Shut down all come through here, and Log out to
+//! Omarchy where extras/omarchy-switch is installed.
 //!
-//! Ctrl+Alt+Del opens it on a chooser; quick settings' power buttons skip the chooser and name
-//! their destination outright.
+//! Ctrl+Alt+Del opens it on a chooser, where each way out has a letter of its own as well as a
+//! row; quick settings' power buttons skip the chooser and name their destination outright.
 //!
-//! One state machine, one overlay, four destinations. It asks first, then asks every window to
+//! One state machine, one overlay, a handful of destinations. It asks first, then asks every window to
 //! close and gives the apps a moment to take it — a moment it spends *out of the way*, taking no
 //! keys, so an app's own "save changes?" prompt can be answered. Anything still there when the
 //! grace runs out is named, and the answer is to go anyway, to stay, or to wait a little longer.
@@ -42,10 +43,16 @@ const MAX_ROWS: usize = 8;
 const SLIM_WIDTH: f32 = 440.0;
 const SLIM_TOP: f32 = panel::TOP;
 
+/// The helper extras/omarchy-switch installs, which points SDDM's automatic login at Omarchy or
+/// Slipstream. Where it is, the chooser offers Log out to Omarchy.
+pub const OMARCHY_SWITCH: &str = "/usr/local/bin/slipstream-set-autologin";
+
 /// Where the session is going.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Intent {
     LogOut,
+    /// Log out, with the next automatic login pointed at Omarchy.
+    Omarchy,
     Restart,
     ShutDown,
 }
@@ -55,6 +62,7 @@ impl Intent {
     fn title(self) -> &'static str {
         match self {
             Intent::LogOut => "Log out",
+            Intent::Omarchy => "Log out to Omarchy",
             Intent::Restart => "Restart",
             Intent::ShutDown => "Shut down",
         }
@@ -64,6 +72,7 @@ impl Intent {
     pub fn verb(self) -> &'static str {
         match self {
             Intent::LogOut => "log out",
+            Intent::Omarchy => "log out to Omarchy",
             Intent::Restart => "restart",
             Intent::ShutDown => "shut down",
         }
@@ -76,12 +85,46 @@ impl Intent {
 enum Way {
     Lock,
     LogOut,
+    Omarchy,
     Restart,
     ShutDown,
 }
 
 impl Way {
-    const ALL: [Way; 4] = [Way::Lock, Way::LogOut, Way::Restart, Way::ShutDown];
+    /// The rows, in order. Log out to Omarchy only where the switch is installed.
+    fn all(omarchy: bool) -> Vec<Way> {
+        let mut ways = vec![Way::Lock, Way::LogOut];
+        if omarchy {
+            ways.push(Way::Omarchy);
+        }
+        ways.extend([Way::Restart, Way::ShutDown]);
+        ways
+    }
+
+    /// The letter that picks it on the chooser, shown at the row's right.
+    fn key(self) -> char {
+        match self {
+            Way::Lock => 'k',
+            Way::LogOut => 'l',
+            Way::Omarchy => 'o',
+            Way::Restart => 'r',
+            Way::ShutDown => 's',
+        }
+    }
+
+    /// The way a letter key picks, upper or lower case.
+    fn for_key(sym: Keysym) -> Option<Way> {
+        let letter = sym.key_char()?.to_ascii_lowercase();
+        [
+            Way::Lock,
+            Way::LogOut,
+            Way::Omarchy,
+            Way::Restart,
+            Way::ShutDown,
+        ]
+        .into_iter()
+        .find(|way| way.key() == letter)
+    }
 
     /// The row's name.
     fn name(self) -> &'static str {
@@ -93,6 +136,7 @@ impl Way {
         match self {
             Way::Lock => "everything keeps running",
             Way::LogOut => "closes every window",
+            Way::Omarchy => "closes every window and logs in to Omarchy",
             Way::Restart => "closes everything and starts again",
             Way::ShutDown => "closes everything and powers off",
         }
@@ -103,6 +147,7 @@ impl Way {
         match self {
             Way::Lock => None,
             Way::LogOut => Some(Intent::LogOut),
+            Way::Omarchy => Some(Intent::Omarchy),
             Way::Restart => Some(Intent::Restart),
             Way::ShutDown => Some(Intent::ShutDown),
         }
@@ -175,6 +220,8 @@ enum Shape {
 pub struct Exit<W> {
     intent: Intent,
     phase: Phase,
+    /// The chooser's rows.
+    ways: Vec<Way>,
     /// Every window that was open when the overlay started, in the order they're named.
     asked: Vec<Open<W>>,
     /// Those of them still open, refreshed every pass.
@@ -212,16 +259,25 @@ impl<W: Clone + PartialEq> Exit<W> {
     }
 
     /// The overlay on its chooser: every way out, nothing decided yet. Lock is the row the
-    /// keyboard starts on, so Ctrl+Alt+Del then Enter is the harmless answer.
-    pub fn choosing(open: Vec<Open<W>>, now: f64, reduced_motion: bool, remember: bool) -> Self {
-        Self::in_phase(
+    /// keyboard starts on, so Ctrl+Alt+Del then Enter is the harmless answer. `omarchy` adds Log
+    /// out to Omarchy.
+    pub fn choosing(
+        open: Vec<Open<W>>,
+        now: f64,
+        reduced_motion: bool,
+        remember: bool,
+        omarchy: bool,
+    ) -> Self {
+        let mut exit = Self::in_phase(
             Phase::Choosing { selected: 0 },
             Intent::LogOut,
             open,
             now,
             reduced_motion,
             remember,
-        )
+        );
+        exit.ways = Way::all(omarchy);
+        exit
     }
 
     fn in_phase(
@@ -235,6 +291,7 @@ impl<W: Clone + PartialEq> Exit<W> {
         Self {
             intent,
             phase,
+            ways: Way::all(false),
             left: open.clone(),
             asked: open,
             prompting: Vec::new(),
@@ -336,22 +393,30 @@ impl<W: Clone + PartialEq> Exit<W> {
 
     /// A key while the overlay is modal. Enter goes on, Esc stays, whichever card is up.
     pub fn key(&mut self, sym: Keysym, now: f64) -> Act<W> {
-        // The chooser moves with the arrows and Tab, as every other list does, and takes no
-        // letter keys: `W` and `R` belong to the cards further on.
+        // The chooser moves with the arrows and Tab, as every other list does, and each row's
+        // letter picks it outright, as Enter on it would. Nothing past Lock ends anything yet:
+        // the card that asks still wants Enter.
         if let Phase::Choosing { selected } = self.phase {
-            let step = |by: isize| {
-                let count = Way::ALL.len() as isize;
-                (selected as isize + by).rem_euclid(count) as usize
-            };
+            let count = self.ways.len();
+            let step = |by: isize| (selected as isize + by).rem_euclid(count as isize) as usize;
             let moved = match sym {
                 Keysym::Down | Keysym::Tab => Some(step(1)),
                 Keysym::Up | Keysym::ISO_Left_Tab => Some(step(-1)),
                 Keysym::Home => Some(0),
-                Keysym::End => Some(Way::ALL.len() - 1),
+                Keysym::End => Some(count - 1),
                 _ => None,
             };
             if let Some(selected) = moved {
                 self.phase = Phase::Choosing { selected };
+                return Act::Nothing;
+            }
+            let picked = Way::for_key(sym).and_then(|way| self.ways.iter().position(|&w| w == way));
+            if let Some(row) = picked {
+                self.phase = Phase::Choosing { selected: row };
+                return self.press(Button::Go, now);
+            }
+            // Other letters do nothing here: `W` belongs to the cards further on.
+            if !matches!(sym, Keysym::Return | Keysym::KP_Enter | Keysym::Escape) {
                 return Act::Nothing;
             }
         }
@@ -378,7 +443,7 @@ impl<W: Clone + PartialEq> Exit<W> {
                 Act::Nothing
             }
             (Phase::Choosing { selected }, Button::Go | Button::Row(_)) => {
-                let way = Way::ALL[selected];
+                let way = self.ways[selected];
                 tracing::info!(way = way.name(), "the way out: chosen");
                 match way.intent() {
                     // Locking asks nothing further: nothing closes, so there is nothing to warn
@@ -507,12 +572,13 @@ impl<W: Clone + PartialEq> Exit<W> {
         Card {
             title: "Way out".to_string(),
             note: "Choose what to do with this session.".to_string(),
-            rows: Way::ALL
+            rows: self
+                .ways
                 .iter()
                 .map(|way| Row {
                     name: way.name().to_string(),
                     title: way.note().to_string(),
-                    note: None,
+                    note: Some((way.key().to_ascii_uppercase().to_string(), panel::hint())),
                 })
                 .collect(),
             more: None,
@@ -526,7 +592,7 @@ impl<W: Clone + PartialEq> Exit<W> {
                 },
                 Btn {
                     which: Button::Go,
-                    label: Way::ALL[selected].name().to_string(),
+                    label: self.ways[selected].name().to_string(),
                     key: "⏎".to_string(),
                     primary: true,
                 },
@@ -762,13 +828,18 @@ mod tests {
     const RING: u32 = 0x7fe3ffcc;
 
     fn chooser() -> Exit<u32> {
-        Exit::choosing(vec![open(1, "Konsole")], 0.0, false, false)
+        Exit::choosing(vec![open(1, "Konsole")], 0.0, false, false, false)
+    }
+
+    /// The chooser where extras/omarchy-switch is installed.
+    fn chooser_with_omarchy() -> Exit<u32> {
+        Exit::choosing(vec![open(1, "Konsole")], 0.0, false, false, true)
     }
 
     /// Which row the chooser is on, by name.
     fn on(exit: &Exit<u32>) -> &'static str {
         match exit.phase {
-            Phase::Choosing { selected } => Way::ALL[selected].name(),
+            Phase::Choosing { selected } => exit.ways[selected].name(),
             other => panic!("not choosing: {other:?}"),
         }
     }
@@ -839,12 +910,69 @@ mod tests {
     }
 
     #[test]
-    fn the_chooser_takes_no_letter_keys() {
+    fn each_row_has_a_letter_that_picks_it() {
         let mut exit = chooser();
-        // `W` and `R` answer the cards further on; here they must not.
+        // A letter goes where Enter on its row would: on to the card that still asks.
+        assert_eq!(exit.key(Keysym::s, 0.0), Act::Nothing);
+        assert_eq!(exit.phase, Phase::Asking);
+        assert_eq!(exit.intent, Intent::ShutDown);
+        let mut exit = chooser();
+        assert_eq!(exit.key(Keysym::R, 0.0), Act::Nothing, "upper case too");
+        assert_eq!(exit.intent, Intent::Restart);
+        let mut exit = chooser();
+        exit.key(Keysym::l, 0.0);
+        assert_eq!(exit.intent, Intent::LogOut);
+        assert_eq!(exit.phase, Phase::Asking);
+        // Lock asks nothing further, as with Enter.
+        assert_eq!(chooser().key(Keysym::k, 0.0), Act::Lock);
+    }
+
+    #[test]
+    fn other_letters_do_nothing_on_the_chooser() {
+        let mut exit = chooser();
+        // `W` answers a card further on; here it must not. Nor does Omarchy's letter without
+        // the switch installed.
         assert_eq!(exit.key(Keysym::w, 0.0), Act::Nothing);
-        assert_eq!(exit.key(Keysym::r, 0.0), Act::Nothing);
+        assert_eq!(exit.key(Keysym::o, 0.0), Act::Nothing);
         assert_eq!(on(&exit), "Lock");
+    }
+
+    #[test]
+    fn the_rows_show_their_letters() {
+        let exit = chooser_with_omarchy();
+        let Shape::Card(card) = exit.shape(0.0, RING) else {
+            panic!("the card should be up");
+        };
+        let keys: Vec<&str> = card
+            .rows
+            .iter()
+            .map(|row| row.note.as_ref().unwrap().0.as_str())
+            .collect();
+        assert_eq!(keys, ["K", "L", "O", "R", "S"]);
+    }
+
+    #[test]
+    fn log_out_to_omarchy_is_offered_only_with_the_switch() {
+        let names =
+            |exit: &Exit<u32>| -> Vec<&str> { exit.ways.iter().map(|w| w.name()).collect() };
+        assert!(!names(&chooser()).contains(&"Log out to Omarchy"));
+        let mut exit = chooser_with_omarchy();
+        assert_eq!(
+            names(&exit),
+            [
+                "Lock",
+                "Log out",
+                "Log out to Omarchy",
+                "Restart",
+                "Shut down"
+            ]
+        );
+        exit.key(Keysym::o, 0.0);
+        assert_eq!(exit.intent, Intent::Omarchy);
+        let Shape::Card(card) = exit.shape(0.0, RING) else {
+            panic!("the card should be up");
+        };
+        assert_eq!(card.title, "Log out to Omarchy");
     }
 
     #[test]
