@@ -552,6 +552,17 @@ find_autologin() {
                 autologin="$fa_user, straight into ${fa_session:-its default session}"
                 autologin_note="Set Session=slipstream.desktop in $dm's [Autologin] section to log
     straight into Slipstream instead, or remove the [Autologin] section to get the list back."
+                # Omarchy's login theme has no session list to get back, so the advice above
+                # can't work there. extras/omarchy-switch adds a switch either way instead.
+                if [ -d "$root/usr/share/sddm/themes/omarchy" ]; then
+                    if [ -x "$root/usr/local/bin/slipstream-set-autologin" ]; then
+                        autologin_note="desktop-switch moves between Omarchy and Slipstream (Hyper+S in
+    Omarchy, \"Switch to Omarchy\" in Slipstream)."
+                    else
+                        autologin_note="Omarchy's login screen can't choose a session. Run
+    extras/omarchy-switch/install to switch between Omarchy and Slipstream with one key."
+                    fi
+                fi
             fi
             ;;
         gdm)

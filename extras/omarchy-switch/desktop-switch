@@ -2,21 +2,50 @@
 # Switches between Omarchy and Slipstream: points SDDM's autologin at the other one and logs out,
 # and SDDM logs straight back in to it. Run with no argument to go to whichever you're not in, or
 # name one; add --no-logout to only change where the next login goes. The choice sticks across
-# reboots.
+# reboots. Installed by extras/omarchy-switch/install.
 set -eu
-current=${XDG_SESSION_DESKTOP:-}
-case ${1:-} in
-    omarchy | slipstream) target=$1 ;;
-    "") if [ "$current" = slipstream ]; then target=omarchy; else target=slipstream; fi ;;
-    *) echo "usage: desktop-switch [omarchy|slipstream] [--no-logout]" >&2; exit 2 ;;
-esac
+usage() { echo "usage: desktop-switch [omarchy|slipstream] [--no-logout]" >&2; exit 2; }
+# Which desktop is running, asked of logind rather than read from the environment: a terminal
+# Omarchy started outlives its session (uwsm runs apps outside it), and still says Hyprland
+# after a switch to Slipstream.
+display=$(loginctl show-user "$(id -un)" -p Display --value 2>/dev/null || true)
+current=
+if [ -n "$display" ]; then
+    # Omarchy's session file names no desktop, so anything else running counts as Omarchy.
+    case $(loginctl show-session "$display" -p Desktop --value 2>/dev/null || true) in
+        [Ss]lipstream) current=slipstream ;;
+        *) current=omarchy ;;
+    esac
+fi
+target=
+logout=yes
+for arg in "$@"; do
+    case $arg in
+        omarchy | slipstream) target=$arg ;;
+        --no-logout) logout=no ;;
+        *) usage ;;
+    esac
+done
+if [ -z "$target" ]; then
+    if [ "$current" = slipstream ]; then target=omarchy; else target=slipstream; fi
+fi
 sudo -n /usr/local/bin/slipstream-set-autologin "$target"
-[ "${2:-}" = --no-logout ] && exit 0
-if [ "$current" = slipstream ] || [ -z "${WAYLAND_DISPLAY:-}" ]; then
-    # Slipstream, or a text console: end this login's graphical session.
-    session=$(loginctl show-user "$(id -un)" -p Display --value)
-    exec loginctl terminate-session "$session"
+[ "$logout" = yes ] || exit 0
+# Each way out stops only the compositor, so the session ends as a normal logout. Ending the
+# whole login (loginctl terminate-session) also kills SDDM's helper, whose exit SDDM then takes
+# for a failed password, and it never logs back in.
+if [ "$current" = slipstream ]; then
+    # Slipstream shuts down cleanly on SIGTERM, and its session launcher then exits.
+    exec pkill -TERM -u "$(id -u)" -f '/slipstream --session$'
+elif [ "$current" = omarchy ]; then
+    # Omarchy's own logout closes apps gracefully first, then stops uwsm. It needs to reach
+    # Hyprland, which a leftover terminal may not; uwsm stop alone still logs out.
+    if hyprctl version >/dev/null 2>&1; then
+        exec omarchy-system-logout
+    fi
+    exec uwsm stop
 else
-    # Omarchy's own logout closes apps gracefully first, then stops uwsm.
-    exec omarchy-system-logout
+    # No desktop running, as on a text console after a failed start: start SDDM afresh, which
+    # logs straight in to the new choice.
+    exec sudo -n /usr/bin/systemctl restart sddm
 fi
