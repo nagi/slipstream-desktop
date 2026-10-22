@@ -76,7 +76,7 @@ extras/omarchy-switch/install              # or --uninstall to take it all out a
 | `/etc/sddm.conf.d/zz-slipstream-switch.conf` | `[Autologin] Relogin=true`, so a logout autologins again into whatever `Session=` now says. Also `[Theme] Current=omarchy-slipstream`. Named `zz-` so it's read after `autologin.conf`, which on a fresh Omarchy also sets a theme. |
 | `/usr/share/sddm/themes/omarchy-slipstream` | Omarchy's login theme with F2 to cycle sessions (`extras/omarchy-switch/login-theme`). Only seen if automatic login is ever turned off. |
 | `~/.local/bin/desktop-switch [omarchy\|slipstream]` | Calls the helper, then ends the desktop the way its own logout does. In Omarchy, `omarchy-system-logout` (closes apps gracefully, then `uwsm stop`). In Slipstream, SIGTERM to the compositor, which shuts down cleanly. On a text console, `systemctl restart sddm` (also allowed by the sudoers rule), since there's no desktop to end. Never `loginctl terminate-session`: that kills SDDM's helper too, whose exit code 1 SDDM reads as a wrong password, so it neither logs back in nor shows a login screen. |
-| Hyper+S (`CONTROL + SUPER + ALT + S`) at the end of `~/.config/hypr/bindings.lua` | Omarchy → Slipstream. |
+| Ctrl+Alt+Delete at the end of `~/.config/hypr/bindings.lua` | Omarchy → Slipstream. Unbinds Omarchy's own Ctrl+Alt+Delete (close all windows) first; the logout closes them anyway. Slipstream → Omarchy is Ctrl+Alt+Delete there too, then O on the way out. |
 | `~/.local/share/applications/desktop-switch-omarchy.desktop` | "Switch to Omarchy" in Slipstream's app explorer (`OnlyShowIn=Slipstream`), for the way back. |
 
 The choice persists, so after a reboot you land in whichever desktop you were last in. No reboot

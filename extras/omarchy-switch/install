@@ -2,7 +2,7 @@
 # Sets up switching between Omarchy and Slipstream on an Omarchy machine, where SDDM logs you in
 # automatically and its login screen can't choose a session. Afterwards:
 #
-#   Hyper+S (Ctrl+Super+Alt+S) in Omarchy     log out and straight back in to Slipstream
+#   Ctrl+Alt+Delete in Omarchy                log out and straight back in to Slipstream
 #   "Switch to Omarchy" in Slipstream's apps  log out and straight back in to Omarchy
 #   desktop-switch [omarchy|slipstream]       either, from a terminal or a text console
 #
@@ -24,8 +24,9 @@
 #   /etc/sddm.conf.d/zz-slipstream-switch.conf  Relogin=true, and the login theme below
 #   /usr/share/sddm/themes/omarchy-slipstream Omarchy's login theme with F2 to choose the session,
 #                                             seen only if automatic login is ever turned off
-#   ~/.local/bin/desktop-switch, a "Switch to Omarchy" app entry, and the Hyper+S binding in
-#   ~/.config/hypr/bindings.lua
+#   ~/.local/bin/desktop-switch, a "Switch to Omarchy" app entry, and the Ctrl+Alt+Delete binding
+#   in ~/.config/hypr/bindings.lua, in place of Omarchy's own (close all windows), which the
+#   switch's logout does anyway
 set -euo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
@@ -179,26 +180,29 @@ if [ -f "$bindings_lua" ]; then
     end_with_newline "$bindings_lua"
     {
         echo "-- $begin_mark"
-        echo "o.bind(\"CONTROL + SUPER + ALT + S\", \"Switch to Slipstream\", [[$switch slipstream]])"
+        echo "hl.unbind(\"CTRL + ALT + DELETE\")"
+        echo "o.bind(\"CTRL + ALT + DELETE\", \"Switch to Slipstream\", [[$switch slipstream]])"
         echo "-- $end_mark"
     } >>"$bindings_lua"
-    say "Hyper+S in $bindings_lua"
+    say "Ctrl+Alt+Delete in $bindings_lua"
 elif [ -f "$bindings_conf" ]; then
     remove_binding "$bindings_conf" "#"
     end_with_newline "$bindings_conf"
     {
         echo "# $begin_mark"
-        echo "bindd = CTRL SUPER ALT, S, Switch to Slipstream, exec, $switch slipstream"
+        echo "unbind = CTRL ALT, DELETE"
+        echo "bindd = CTRL ALT, DELETE, Switch to Slipstream, exec, $switch slipstream"
         echo "# $end_mark"
     } >>"$bindings_conf"
-    say "Hyper+S in $bindings_conf"
+    say "Ctrl+Alt+Delete in $bindings_conf"
 else
-    echo "No ~/.config/hypr/bindings.lua or bindings.conf, so no Hyper+S; run desktop-switch instead." >&2
+    echo "No ~/.config/hypr/bindings.lua or bindings.conf, so no Ctrl+Alt+Delete; run desktop-switch instead." >&2
 fi
 reload_hyprland
 
 echo
-echo "Done. Hyper+S goes to Slipstream; \"Switch to Omarchy\" in Slipstream's apps comes back."
+echo "Done. Ctrl+Alt+Delete in Omarchy goes to Slipstream; in Slipstream, Ctrl+Alt+Delete then O"
+echo "comes back."
 if ! grep -q slipstream-set-autologin "$launcher" 2>/dev/null; then
     echo
     echo "Note: $launcher is older than the switch and has no guard against a Slipstream that"
