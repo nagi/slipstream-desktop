@@ -1,0 +1,207 @@
+#!/bin/bash
+# Sets up switching between Omarchy and Slipstream on an Omarchy machine, where SDDM logs you in
+# automatically and its login screen can't choose a session. Afterwards:
+#
+#   Hyper+S (Ctrl+Super+Alt+S) in Omarchy     log out and straight back in to Slipstream
+#   "Switch to Omarchy" in Slipstream's apps  log out and straight back in to Omarchy
+#   desktop-switch [omarchy|slipstream]       either, from a terminal or a text console
+#
+# No password either way, and a reboot comes back to whichever you were in last. If Slipstream
+# ends within 15 seconds of starting, the next login goes to Omarchy instead (session/
+# slipstream-session does that), so a broken build can't trap you in a restart loop.
+#
+# Run it as yourself, from Omarchy, after scripts/update-session and scripts/install-session. It
+# asks for sudo once. Running it again updates everything in place.
+#
+#   extras/omarchy-switch/install              install or update
+#   extras/omarchy-switch/install --uninstall  remove it all, and log in to Omarchy again
+#
+# What goes where:
+#   /usr/local/bin/slipstream-set-autologin   rewrites Session= in SDDM's autologin.conf; takes
+#                                             only "omarchy" or "slipstream"
+#   /etc/sudoers.d/slipstream-switch          lets you run just those two without a password, and
+#                                             restart SDDM (desktop-switch on a text console)
+#   /etc/sddm.conf.d/zz-slipstream-switch.conf  Relogin=true, and the login theme below
+#   /usr/share/sddm/themes/omarchy-slipstream Omarchy's login theme with F2 to choose the session,
+#                                             seen only if automatic login is ever turned off
+#   ~/.local/bin/desktop-switch, a "Switch to Omarchy" app entry, and the Hyper+S binding in
+#   ~/.config/hypr/bindings.lua
+set -euo pipefail
+
+here=$(cd "$(dirname "$0")" && pwd)
+user=$(id -un)
+autologin=/etc/sddm.conf.d/autologin.conf
+helper=/usr/local/bin/slipstream-set-autologin
+sudoers=/etc/sudoers.d/slipstream-switch
+sddm_conf=/etc/sddm.conf.d/zz-slipstream-switch.conf
+old_theme_conf=/etc/sddm.conf.d/50-slipstream-theme.conf
+theme=/usr/share/sddm/themes/omarchy-slipstream
+omarchy_theme=/usr/share/sddm/themes/omarchy
+launcher=/usr/local/bin/slipstream-session
+switch=$HOME/.local/bin/desktop-switch
+app=${XDG_DATA_HOME:-$HOME/.local/share}/applications/desktop-switch-omarchy.desktop
+bindings_lua=$HOME/.config/hypr/bindings.lua
+bindings_conf=$HOME/.config/hypr/bindings.conf
+begin_mark=">>> slipstream desktop-switch (extras/omarchy-switch/install; removed by its --uninstall)"
+end_mark="<<< slipstream desktop-switch"
+
+die() { echo "install: $*" >&2; exit 1; }
+say() { echo "  $*"; }
+
+# The binding block, with the comment marker of whichever file Omarchy uses for bindings.
+remove_binding() {
+    local file=$1 comment=$2
+    [ -f "$file" ] && grep -qF "$begin_mark" "$file" || return 0
+    sed -i "\\|^$comment $begin_mark|,\\|^$comment $end_mark|d" "$file"
+}
+
+# So an appended block starts on a line of its own.
+end_with_newline() { [ -z "$(tail -c1 "$1")" ] || echo >>"$1"; }
+
+reload_hyprland() {
+    [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] && command -v hyprctl >/dev/null || return 0
+    hyprctl reload >/dev/null
+    local errors
+    errors=$(hyprctl configerrors 2>/dev/null | grep -v '^[[:space:]]*$' || true)
+    if [ -n "$errors" ]; then
+        echo "Hyprland reports config errors; check ~/.config/hypr:" >&2
+        echo "$errors" >&2
+    fi
+}
+
+ours() { [ -f "$1" ] && grep -q "omarchy-switch/install" "$1"; }
+
+if [ "$(id -u)" -eq 0 ]; then
+    die "run this as yourself, not as root; it uses sudo where it has to."
+fi
+
+if [ "${1:-}" = --uninstall ]; then
+    echo "Removing the Omarchy/Slipstream switch."
+    if [ -x "$helper" ] && [ -f "$autologin" ]; then
+        sudo "$helper" omarchy
+    fi
+    sudo rm -f "$sudoers" "$helper" "$sddm_conf"
+    if ours "$theme/Main.qml"; then
+        sudo rm -rf -- "$theme"
+    fi
+    rm -f "$switch" "$app"
+    remove_binding "$bindings_lua" "--"
+    remove_binding "$bindings_conf" "#"
+    reload_hyprland
+    echo "Done. Automatic login goes to Omarchy, and logging out shows Omarchy's login screen."
+    exit 0
+elif [ $# -gt 0 ]; then
+    echo "usage: install [--uninstall]" >&2
+    exit 2
+fi
+
+# Check everything before changing anything.
+command -v sddm >/dev/null || die "SDDM isn't installed; this switch only works with SDDM."
+[ -f "$autologin" ] || die "$autologin isn't there. The Omarchy installer writes it; without
+  automatic login there's nothing for the switch to change."
+grep -q '^Session=' "$autologin" || die "$autologin has no Session= line."
+login_user=$(sed -n 's/^User=//p' "$autologin" | head -n1)
+[ "$login_user" = "$user" ] || die "$autologin logs in '$login_user', not you ($user)."
+session_file() {
+    local dir
+    for dir in /usr/local/share/wayland-sessions /usr/share/wayland-sessions; do
+        [ -f "$dir/$1.desktop" ] && return 0
+    done
+    return 1
+}
+session_file slipstream || die "Slipstream's login session isn't installed. Run these first:
+    scripts/update-session --no-extras
+    scripts/install-session"
+session_file omarchy || die "Omarchy's login session (omarchy.desktop) isn't installed."
+command -v visudo >/dev/null || die "visudo isn't installed (it comes with sudo)."
+
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+
+printf '# Lets %s point SDDM'"'"'s automatic login at Omarchy or Slipstream without a password.\n# Written by Slipstream'"'"'s extras/omarchy-switch/install; removed by its --uninstall.\n%s ALL=(root) NOPASSWD: %s omarchy, %s slipstream, /usr/bin/systemctl restart sddm\n' \
+    "$user" "$user" "$helper" "$helper" >"$work/sudoers"
+visudo -cqf "$work/sudoers" >/dev/null || die "the sudoers rule it wrote doesn't check out."
+
+{
+    echo "# Written by Slipstream's extras/omarchy-switch/install; removed by its --uninstall."
+    echo "# After a logout, SDDM logs straight back in to whichever session autologin.conf names,"
+    echo "# instead of showing a login screen. The zz- keeps it after autologin.conf, which a fresh"
+    echo "# Omarchy also gives a [Theme]."
+    echo "[Autologin]"
+    echo "Relogin=true"
+    if [ -d "$omarchy_theme" ]; then
+        echo
+        echo "# Omarchy's login theme with F2 to choose the session, if automatic login is turned off."
+        echo "[Theme]"
+        echo "Current=omarchy-slipstream"
+    fi
+} >"$work/sddm.conf"
+
+{
+    echo "[Desktop Entry]"
+    echo "Type=Application"
+    echo "Name=Switch to Omarchy"
+    echo "Comment=Log out and straight back in to Omarchy"
+    echo "Exec=$switch omarchy"
+    echo "Icon=system-log-out"
+    echo "Terminal=false"
+    echo "OnlyShowIn=Slipstream;"
+} >"$work/app.desktop"
+
+echo "Installing the Omarchy/Slipstream switch (sudo asks for your password once)."
+sudo install -o root -g root -m 755 "$here/slipstream-set-autologin" "$helper"
+sudo install -o root -g root -m 440 "$work/sudoers" "$sudoers"
+sudo install -o root -g root -m 644 "$work/sddm.conf" "$sddm_conf"
+say "$helper, $sudoers, $sddm_conf"
+
+if [ -d "$omarchy_theme" ]; then
+    sudo install -d -m 755 "$theme"
+    sudo install -m 644 "$here/login-theme/Main.qml" "$here/login-theme/metadata.desktop" "$theme/"
+    # Everything else (images, theme.conf) comes from Omarchy's own theme, so it follows Omarchy.
+    for file in "$omarchy_theme"/*; do
+        name=${file##*/}
+        case $name in Main.qml | metadata.desktop) continue ;; esac
+        sudo ln -sfn "$file" "$theme/$name"
+    done
+    say "$theme"
+fi
+# An earlier hand setup of the same theme; the [Theme] above replaces it.
+if [ -f "$old_theme_conf" ] && grep -q "Written by Slipstream's setup" "$old_theme_conf"; then
+    sudo rm -f "$old_theme_conf"
+fi
+
+install -D -m 755 "$here/desktop-switch" "$switch"
+install -D -m 644 "$work/app.desktop" "$app"
+say "$switch, $app"
+
+if [ -f "$bindings_lua" ]; then
+    remove_binding "$bindings_lua" "--"
+    end_with_newline "$bindings_lua"
+    {
+        echo "-- $begin_mark"
+        echo "o.bind(\"CONTROL + SUPER + ALT + S\", \"Switch to Slipstream\", [[$switch slipstream]])"
+        echo "-- $end_mark"
+    } >>"$bindings_lua"
+    say "Hyper+S in $bindings_lua"
+elif [ -f "$bindings_conf" ]; then
+    remove_binding "$bindings_conf" "#"
+    end_with_newline "$bindings_conf"
+    {
+        echo "# $begin_mark"
+        echo "bindd = CTRL SUPER ALT, S, Switch to Slipstream, exec, $switch slipstream"
+        echo "# $end_mark"
+    } >>"$bindings_conf"
+    say "Hyper+S in $bindings_conf"
+else
+    echo "No ~/.config/hypr/bindings.lua or bindings.conf, so no Hyper+S; run desktop-switch instead." >&2
+fi
+reload_hyprland
+
+echo
+echo "Done. Hyper+S goes to Slipstream; \"Switch to Omarchy\" in Slipstream's apps comes back."
+if ! grep -q slipstream-set-autologin "$launcher" 2>/dev/null; then
+    echo
+    echo "Note: $launcher is older than the switch and has no guard against a Slipstream that"
+    echo "dies at startup. Run scripts/install-session again to update it."
+fi
+echo "If Slipstream ever won't start: Ctrl+Alt+F3, log in, and run: desktop-switch omarchy"

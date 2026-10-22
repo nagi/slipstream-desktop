@@ -62,22 +62,35 @@ Slipstream won't start.
 
 ### What I did to work around it
 
-A switch command, in both directions, with no password:
+A switch in both directions, with no password, set up by one command (run from Omarchy, after
+`scripts/update-session --no-extras` and `scripts/install-session`):
+
+```sh
+extras/omarchy-switch/install              # or --uninstall to take it all out again
+```
 
 | File | What it is |
 |---|---|
 | `/usr/local/bin/slipstream-set-autologin` (root, 755) | Takes exactly `omarchy` or `slipstream` and rewrites the `Session=` line of `autologin.conf` (temp file + `mv`). |
-| `/etc/sudoers.d/slipstream-switch` (440) | `NOPASSWD` for exactly those two invocations of that helper, nothing else. |
-| `/etc/sddm.conf.d/slipstream-relogin.conf` | `[Autologin] Relogin=true`, so a logout autologins again into whatever `Session=` now says. |
-| `~/.local/bin/desktop-switch [omarchy\|slipstream]` | Calls the helper, then logs out. In Omarchy it uses `omarchy-system-logout` (closes apps gracefully, then `uwsm stop`). In Slipstream or on a TTY it uses `loginctl terminate-session` on the user's graphical session. |
-| Hyper+S (`CONTROL + SUPER + ALT + S`) in `~/.config/hypr/bindings.lua` | Omarchy → Slipstream. |
+| `/etc/sudoers.d/slipstream-switch` (440) | `NOPASSWD` for exactly those two invocations of that helper, nothing else. Written for whoever runs the installer, and checked with `visudo`. |
+| `/etc/sddm.conf.d/zz-slipstream-switch.conf` | `[Autologin] Relogin=true`, so a logout autologins again into whatever `Session=` now says. Also `[Theme] Current=omarchy-slipstream`. Named `zz-` so it's read after `autologin.conf`, which on a fresh Omarchy also sets a theme. |
+| `/usr/share/sddm/themes/omarchy-slipstream` | Omarchy's login theme with F2 to cycle sessions (`extras/omarchy-switch/login-theme`). Only seen if automatic login is ever turned off. |
+| `~/.local/bin/desktop-switch [omarchy\|slipstream]` | Calls the helper, then ends the desktop the way its own logout does. In Omarchy, `omarchy-system-logout` (closes apps gracefully, then `uwsm stop`). In Slipstream, SIGTERM to the compositor, which shuts down cleanly. On a text console, `systemctl restart sddm` (also allowed by the sudoers rule), since there's no desktop to end. Never `loginctl terminate-session`: that kills SDDM's helper too, whose exit code 1 SDDM reads as a wrong password, so it neither logs back in nor shows a login screen. |
+| Hyper+S (`CONTROL + SUPER + ALT + S`) at the end of `~/.config/hypr/bindings.lua` | Omarchy → Slipstream. |
 | `~/.local/share/applications/desktop-switch-omarchy.desktop` | "Switch to Omarchy" in Slipstream's app explorer (`OnlyShowIn=Slipstream`), for the way back. |
 
-The choice persists, so after a reboot you land in whichever desktop you were last in. Escape
-hatch if Slipstream won't start: Ctrl+Alt+F3, log in, `desktop-switch omarchy`.
+The choice persists, so after a reboot you land in whichever desktop you were last in. No reboot
+is needed for the switch itself: after a logout SDDM makes a new display, and that reloads any
+config file that changed (`Seat::createDisplay` → `mainConfig.load()`, SDDM 0.21).
 
-`Relogin=true` has one downside: a session that dies at startup gets restarted over and over by
-SDDM. On Omarchy it costs nothing else, since the greeter could only ever start Omarchy anyway.
+`Relogin=true` would restart a Slipstream that dies at startup over and over. So
+`session/slipstream-session` times the session: if it ends within 15 seconds and the switch is
+installed, it points autologin back at Omarchy first. It then exits 0 whatever Slipstream's
+status, for the same exit-code-1 reason as above (logged in `~/.local/state/slipstream/
+slipstream.log`). Escape hatch if all else fails: Ctrl+Alt+F3, log in, `desktop-switch omarchy` (restarts SDDM).
+
+One side effect: Slipstream's own Log out now logs straight back in to Slipstream. Use
+`desktop-switch` to leave it.
 
 ### Suggestions for upstream
 
