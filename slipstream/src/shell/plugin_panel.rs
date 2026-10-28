@@ -486,9 +486,9 @@ fn paint_head(p: &mut Painter, facts: &Facts, x0: f32, y: f32) {
         let colour = if index < on.min(shown) {
             facts.time
         } else if index < shown {
-            0xffffff29
+            crate::palette::tone(0xffffff29)
         } else {
-            0xffffff10
+            crate::palette::tone(0xffffff10)
         };
         p.fill(
             x0 + column * (SQUARE + 2.0),

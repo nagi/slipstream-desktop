@@ -228,14 +228,19 @@ fn colours_css([primary, secondary, tertiary]: [[f32; 3]; 3]) -> String {
         let [r, g, b] = rgb.map(byte);
         format!("rgba({r}, {g}, {b}, {alpha})")
     };
-    let lighter = |rgb: [f32; 3], share: f32| hex(rgb.map(|c| c + (1.0 - c) * share));
-    // Dark ink on a light colour, light ink on a dark one.
-    let ink_on = |[r, g, b]: [f32; 3]| {
-        if 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.45 {
-            "#10141c"
+    let bytes = |rgb: [f32; 3]| rgb.map(byte);
+    let unit = |rgb: [u8; 3]| rgb.map(|c| c as f32 / 255.0);
+    // Towards the window's ink: white, or a followed theme's foreground.
+    let lighter = |rgb: [f32; 3], share: f32| hex(unit(colours::towards_ink(bytes(rgb), share)));
+    // Dark ink on a light colour, light ink on a dark one: Slipstream's own, or the theme's.
+    let ink_on = |rgb: [f32; 3]| {
+        let [r, g, b] = rgb;
+        let own = if 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.45 {
+            [0x10, 0x14, 0x1c]
         } else {
-            "#f2f4f8"
-        }
+            [0xf2, 0xf4, 0xf8]
+        };
+        hex(unit(colours::ink_on(bytes(rgb), own)))
     };
     let (p, s, t) = (hex(primary), hex(secondary), hex(tertiary));
     let charge = format!("{p}, {}", lighter(primary, 0.45));
@@ -358,6 +363,7 @@ pub fn retheme() {
     });
     // The controls take Slipstream's three colours, as the desktop does.
     let (borders, theme) = (&settings.borders, settings.appearance.theme());
+    colours::set_now(palette.clone(), borders.ring(theme.as_ref()));
     restyle([
         borders.selected_tile_rgb(theme.as_ref()),
         borders.bullet_time_rgb(theme.as_ref()),

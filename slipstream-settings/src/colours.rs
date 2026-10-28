@@ -121,6 +121,53 @@ pub fn palette(settings: &Settings) -> Option<Palette> {
     settings.palette(settings.appearance.theme().as_ref())
 }
 
+thread_local! {
+    /// The palette and the primary colour the window is drawn in now, set by `crate::retheme`, for
+    /// what paints itself rather than through the stylesheet.
+    static NOW: std::cell::RefCell<(Option<Palette>, Rgb)> =
+        const { std::cell::RefCell::new((None, theme::OWN_CYAN)) };
+}
+
+/// Notes the colours the window is drawn in from now on.
+pub fn set_now(palette: Option<Palette>, primary: Rgb) {
+    NOW.with(|now| now.replace((palette, primary)));
+}
+
+/// The primary colour the window is drawn in now.
+pub fn primary() -> Rgb {
+    NOW.with(|now| now.borrow().1)
+}
+
+/// One of Slipstream's own neutrals as the window is drawn now: itself, or the theme's step for
+/// it.
+pub fn neutral(own: Rgb) -> Rgb {
+    NOW.with(|now| match &now.borrow().0 {
+        Some(palette) => palette.tone(own),
+        None => own,
+    })
+}
+
+/// The ink for writing on `fill` as the window is drawn now, where Slipstream's own would be
+/// `own`.
+pub fn ink_on(fill: Rgb, own: Rgb) -> Rgb {
+    NOW.with(|now| match &now.borrow().0 {
+        Some(palette) => palette.on(fill),
+        None => own,
+    })
+}
+
+/// `colour` taken `share` of the way to the window's ink: white in Slipstream's own colours,
+/// the theme's foreground under a theme, so it stays readable on a light one.
+pub fn towards_ink(colour: Rgb, share: f32) -> Rgb {
+    let ink = NOW.with(|now| {
+        now.borrow()
+            .0
+            .as_ref()
+            .map_or([255; 3], |palette| palette.ink)
+    });
+    theme::mix(colour, ink, share)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

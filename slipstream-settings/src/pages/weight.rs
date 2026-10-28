@@ -10,9 +10,20 @@ use super::*;
 include!(concat!(env!("OUT_DIR"), "/code_parts.rs"));
 
 type Rgb = (f64, f64, f64);
-const ACCENT: Rgb = (0.259, 0.827, 1.0);
-const MUTED: Rgb = (0.545, 0.569, 0.627);
-const TEXT: Rgb = (0.902, 0.910, 0.933);
+/// The primary colour, as the window is drawn now.
+fn accent() -> Rgb {
+    unit(crate::colours::primary())
+}
+/// Slipstream's own neutrals, as the window is drawn now.
+fn muted() -> Rgb {
+    unit(crate::colours::neutral([0x8b, 0x91, 0xa0]))
+}
+fn text_ink() -> Rgb {
+    unit(crate::colours::neutral([0xe6, 0xe8, 0xee]))
+}
+fn unit([r, g, b]: [u8; 3]) -> Rgb {
+    (r as f64 / 255.0, g as f64 / 255.0, b as f64 / 255.0)
+}
 const FONT: &str = "Atkinson Hyperlegible";
 
 /// The strip's height, and its line's distance from the top.
@@ -81,6 +92,15 @@ pub(super) fn section(page: &gtk::Box) {
         .has_tooltip(true)
         .build();
     map.set_draw_func(|_, cr, width, height| draw_map(cr, width as f64, height as f64));
+    // Both are drawn in the window's colours, which follow the theme.
+    crate::when_restyled({
+        let (strip, map) = (strip.downgrade(), map.downgrade());
+        move || {
+            for area in [strip.upgrade(), map.upgrade()].into_iter().flatten() {
+                area.queue_draw();
+            }
+        }
+    });
     map.connect_query_tooltip(|area, x, y, _, tooltip| {
         let rects = squarify(
             &shares(),
@@ -220,10 +240,10 @@ fn text_width(cr: &cairo::Context, text: &str) -> f64 {
 fn draw_strip(cr: &cairo::Context, width: f64, ours: f64) {
     cr.select_font_face(FONT, cairo::FontSlant::Normal, cairo::FontWeight::Normal);
     cr.set_font_size(11.5);
-    set(cr, MUTED, 0.35);
+    set(cr, muted(), 0.35);
     cr.rectangle(STRIP_PAD, LINE_Y - 0.5, width - 2.0 * STRIP_PAD, 1.0);
     let _ = cr.fill();
-    set(cr, MUTED, 1.0);
+    set(cr, muted(), 1.0);
     let ends = [
         ("0", STRIP_PAD - 8.0 - text_width(cr, "0")),
         ("100", width - STRIP_PAD + 8.0),
@@ -267,7 +287,7 @@ fn draw_strip(cr: &cairo::Context, width: f64, ours: f64) {
             cr.set_font_size(12.5);
         }
         if let Some((x, y)) = place(cr, *at, &text, *ours) {
-            set(cr, if *ours { ACCENT } else { MUTED }, 1.0);
+            set(cr, if *ours { accent() } else { muted() }, 1.0);
             cr.move_to(x, y);
             let _ = cr.show_text(&text);
         }
@@ -277,7 +297,11 @@ fn draw_strip(cr: &cairo::Context, width: f64, ours: f64) {
         }
     }
     for (at, _, _, ours) in &points {
-        let (colour, radius) = if *ours { (ACCENT, 6.0) } else { (MUTED, 4.0) };
+        let (colour, radius) = if *ours {
+            (accent(), 6.0)
+        } else {
+            (muted(), 4.0)
+        };
         set(cr, colour, 1.0);
         cr.arc(*at, LINE_Y, radius, 0.0, std::f64::consts::TAU);
         let _ = cr.fill();
@@ -306,7 +330,7 @@ fn draw_map(cr: &cairo::Context, width: f64, height: f64) {
         rects.into_iter().zip(CODE_PARTS).enumerate()
     {
         // Largest brightest, in the one colour, so no part reads as more important than its size.
-        set(cr, ACCENT, 0.55 - 0.032 * rank as f64);
+        set(cr, accent(), 0.55 - 0.032 * rank as f64);
         cr.rectangle(x + 1.0, y + 1.0, (w - 2.0).max(0.0), (h - 2.0).max(0.0));
         let _ = cr.fill();
         // The name, wrapped to the block, and its share under it, where they fit.
@@ -318,7 +342,7 @@ fn draw_map(cr: &cairo::Context, width: f64, height: f64) {
         }
         let last = lines.len() - 1;
         for (row, line) in lines.iter().enumerate().take(room) {
-            set(cr, TEXT, if row == last { 0.7 } else { 1.0 });
+            set(cr, text_ink(), if row == last { 0.7 } else { 1.0 });
             cr.move_to(x + 7.0, y + 17.0 + 15.0 * row as f64);
             let _ = cr.show_text(line);
         }
