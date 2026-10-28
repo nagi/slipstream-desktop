@@ -63,6 +63,11 @@ struct MediaWatch {
     _watch: crate::media::Watch,
 }
 
+/// The plugin that comes with Slipstream to feed the agents panel (`crate::agents`). Its card
+/// carries the panel's numbers and nothing else, so neither the plugin panel nor the chip counts
+/// it while it works; the bar's own icon stands for it.
+pub const AGENTS: &str = "agents";
+
 /// One plugin that's on, as it runs.
 struct Running {
     approved: Approved,
@@ -140,6 +145,8 @@ pub struct Chip {
 /// Every plugin there is, and the ones on, running.
 pub struct Plugins {
     installed: usize,
+    /// The Agents plugin is installed (`AGENTS`).
+    agents_installed: bool,
     running: Vec<Running>,
     /// Plugins that are on but don't run, and why when it isn't that they changed.
     held: Vec<scan::Held>,
@@ -154,6 +161,11 @@ pub struct Plugins {
     /// they were last told.
     windows_looked: Option<Instant>,
     windows_told: Option<String>,
+}
+
+/// Whether `running` is the Agents plugin that comes with Slipstream, not one of the same name.
+fn is_agents(running: &Running) -> bool {
+    running.approved.plugin.id == AGENTS && running.approved.plugin.bundled
 }
 
 impl Plugins {
@@ -173,6 +185,7 @@ impl Plugins {
     ) -> Plugins {
         Plugins {
             installed: 0,
+            agents_installed: false,
             running: Vec::new(),
             held: Vec::new(),
             wanted: plugins::Plugins::default(),
@@ -216,6 +229,7 @@ impl Plugins {
             self.reported = scan.problems;
         }
         self.installed = scan.installed;
+        self.agents_installed = scan.agents_installed;
         let wanted = &self.wanted;
         // A look asked for before the settings last changed can't start what is now off.
         self.held = scan
@@ -352,10 +366,30 @@ impl Plugins {
         }
     }
 
+    /// The agents panel's numbers, from the Agents plugin that comes with Slipstream, while it
+    /// runs and has printed them. No other plugin's are taken.
+    pub fn agents(&self) -> Option<slipstream_config::agents::AgentsCard> {
+        self.running
+            .iter()
+            .find(|running| is_agents(running))
+            .and_then(|running| running.worker.published().card?.agents)
+    }
+
+    /// Whether `running` is the Agents plugin at work, or starting, which the panel and the chip
+    /// leave out. One with something wrong stays in, so the panel says what.
+    fn feeds_agents(running: &Running) -> bool {
+        if !is_agents(running) {
+            return false;
+        }
+        let published = running.worker.published();
+        published.problem.is_none() && published.card.is_none_or(|card| card.agents.is_some())
+    }
+
     /// The cards of the plugins that are on, in order.
     pub fn shown(&self) -> Vec<Shown> {
         self.running
             .iter()
+            .filter(|running| !Self::feeds_agents(running))
             .map(|running| {
                 let published = running.worker.published();
                 Shown {
@@ -380,9 +414,22 @@ impl Plugins {
 
     /// What the chip shows, from `shown`. None when there are no plugins at all.
     pub fn chip(&self, shown: &[Shown]) -> Option<Chip> {
-        (self.installed > 0).then(|| Chip {
-            installed: self.installed,
-            on: self.running.len() + self.held.len(),
+        // The Agents plugin counts only while it has something to say: it's on and in trouble, or
+        // held.
+        let feeding = self
+            .running
+            .iter()
+            .filter(|running| Self::feeds_agents(running))
+            .count();
+        let in_view = self
+            .running
+            .iter()
+            .any(|running| is_agents(running) && !Self::feeds_agents(running))
+            || self.held.iter().any(|held| held.id == AGENTS);
+        let installed = self.installed - usize::from(self.agents_installed && !in_view);
+        (installed > 0).then(|| Chip {
+            installed,
+            on: self.running.len() + self.held.len() - feeding,
             glance: self.wanted.glance().and_then(|id| {
                 let glance = shown
                     .iter()
@@ -708,6 +755,63 @@ mod tests {
         assert_eq!((chip.installed, chip.on), (1, 1));
         plugins.configure(&Settings::default());
         assert!(plugins.shown().is_empty(), "off at once, before any look");
+    }
+
+    /// The Agents plugin that comes with Slipstream feeds the agents panel, and while it does,
+    /// neither the plugin panel nor the chip counts it. One of that name that doesn't come with
+    /// Slipstream feeds nothing.
+    #[test]
+    fn the_bundled_agents_plugin_feeds_its_panel_and_stays_off_the_chip() {
+        // As the real one does, it keeps running, printing a card a line.
+        const CARD: &str = r#"printf '{"agents":{"tools":[{"id":"claude","name":"Claude Code"}],"updating":true}}\n'; sleep 30"#;
+        let root = scratch("agents");
+        let agents = install(&root, AGENTS, CARD, None);
+        std::fs::create_dir_all(root.join("bundled")).unwrap();
+        std::fs::rename(&agents.dir, root.join("bundled").join(AGENTS)).unwrap();
+        let tides = install(&root, "tides", SAYS_WHERE, Some(60));
+        let mut settings = turned_on(&agents);
+        settings
+            .plugins
+            .set_on(&tides.id, Some(tides.fingerprint.clone()));
+        let (mut plugins, scans) = looking(&root);
+        follow(&mut plugins, &scans, &settings);
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while plugins.agents().is_none() && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        let card = plugins.agents().expect("the panel's numbers");
+        assert_eq!(card.tools[0].name, "Claude Code");
+        assert!(card.updating);
+        let shown = settle(&plugins, |shown| first_line(shown).is_some());
+        let ids: Vec<&str> = shown.iter().map(|shown| shown.id.as_str()).collect();
+        assert_eq!(ids, ["tides"], "the plugin panel leaves it out");
+        let chip = plugins.chip(&shown).unwrap();
+        assert_eq!((chip.installed, chip.on), (1, 1));
+
+        // Off, it still isn't counted: the bar's own icon stands for it.
+        let mut off = Settings::default();
+        off.plugins
+            .set_on(&tides.id, Some(tides.fingerprint.clone()));
+        follow(&mut plugins, &scans, &off);
+        assert_eq!(plugins.agents(), None);
+        let chip = plugins.chip(&plugins.shown()).unwrap();
+        assert_eq!((chip.installed, chip.on), (1, 1));
+    }
+
+    #[test]
+    fn an_agents_plugin_that_doesnt_come_with_slipstream_feeds_nothing() {
+        const CARD: &str = r#"printf '{"agents":{"tools":[{"id":"x","name":"Spoof"}]}}'"#;
+        let root = scratch("agents-own");
+        let agents = install(&root, AGENTS, CARD, Some(60));
+        let (mut plugins, scans) = looking(&root);
+        follow(&mut plugins, &scans, &turned_on(&agents));
+        let shown = settle(&plugins, |shown| shown[0].card.is_some());
+        assert_eq!(plugins.agents(), None);
+        assert_eq!(
+            shown.len(),
+            1,
+            "an ordinary plugin's card, shown as any other"
+        );
     }
 
     /// The promise in the guide: a plugin runs from a copy of what was approved, and a change to

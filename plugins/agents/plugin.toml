@@ -1,0 +1,8 @@
+name = "Agents"
+description = "Claude Code, Codex and Fireworks usage for the agents panel beside the clock, from Omarchy's records"
+# A program that keeps running: it prints a new card whenever the records change.
+exec = ["./agents"]
+# Omarchy's collectors read each tool's credentials and history (~/.codex alone holds more files
+# than a sandbox will look through), go online for the limits, and write their records under
+# ~/.local/state and ~/.cache: as the compositor ran them before this was a plugin.
+needs = ["everything"]

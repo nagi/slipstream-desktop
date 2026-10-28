@@ -2336,6 +2336,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "slipstream-agents"
+version = "1.0.0-rc.2"
+dependencies = [
+ "serde_json",
+ "slipstream-config",
+]
+
+[[package]]
 name = "slipstream-config"
 version = "1.0.0-rc.2"
 dependencies = [

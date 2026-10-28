@@ -1,0 +1,17 @@
+[package]
+name = "slipstream-agents"
+description = "Agents, the plugin behind the agents panel: Omarchy's AI coding tool usage records, kept current"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "agents"
+path = "src/main.rs"
+
+[dependencies]
+# The records, read as the panel reads them, and handed over in the same shape.
+slipstream-config.workspace = true
+serde_json.workspace = true

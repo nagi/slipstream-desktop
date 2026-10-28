@@ -49,6 +49,8 @@ pub struct Held {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Scan {
     pub installed: usize,
+    /// The Agents plugin that comes with Slipstream is among them (`super::AGENTS`).
+    pub agents_installed: bool,
     pub problems: Vec<String>,
     /// The plugins to run, in the order they were turned on, each from its copy.
     pub run: Vec<Approved>,
@@ -152,6 +154,9 @@ fn scan(places: &Places, ask: &Ask) -> Scan {
     });
     Scan {
         installed: found.len(),
+        agents_installed: found
+            .iter()
+            .any(|plugin| plugin.id == super::AGENTS && plugin.bundled),
         problems,
         run,
         held,

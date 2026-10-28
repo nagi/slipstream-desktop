@@ -18,8 +18,9 @@ use std::{
 pub const OUTPUT_LIMIT: usize = 64 * 1024;
 
 /// The longest line of a command that prints line after line; the rest of a longer one is
-/// dropped.
-pub const LINE_LIMIT: usize = 4096;
+/// dropped. Room for the Agents plugin's card, which carries every tool's week of numbers; what
+/// any other card shows is capped field by field anyway.
+pub const LINE_LIMIT: usize = 16 * 1024;
 
 /// How long a group asked to stop has before it is made to.
 const GRACE: Duration = Duration::from_millis(500);

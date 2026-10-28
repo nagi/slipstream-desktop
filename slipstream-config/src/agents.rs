@@ -1,7 +1,7 @@
 //! The agents panel's data: the usage records Omarchy's `omarchy-agent-usage-update` keeps in
 //! `~/.local/state/omarchy/agents/usage/`, one JSON file for each AI coding tool (Claude Code,
-//! Codex, Fireworks), and what the panel makes of them. The compositor reads them on a thread of
-//! its own; nothing here touches the screen.
+//! Codex, Fireworks), and what the panel makes of them. The bundled Agents plugin reads them and
+//! hands them to the compositor on its card (`AgentsCard`); nothing here touches the screen.
 //!
 //! A record that turns up in the directory is an agent, whoever wrote it. It is shown once it has
 //! numbers to show: any prompts, sessions, active days, limits or a balance.
@@ -12,7 +12,16 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+
+/// What the Agents plugin's card carries for the panel (`"agents"`): every tool with numbers to
+/// show, and whether an update is running.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct AgentsCard {
+    pub tools: Vec<Agent>,
+    #[serde(default)]
+    pub updating: bool,
+}
 
 /// How many models the panel lists, the busiest first.
 pub const MODELS_SHOWN: usize = 4;
@@ -27,7 +36,8 @@ pub fn usage_dir() -> Option<PathBuf> {
 }
 
 /// One tool, ready to show.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Agent {
     pub id: String,
     pub name: String,
@@ -49,7 +59,7 @@ pub struct Agent {
 }
 
 /// One allowance: a rolling session, a week, a model's share.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Limit {
     pub title: String,
     /// 0 to 1, or more when over.
@@ -59,7 +69,7 @@ pub struct Limit {
 }
 
 /// A prepaid account's credit.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Balance {
     pub remaining: f64,
     pub funded: f64,
@@ -68,14 +78,14 @@ pub struct Balance {
     pub estimated: bool,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Day {
     /// `2026-10-14`.
     pub date: String,
     pub tokens: u64,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Model {
     pub name: String,
     pub total: u64,

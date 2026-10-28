@@ -91,13 +91,18 @@ else
 fi
 
 # Focus, the plugin that comes with Slipstream: a release carries it ready to install, a build
-# makes its program beside the others.
+# makes its program beside the others. So does Agents, which feeds the agents panel; only a build
+# has it.
 if [ "$built" = "$repo/bin" ]; then
     focus_program=$repo/share/slipstream/bundled/focus/focus
     focus_manifest=$repo/share/slipstream/bundled/focus/plugin.toml
+    agents_program=$repo/share/slipstream/bundled/agents/agents
+    agents_manifest=$repo/share/slipstream/bundled/agents/plugin.toml
 else
     focus_program=$built/focus
     focus_manifest=$repo/plugins/focus/plugin.toml
+    agents_program=$built/agents
+    agents_manifest=$repo/plugins/agents/plugin.toml
 fi
 
 for program in slipstream slipstream-settings; do
@@ -180,26 +185,32 @@ put 755 "$built/slipstream-settings" "$bin_dir/slipstream-settings"
 # The plugins that come with Slipstream go in share/slipstream/bundled beside the bin folder the
 # compositor runs from, which is where it looks for them. A changed copy is put together next to
 # the old and moved in, so it's never seen half written; an unchanged one is left alone, so a
-# running Focus isn't restarted for nothing.
+# running plugin isn't restarted for nothing.
 bundled=$HOME/.local/share/slipstream/bundled
-if [ -x "$focus_program" ] && [ -f "$focus_manifest" ]; then
-    if ! cmp -s "$focus_program" "$bundled/focus/focus" \
-        || ! cmp -s "$focus_manifest" "$bundled/focus/plugin.toml"; then
+# put_bundled ID PROGRAM MANIFEST: the plugin ID, its program named ID, from these two files.
+put_bundled() {
+    if ! cmp -s "$2" "$bundled/$1/$1" || ! cmp -s "$3" "$bundled/$1/plugin.toml"; then
         mkdir -p "$bundled"
-        rm -rf "$bundled.focus-new" "$bundled.focus-old"
-        mkdir "$bundled.focus-new"
-        cp "$focus_manifest" "$bundled.focus-new/plugin.toml"
-        cp "$focus_program" "$bundled.focus-new/focus"
-        chmod 644 "$bundled.focus-new/plugin.toml"
-        chmod 755 "$bundled.focus-new/focus"
-        if [ -d "$bundled/focus" ]; then
-            mv "$bundled/focus" "$bundled.focus-old"
+        rm -rf "$bundled.$1-new" "$bundled.$1-old"
+        mkdir "$bundled.$1-new"
+        cp "$3" "$bundled.$1-new/plugin.toml"
+        cp "$2" "$bundled.$1-new/$1"
+        chmod 644 "$bundled.$1-new/plugin.toml"
+        chmod 755 "$bundled.$1-new/$1"
+        if [ -d "$bundled/$1" ]; then
+            mv "$bundled/$1" "$bundled.$1-old"
         fi
-        mv "$bundled.focus-new" "$bundled/focus"
-        rm -rf "$bundled.focus-old"
+        mv "$bundled.$1-new" "$bundled/$1"
+        rm -rf "$bundled.$1-old"
     fi
+}
+if [ -x "$focus_program" ] && [ -f "$focus_manifest" ]; then
+    put_bundled focus "$focus_program" "$focus_manifest"
 else
     echo "update-session: Focus wasn't built, so the plugin that comes with Slipstream wasn't updated." >&2
+fi
+if [ -x "$agents_program" ] && [ -f "$agents_manifest" ]; then
+    put_bundled agents "$agents_program" "$agents_manifest"
 fi
 # The Settings app's entry, so the explorer lists it (in Slipstream only).
 entry=io.github.peterwalker78.SlipstreamSettings.desktop

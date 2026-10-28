@@ -79,7 +79,9 @@ To write one, see [Writing a plugin](plugins.md).
 
 On [Omarchy](https://omarchy.org), a small sparkle appears on the bar, right of the clock, once an AI coding tool of yours has usage to show: Claude Code, Codex or Fireworks, whichever Omarchy's `omarchy-agent-usage-update` finds. Click it for a panel on the tool: the plan it runs on, how much of each allowance is used and when it starts over, a prepaid account's credit, the tokens spent each day of the last week (today in full, with its prompts and sessions), and the busiest models with their input, output and cache split. The sparkle turns orange when an allowance is 90% used or credit is nearly gone, and nothing shows at all on a machine that has never run an agent.
 
-With more than one tool there is a chip for each: click one, or press **←** and **→** (or **H** and **L**, or **Tab**). **R** or **Enter** brings the numbers up to date, and **Esc** closes it. Slipstream runs Omarchy's updater itself, every quarter of an hour and when the panel opens, and shows whatever is in `~/.local/state/omarchy/agents/usage/`. A collector that writes its record there is a new tool in the panel, as it is in Omarchy's own.
+With more than one tool there is a chip for each: click one, or press **←** and **→** (or **H** and **L**, or **Tab**). **R** or **Enter** brings the numbers up to date, and **Esc** closes it.
+
+The numbers come from **Agents**, a plugin that comes with Slipstream: turn it on once in **Settings → Plugins**. It runs Omarchy's updater every quarter of an hour and when the panel opens, and hands the panel whatever is in `~/.local/state/omarchy/agents/usage/`. A collector that writes its record there is a new tool in the panel, as it is in Omarchy's own. Omarchy's collectors read each tool's credentials and history and go online for the limits, more than a plugin's sandbox allows, so Agents needs full access, and Settings says so. Its card has nothing of its own to show, so it stays out of the plugin panel and off the plugin chip while it works; if something is wrong with it, it shows there, saying what.
 
 ## Following an Omarchy theme
 

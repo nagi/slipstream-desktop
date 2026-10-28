@@ -261,8 +261,6 @@ pub struct Slipstream {
     pub centre: crate::centre::Centre,
     /// The agents panel, from the bar's icon beside the clock.
     pub agents: crate::agents::Agents,
-    /// The AI coding tools with usage to show, kept current off the main thread.
-    pub agent_usage: Arc<Mutex<Vec<slipstream_config::agents::Agent>>>,
     /// The shortcut sheet (Super+K).
     pub sheet: crate::sheet::Sheet,
     /// Night light's warmth and schedule (`nightlight.rs`).
@@ -622,7 +620,6 @@ impl Slipstream {
             user: crate::quick::user_name(),
             centre: Default::default(),
             agents: Default::default(),
-            agent_usage: crate::agents::start(),
             sheet: Default::default(),
             notices: Default::default(),
             toast: Toast::new(false),

@@ -1282,6 +1282,8 @@ pub struct Card {
     pub sound: Option<String>,
     /// Its tile in quick settings, for a plugin whose manifest says it has one.
     pub tile: Option<surfaces::Tile>,
+    /// What the agents panel shows. Only the bundled Agents plugin's is used.
+    pub agents: Option<crate::agents::AgentsCard>,
 }
 
 /// A notification a plugin sends from its card.
@@ -1335,6 +1337,9 @@ struct Printed {
     #[serde(default)]
     sound: Option<String>,
     tile: Option<surfaces::Tile>,
+    /// What the agents panel shows, from the bundled Agents plugin alone (`AgentsCard`).
+    #[serde(default)]
+    agents: Option<crate::agents::AgentsCard>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1428,6 +1433,7 @@ impl Card {
                 }),
             sound: printed.sound.as_deref().and_then(sound_name),
             tile: surfaces::tile(printed.tile),
+            agents: printed.agents,
         })
     }
 

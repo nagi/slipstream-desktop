@@ -4,26 +4,16 @@
 //!
 //! For each tool: the plan it runs on, the percentage used of each allowance with the time until
 //! it starts over, a prepaid account's credit, the tokens spent each day of the last week, and
-//! the busiest models. The numbers are read on a thread of its own, which also runs the update
-//! every quarter of an hour, and when the panel opens, since limits go stale on the wire.
+//! the busiest models. The numbers come from the Agents plugin that comes with Slipstream
+//! (`plugins/agents`), which keeps the records current and prints them on its card; opening the
+//! panel asks it for fresh limits, since they go stale on the wire, and R for everything.
 //!
 //! While it's open it takes every key that isn't a binding: ←/→ (or H/L, or Tab) switch tool,
 //! R or Enter refresh, Esc closes. The icon shows only once some tool has numbers.
 
-use std::{
-    path::Path,
-    sync::{
-        Arc, Mutex, OnceLock, PoisonError,
-        atomic::{AtomicBool, Ordering},
-    },
-    thread::Thread,
-    time::{Duration, Instant},
-};
-
 use slipstream_config::{
     agents::{self, Agent, Day, Limit},
     card::unix_now,
-    command::Run,
 };
 use smithay::{
     backend::renderer::{ImportMem, Renderer, element::memory::MemoryRenderBufferRenderElement},
@@ -39,15 +29,6 @@ use crate::{
     panel::{self, DESIGN_PX, GAP, PADDING, ink},
     text::{self, Face, Style},
 };
-
-/// How often the records are made again.
-const EVERY: Duration = Duration::from_secs(15 * 60);
-/// How often they are read again, to pick up whatever else wrote them.
-const RESCAN: Duration = Duration::from_secs(60);
-/// Opening the panel asks for fresh limits, but not more often than this.
-const LIMITS_SPACING: Duration = Duration::from_secs(30);
-/// An update still running after this long is stopped.
-const UPDATE_LIMIT: Duration = Duration::from_secs(180);
 
 // Sizes in design pixels.
 const WIDTH: f32 = 440.0;
@@ -65,7 +46,7 @@ const BALANCE_H: f32 = 66.0;
 const FOOT_H: f32 = 40.0;
 const EMPTY_H: f32 = 56.0;
 
-/// How a refresh is asked for.
+/// How a refresh is asked of the Agents plugin: the press it is sent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Refresh {
     /// What the collectors reuse their recent scans for: the limits that go stale on the wire.
@@ -74,102 +55,12 @@ pub enum Refresh {
     Full,
 }
 
-static ASKED: Mutex<Option<Refresh>> = Mutex::new(None);
-static READER: OnceLock<Thread> = OnceLock::new();
-static UPDATING: AtomicBool = AtomicBool::new(false);
-
-/// Asks the reader for a refresh now.
-pub fn refresh(how: Refresh) {
-    let mut asked = ASKED.lock().unwrap_or_else(PoisonError::into_inner);
-    *asked = match (*asked, how) {
-        (Some(Refresh::Full), _) | (_, Refresh::Full) => Some(Refresh::Full),
-        _ => Some(Refresh::Limits),
-    };
-    drop(asked);
-    if let Some(reader) = READER.get() {
-        reader.unpark();
-    }
-}
-
-/// Whether an update is running.
-pub fn updating() -> bool {
-    UPDATING.load(Ordering::Relaxed)
-}
-
-/// Starts the reader: the agents with numbers to show, kept current.
-pub fn start() -> Arc<Mutex<Vec<Agent>>> {
-    let shared = Arc::new(Mutex::new(Vec::new()));
-    let writer = shared.clone();
-    let reader = std::thread::spawn(move || {
-        let dir = agents::usage_dir();
-        let mut next_update = Instant::now();
-        let mut last_update: Option<Instant> = None;
-        let mut warned = false;
-        loop {
-            // Whatever is on disk now first, so the icon needn't wait for an update.
-            reload(dir.as_deref(), &writer);
-            let asked = ASKED.lock().unwrap_or_else(PoisonError::into_inner).take();
-            let spaced = last_update.is_none_or(|at| at.elapsed() >= LIMITS_SPACING);
-            let how = match asked {
-                Some(Refresh::Limits) if !spaced => None,
-                Some(how) => Some(Some(how)),
-                None if Instant::now() >= next_update => Some(None),
-                None => None,
-            };
-            if let Some(how) = how {
-                UPDATING.store(true, Ordering::Relaxed);
-                if let Err(why) = update(how) {
-                    if !warned {
-                        tracing::warn!("couldn't update the agents' usage: {why}");
-                    }
-                    warned = true;
-                } else {
-                    warned = false;
-                }
-                UPDATING.store(false, Ordering::Relaxed);
-                last_update = Some(Instant::now());
-                next_update = Instant::now() + EVERY;
-                reload(dir.as_deref(), &writer);
-            }
-            std::thread::park_timeout(
-                RESCAN.min(next_update.saturating_duration_since(Instant::now())),
-            );
+impl Refresh {
+    fn press(self) -> &'static str {
+        match self {
+            Refresh::Limits => "limits",
+            Refresh::Full => "full",
         }
-    });
-    let _ = READER.set(reader.thread().clone());
-    shared
-}
-
-fn reload(dir: Option<&Path>, shared: &Mutex<Vec<Agent>>) {
-    let fresh = dir.map(agents::load).unwrap_or_default();
-    let mut current = shared.lock().unwrap_or_else(PoisonError::into_inner);
-    if *current != fresh {
-        *current = fresh;
-    }
-}
-
-/// Runs Omarchy's updater: `how` is a kind of refresh, or `None` for the scheduled one.
-fn update(how: Option<Refresh>) -> Result<(), String> {
-    let mut command = crate::launch::command("omarchy-agent-usage-update");
-    match how {
-        Some(Refresh::Limits) => {
-            command.arg("--limits-only");
-        }
-        Some(Refresh::Full) => {
-            command.arg("--force");
-        }
-        None => {}
-    }
-    // The updater finds its collectors from here; a session started outside Omarchy's own
-    // wouldn't have it.
-    if std::env::var_os("OMARCHY_PATH").is_none() {
-        command.env("OMARCHY_PATH", "/usr/share/omarchy");
-    }
-    match slipstream_config::command::run(command, UPDATE_LIMIT) {
-        Run::Printed(_) => Ok(()),
-        Run::Failed { code, error } => Err(format!("exit {code:?}: {error}")),
-        Run::TimedOut => Err(format!("still running after {} s", UPDATE_LIMIT.as_secs())),
-        Run::CouldntStart(err) => Err(err),
     }
 }
 
@@ -841,11 +732,15 @@ fn unix_from_minute(minute: i64) -> i64 {
 impl Slipstream {
     /// The bar's agents icon: `None` while no tool has numbers, else whether one is nearly used up.
     pub fn agents_icon(&self) -> Option<bool> {
-        let agents = self
-            .agent_usage
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner);
+        let agents = self.plugins.agents()?.tools;
         (!agents.is_empty()).then(|| agents.iter().any(Agent::alarming))
+    }
+
+    /// Asks the Agents plugin for fresh numbers, if it runs.
+    fn refresh_agents(&self, how: Refresh) {
+        if self.plugins.agents().is_some() {
+            self.plugins.press(crate::plugins::AGENTS, how.press());
+        }
     }
 
     /// The bar's agents icon: opens the agents panel, or closes it.
@@ -856,20 +751,17 @@ impl Slipstream {
             self.close_panels();
             let now = self.clock.tick();
             self.agents.open(now);
-            refresh(Refresh::Limits);
+            self.refresh_agents(Refresh::Limits);
         }
     }
 
     pub fn agents_facts(&self) -> Facts {
+        let card = self.plugins.agents().unwrap_or_default();
         Facts {
-            agents: self
-                .agent_usage
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .clone(),
+            agents: card.tools,
             today: self.status.lock().unwrap().today,
             minute: unix_now() / 60,
-            updating: updating(),
+            updating: card.updating,
             reduced_motion: self.agents.reduced_motion,
             ring: self.panel_ring(),
         }
@@ -904,7 +796,7 @@ impl Slipstream {
         match request {
             Request::Nothing => {}
             Request::Close => self.agents.close(),
-            Request::Refresh => refresh(Refresh::Full),
+            Request::Refresh => self.refresh_agents(Refresh::Full),
         }
     }
 }
@@ -1092,17 +984,5 @@ mod tests {
             panel.frame.loc.y + panel.frame.size.h / 2.0,
         );
         assert_eq!(panel.click(x, y, &shown), Request::Nothing);
-    }
-
-    #[test]
-    fn the_updater_is_asked_for_the_most_that_was_wanted() {
-        // Asking leaves a note for the reader to act on, and a full refresh outranks the rest.
-        *ASKED.lock().unwrap() = None;
-        refresh(Refresh::Limits);
-        assert_eq!(*ASKED.lock().unwrap(), Some(Refresh::Limits));
-        refresh(Refresh::Full);
-        refresh(Refresh::Limits);
-        assert_eq!(*ASKED.lock().unwrap(), Some(Refresh::Full));
-        *ASKED.lock().unwrap() = None;
     }
 }
