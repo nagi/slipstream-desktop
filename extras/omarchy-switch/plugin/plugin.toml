@@ -1,0 +1,10 @@
+name = "Omarchy"
+description = "Log out and straight back in to Omarchy, with extras/omarchy-switch"
+exec = ["./switch.sh"]
+# Its card never changes; this only prints it again now and then.
+every-secs = 3600
+# Switching runs desktop-switch, which uses its sudo rule to point SDDM's automatic login at
+# Omarchy and then ends this session: nothing a sandbox allows.
+needs = ["everything"]
+# A tile in quick settings as well as the button on its card.
+tile = true

@@ -109,10 +109,23 @@ bin="$HOME/.local/bin/slipstream"
 if [ ! -x "$bin" ]; then
     bin=$(dirname "$0")/slipstream
 fi
+
+# Where the login screen logs straight back in after every logout (extras/omarchy-switch), a
+# Slipstream that dies at startup would be started again and again. So a session that ends within
+# a few seconds points the automatic login back at Omarchy first, and the next login lands there.
+switch_helper=/usr/local/bin/slipstream-set-autologin
+back_to_omarchy() {
+    if [ -x "$switch_helper" ]; then
+        echo "slipstream-session: switching the automatic login back to Omarchy." >>"$log"
+        sudo -n "$switch_helper" omarchy >>"$log" 2>&1
+    fi
+}
+
 if [ ! -x "$bin" ]; then
     echo "slipstream-session: no slipstream program in ~/.local/bin or $(dirname "$0")." >"$log"
     echo "Install it with scripts/install-session, or build one with scripts/update-session." >>"$log"
-    exit 1
+    back_to_omarchy
+    exit 0
 fi
 # A distribution package can't know which portal backends the machine will have, so it ships
 # `default=*`. Here, at each login, the backends actually installed are written in instead, in
@@ -142,4 +155,18 @@ if [ -r "$packaged_conf" ] && grep -qx 'default=\*' "$packaged_conf"; then
     fi
 fi
 
-exec "$bin" --session >"$log" 2>&1
+if [ ! -x "$switch_helper" ]; then
+    exec "$bin" --session >"$log" 2>&1
+fi
+started=$(date +%s)
+"$bin" --session >"$log" 2>&1
+status=$?
+if [ $(($(date +%s) - started)) -lt 15 ]; then
+    echo "slipstream-session: Slipstream ended after under 15 seconds (status $status)." >>"$log"
+    back_to_omarchy
+fi
+# SDDM reads the session's exit code as its helper's, and 1 there means "wrong password": it
+# would neither log back in nor show a login screen. So a session that has ended reports success;
+# the real status is in the log.
+echo "slipstream-session: Slipstream exited with status $status." >>"$log"
+exit 0
