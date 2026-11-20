@@ -1,0 +1,23 @@
+#!/bin/sh
+# Installs the Agent usage plugin as one of your own, in ~/.local/share/slipstream/plugins. It
+# starts off: turn it on in Settings › Plugins, which says first that it runs as you.
+# Run again after changing it, and turn it on again there. --uninstall removes it.
+set -eu
+here=$(cd "$(dirname "$0")" && pwd)
+plugins=${XDG_DATA_HOME:-$HOME/.local/share}/slipstream/plugins
+target=$plugins/agent-usage
+if [ "${1:-}" = --uninstall ]; then
+    rm -rf "$target"
+    echo "Removed $target."
+    exit 0
+fi
+mkdir -p "$plugins"
+rm -rf "$target.new"
+mkdir "$target.new"
+cp "$here/plugin.toml" "$target.new/plugin.toml"
+cp "$here/agent-usage.py" "$target.new/agent-usage.py"
+chmod 644 "$target.new/plugin.toml"
+chmod 755 "$target.new/agent-usage.py"
+rm -rf "$target"
+mv "$target.new" "$target"
+echo "Installed to $target. Turn it on in Settings › Plugins."
