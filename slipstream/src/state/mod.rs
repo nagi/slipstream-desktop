@@ -115,6 +115,7 @@ mod keyboard_focus;
 mod lifecycle;
 mod look;
 pub use look::Look;
+mod popped;
 mod screens;
 mod streams;
 mod ui;
@@ -395,6 +396,9 @@ pub struct Slipstream {
     pub deck: Option<crate::deck::Deck<Window>>,
     /// Two tiles passing through each other as they trade places (`pane.rs`).
     pub pass: Option<crate::pane::Pass<Window>>,
+    /// The floating windows that follow their screen from workspace to workspace
+    /// (`state/popped.rs`).
+    pub popped: Vec<Window>,
     /// Where password checks answer, with their numbers.
     pub lock_answers: channel::Sender<(u64, crate::auth::Verdict)>,
     /// The session's line to logind, for locking, unlocking and sleep (`logind.rs`).
@@ -675,6 +679,7 @@ impl Slipstream {
             rave: None,
             deck: None,
             pass: None,
+            popped: Vec::new(),
             lock_answers,
             logind: Default::default(),
             sleep_delay: Default::default(),

@@ -84,7 +84,7 @@ fn typed_char(sym: Keysym, mods: Mods) -> Option<char> {
 }
 
 /// The key that saves a picture of the wallpaper while it's showing. F7 is no binding's, and not
-/// one of the F-keys games, overlays and apps rely on (F5, F10, F11, F12), which it couldn't
+/// one of the F-keys games, overlays and apps rely on (F5, F10, F12), which it couldn't
 /// take from them in any case: only on the faded screen does it mean this.
 pub const WALLPAPER_SHOT: Keysym = Keysym::F7;
 
@@ -110,7 +110,9 @@ impl Slipstream {
                 | Action::MoveToWorkspaceBy(_)
                 | Action::MoveToNextScreen
                 | Action::Maximise
+                | Action::Fullscreen
                 | Action::ToggleFloating
+                | Action::Pop
         ) && self
             .focused_window()
             .is_some_and(|window| self.is_docked(&window))
@@ -166,9 +168,11 @@ impl Slipstream {
             Action::Plugins => self.toggle_plugin_panel(),
             Action::NotificationCentre => self.toggle_notification_centre(),
             Action::Maximise => self.toggle_maximise(),
+            Action::Fullscreen => self.toggle_fullscreen(),
             Action::TakeBack => self.take_back(),
             Action::ClipboardHistory => self.toggle_history(),
             Action::ToggleFloating => self.toggle_floating(),
+            Action::Pop => self.pop_focused(),
             Action::SwitchFloatingFocus => self.switch_floating_focus(),
             Action::Zoom(step) => self.zoom_step(step),
         }
@@ -798,10 +802,12 @@ impl Slipstream {
         let keyboard = self.seat.get_keyboard()?;
         keyboard.with_xkb_state(self, |context| {
             let xkb = context.xkb().lock().ok()?;
-            let layout = xkb.active_layout();
-            (8..=255)
-                .map(Keycode::new)
-                .find(|code| xkb.raw_syms_for_key_in_layout(*code, layout).contains(&sym))
+            let key_in = |layout| {
+                (8..=255)
+                    .map(Keycode::new)
+                    .find(|code| xkb.raw_syms_for_key_in_layout(*code, layout).contains(&sym))
+            };
+            key_in(xkb.active_layout()).or_else(|| xkb.layouts().find_map(key_in))
         })
     }
 }

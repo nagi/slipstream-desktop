@@ -23,6 +23,7 @@ impl Slipstream {
         if self.screens.is_empty() {
             return;
         }
+        self.follow_popped();
         // A screen that changed size moves its layer surfaces first, and so what they reserve.
         for output in self.space.outputs() {
             smithay::desktop::layer_map_for_output(output).arrange();
@@ -103,7 +104,10 @@ impl Slipstream {
             // The space holds the real position for input; the drawing glides there, except
             // while a gap is dragged, when the tiles keep up with the pointer.
             self.motion.place(&window, r, now);
-            if matches!(self.drag, Some(crate::grabs::Drag::Gap { .. })) {
+            if matches!(
+                self.drag,
+                Some(crate::grabs::Drag::Gap { .. } | crate::grabs::Drag::Tiles { .. })
+            ) {
                 self.motion.jump(&window, r);
             }
             self.put_in_space(&window, r);
@@ -755,7 +759,16 @@ impl Slipstream {
         }
     }
 
-    /// Super+F: the focused tiled window fills the tiling area above its neighbours, or goes back
+    /// The fullscreen key: the focused window fills its screen, over the bar, or goes back.
+    pub fn toggle_fullscreen(&mut self) {
+        let Some(window) = self.focused_window() else {
+            return;
+        };
+        let on = !self.is_fullscreen(&window);
+        self.set_fullscreen(&window, on);
+    }
+
+    /// The maximise key: the focused tiled window fills the tiling area above its neighbours, or goes back
     /// to its tile.
     pub fn toggle_maximise(&mut self) {
         let Some(window) = self.focused_window() else {
@@ -773,7 +786,7 @@ impl Slipstream {
             );
             return;
         }
-        // In any arrangement, the window fills the area over the others until Super+F again.
+        // In any arrangement, the window fills the area over the others until the key again.
         let maximised = self.workspaces.get_mut(index).toggle_maximised(&window);
         self.retile();
         tracing::info!(window = logged_app(&window), maximised, "maximise");

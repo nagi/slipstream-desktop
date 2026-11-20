@@ -79,16 +79,21 @@ Super is not tapped for the explorer, and Ctrl+Space stays with input methods. T
 | Super+Shift+F | Files |
 | Super+Shift+arrows | Move the window: it swaps places with the one that way |
 | Super+- and =, with Shift for height | Resize |
-| Super+T, Super+Shift+T | Float the window or tile it; switch between floating and tiled windows |
-| Super+F | Fill the tiling area, and back |
+| Super+T, Super+Shift+T or Super+Alt+V | Float the window or tile it; switch between floating and tiled windows |
+| Super+F | Fill the whole screen, over the bar, and back |
+| Super+Alt+F | Fill the tiling area, and back |
 | Super+L | Tiling or gravity; keep Super held to choose the arrangement |
 | Super+J, Super+Shift+J | Turn the whole layout a quarter, clockwise or back |
-| Super+O, Super+Shift+O | Dock the window to the bar; bring it back down |
-| Super+Tab, Super+Shift+Tab | Next, previous workspace (in place of Super+Ctrl+← →) |
-| Super+Ctrl+↑ | Bullet time |
-| Super+Ctrl+A | Quick settings |
-| Super+Alt+Shift+, | Notifications |
-| Super+C, Super+V, Super+X | Copy, paste and cut in any app; in a terminal they copy and paste without interrupting it |
+| Super+O | Pop the window out: it floats, and follows its screen to every workspace; again, back into the tiling |
+| Super+U, Super+Shift+U | Dock the window to the bar; bring it back down |
+| Super+H | Nothing: hiding every window at once is left out, so only one window is ever minimised |
+| Super+Tab, Super+Shift+Tab | Next, previous workspace |
+| Super+0, Super+Shift+0 | Go to the tenth workspace; send the window there |
+| Super+Ctrl+← →, with Shift | Previous, next workspace; take the window along |
+| Super+Ctrl+↑, Super+Alt+Tab | Bullet time |
+| Super+Ctrl+A, Super+A | Quick settings |
+| Super+Alt+Shift+,, Super+N | Notifications |
+| Super+C, Super+V, Super+X | Copy, paste and cut in any app; a terminal, Emacs and gVim are each sent their own keys for it, so a terminal copies and pastes without interrupting what's running |
 | Super+Ctrl+V | Clipboard history |
 | Print, Super+Shift+S | Snip a region or a window; Enter takes the whole screen |
 | Super+Ctrl+Z or Super+Ctrl+=, Super+Ctrl+-, Super+Ctrl+Alt+Z | Zoom in, out; back to normal |

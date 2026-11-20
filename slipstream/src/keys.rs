@@ -84,6 +84,9 @@ pub enum Action {
     SwapScreens,
     /// The focused tiled window fills the tiling area above its neighbours, or goes back.
     Maximise,
+    /// The focused window fills the whole screen, over the bar, as an app's own fullscreen
+    /// does; again, it goes back.
+    Fullscreen,
     /// Save the focused screen, or the focused window, as a PNG and copy it.
     Screenshot { window: bool },
     /// Go to an empty workspace, or back from it.
@@ -102,6 +105,9 @@ pub enum Action {
     ClipboardHistory,
     /// Float the focused window, or put it back into the tiling.
     ToggleFloating,
+    /// Pop the focused window out to float on whichever workspace its screen shows, or put it
+    /// back into the tiling.
+    Pop,
     /// Move the keyboard between the floating windows and the tiles.
     SwitchFloatingFocus,
 }
@@ -184,6 +190,7 @@ impl Action {
             Action::MoveToNextScreen => "send window to the next screen",
             Action::SwapScreens => "swap workspaces with the next screen",
             Action::Maximise => "fill the tiling area, and back",
+            Action::Fullscreen => "fill the whole screen, and back",
             Action::Screenshot { window: false } => "screenshot",
             Action::Screenshot { window: true } => "snip a region or a window",
             Action::ShowDesktop => "an empty workspace, and back",
@@ -195,6 +202,7 @@ impl Action {
             Action::Zoom(Step::Off) => "stop zooming",
             Action::ClipboardHistory => "clipboard history",
             Action::ToggleFloating => "float the window, or tile it",
+            Action::Pop => "pop the window out, to follow you",
             Action::SwitchFloatingFocus => "keyboard between floating and tiled",
         }
     }
@@ -216,7 +224,9 @@ impl Action {
             | Action::Dock
             | Action::Undock
             | Action::Maximise
+            | Action::Fullscreen
             | Action::ToggleFloating
+            | Action::Pop
             | Action::SwitchFloatingFocus => Group::AppsAndWindows,
             Action::Resize(_)
             | Action::Rotate { .. }
@@ -377,6 +387,7 @@ const MOD_CTRL: Mods = mods(true, true, false, false);
 const MOD_ALT: Mods = mods(true, false, true, false);
 const MOD_ALT_SHIFT: Mods = mods(true, false, true, true);
 const MOD_CTRL_ALT: Mods = mods(true, true, true, false);
+const MOD_CTRL_SHIFT: Mods = mods(true, true, false, true);
 
 fn bind(mods: Mods, key: Keysym, action: Action) -> Binding {
     Binding { mods, key, action }
@@ -733,14 +744,18 @@ fn omarchy() -> Vec<Binding> {
         bind(MOD_SHIFT, Keysym::f, Action::Launch(App::Files)),
         bind(MOD, Keysym::t, Action::ToggleFloating),
         bind(MOD_SHIFT, Keysym::t, Action::SwitchFloatingFocus),
-        bind(MOD, Keysym::f, Action::Maximise),
+        // Its fullscreen key, and its full-width key beside it, which fills the tiling area here.
+        bind(MOD, Keysym::f, Action::Fullscreen),
+        bind(MOD_ALT, Keysym::f, Action::Maximise),
         // Its workspace layout key, and its split toggle.
         bind(MOD, Keysym::l, Action::ToggleGravity),
         bind(MOD, Keysym::j, Action::Rotate { clockwise: true }),
         bind(MOD_SHIFT, Keysym::j, Action::Rotate { clockwise: false }),
-        // Its pop-out key floats a window and pins it over every workspace: here, the dock.
-        bind(MOD, Keysym::o, Action::Dock),
-        bind(MOD_SHIFT, Keysym::o, Action::Undock),
+        // Its pop-out key: the window floats, and goes wherever its screen goes. The dock, which
+        // hangs a window from the bar, takes U beside it.
+        bind(MOD, Keysym::o, Action::Pop),
+        bind(MOD, Keysym::u, Action::Dock),
+        bind(MOD_SHIFT, Keysym::u, Action::Undock),
         bind(MOD, Keysym::Tab, Action::WorkspaceBy(1)),
         bind(MOD_SHIFT, Keysym::Tab, Action::WorkspaceBy(-1)),
         bind(MOD_SHIFT, Keysym::ISO_Left_Tab, Action::WorkspaceBy(-1)),
@@ -771,11 +786,25 @@ fn omarchy() -> Vec<Binding> {
         bind(MOD_CTRL, Keysym::p, Action::SwapScreens),
         bind(MOD, Keysym::m, Action::Minimise),
         bind(MOD_SHIFT, Keysym::m, Action::Restore),
-        bind(MOD, Keysym::h, Action::HideAll),
         bind(MOD, Keysym::d, Action::ShowDesktop),
         // Its zoom key, and the one that puts the zoom back.
         bind(MOD_CTRL, Keysym::z, Action::Zoom(Step::In)),
         bind(MOD_CTRL_ALT, Keysym::z, Action::Zoom(Step::Off)),
+        // Slipstream's own, kept on keys Omarchy leaves free: Windows' virtual desktop keys,
+        // with Shift to take the window along, the overview beside Super+Tab, quick settings and
+        // the notification centre on Windows' keys, and the floating windows' focus beside the
+        // clipboard's V.
+        bind(MOD_CTRL, Keysym::Left, Action::WorkspaceBy(-1)),
+        bind(MOD_CTRL, Keysym::Right, Action::WorkspaceBy(1)),
+        bind(MOD_CTRL_SHIFT, Keysym::Left, Action::MoveToWorkspaceBy(-1)),
+        bind(MOD_CTRL_SHIFT, Keysym::Right, Action::MoveToWorkspaceBy(1)),
+        bind(MOD_ALT, Keysym::Tab, Action::BulletTime),
+        bind(MOD, Keysym::a, Action::QuickSettings),
+        bind(MOD, Keysym::n, Action::NotificationCentre),
+        bind(MOD_ALT, Keysym::v, Action::SwitchFloatingFocus),
+        // Omarchy's tenth workspace is on 0.
+        bind(MOD, Keysym::_0, Action::Workspace(10)),
+        bind(MOD_SHIFT, Keysym::_0, Action::MoveToWorkspace(10)),
     ];
     // Super with = and - resizes, so zooming out, which Omarchy has no key for, takes Ctrl too.
     bindings.extend(zoom(MOD_CTRL));
@@ -980,11 +1009,13 @@ pub fn is_reserved(mods: Mods, key: Keysym) -> bool {
         return true;
     }
     // Emoji and Unicode entry (Super+. Super+; Ctrl+. Ctrl+;), and the whole Ctrl+Shift layer,
-    // which terminals and IDEs use (including Ctrl+Shift+U).
+    // which terminals and IDEs use (including Ctrl+Shift+U). With Super held too the chord is
+    // never an app's: apps don't get Super chords, so Super+Ctrl+Shift, and the hyper chord's
+    // Shift half, stay the desktop's.
     if (mods.logo || mods.ctrl) && (key == Keysym::period || key == Keysym::semicolon) {
         return true;
     }
-    if mods.ctrl && mods.shift {
+    if mods.ctrl && mods.shift && !mods.logo {
         return true;
     }
     // Orca: Insert and Caps Lock act as its modifier; Super+Alt+S toggles it.
@@ -1007,14 +1038,14 @@ pub fn is_reserved(mods: Mods, key: Keysym) -> bool {
         if key == Keysym::F12 || (mods.shift && f_key) {
             return true;
         }
-        // App navigation: Ctrl+Tab, Alt+←/→, Ctrl+Alt+←/→, F5, F10, F11.
+        // App navigation: Ctrl+Tab, Alt+←/→, Ctrl+Alt+←/→, F5, F10.
         if mods.ctrl && key == Keysym::Tab {
             return true;
         }
         if mods.alt && (key == Keysym::Left || key == Keysym::Right) {
             return true;
         }
-        if key == Keysym::F5 || key == Keysym::F10 || key == Keysym::F11 {
+        if key == Keysym::F5 || key == Keysym::F10 {
             return true;
         }
     }
@@ -1183,7 +1214,8 @@ mod tests {
         let at = |mods, key| action_for(&omarchy, mods, key);
         assert_eq!(at(SUPER, Keysym::w), Some(Action::Close));
         assert_eq!(at(SUPER, Keysym::t), Some(Action::ToggleFloating));
-        assert_eq!(at(SUPER, Keysym::f), Some(Action::Maximise));
+        assert_eq!(at(SUPER, Keysym::f), Some(Action::Fullscreen));
+        assert_eq!(at(MOD_ALT, Keysym::f), Some(Action::Maximise));
         assert_eq!(at(SUPER, Keysym::Tab), Some(Action::WorkspaceBy(1)));
         assert_eq!(at(SUPER, Keysym::Escape), Some(Action::WayOut));
         assert_eq!(at(SUPER, Keysym::k), Some(Action::ShortcutSheet));
@@ -1287,6 +1319,13 @@ mod tests {
         assert!(!is_hardware_key(Keysym::Escape));
         assert!(!is_hardware_key(Keysym::Print));
         assert!(!is_hardware_key(Keysym::Super_L));
+    }
+
+    #[test]
+    fn the_omarchy_style_has_no_hide_all() {
+        let bindings = super::defaults(KeyStyle::Omarchy);
+        assert_eq!(action_for(&bindings, SUPER, Keysym::h), None);
+        assert!(!bindings.iter().any(|b| b.action == Action::HideAll));
     }
 
     #[test]
@@ -1543,6 +1582,72 @@ mod tests {
         // Shift alone is no switch.
         tap.key(Keysym::Shift_L, true, 0, false);
         assert!(!tap.key(Keysym::Shift_L, false, 0, false));
+    }
+
+    #[test]
+    fn the_omarchy_style_keeps_slipstreams_own_keys_where_omarchy_leaves_room() {
+        let bindings = checked(super::defaults(KeyStyle::Omarchy), KeyStyle::Omarchy);
+        let with = |shift, ctrl, alt| Mods {
+            shift,
+            ctrl,
+            alt,
+            logo: true,
+        };
+        for (mods, key, action) in [
+            (SUPER, Keysym::_0, Action::Workspace(10)),
+            (
+                with(true, false, false),
+                Keysym::_0,
+                Action::MoveToWorkspace(10),
+            ),
+            (
+                with(false, true, false),
+                Keysym::Left,
+                Action::WorkspaceBy(-1),
+            ),
+            (
+                with(true, true, false),
+                Keysym::Right,
+                Action::MoveToWorkspaceBy(1),
+            ),
+            (with(false, false, true), Keysym::Tab, Action::BulletTime),
+            (SUPER, Keysym::a, Action::QuickSettings),
+            (SUPER, Keysym::n, Action::NotificationCentre),
+            (SUPER, Keysym::o, Action::Pop),
+            (SUPER, Keysym::u, Action::Dock),
+            (with(true, false, false), Keysym::u, Action::Undock),
+        ] {
+            assert_eq!(
+                action_for(&bindings, mods, key),
+                Some(action),
+                "{mods:?} {key:?}"
+            );
+        }
+    }
+
+    fn hyper(shift: bool) -> Mods {
+        Mods {
+            ctrl: true,
+            alt: true,
+            shift,
+            logo: true,
+        }
+    }
+
+    #[test]
+    fn the_hyper_chords_shift_half_is_not_reserved_but_ctrl_shift_alone_is() {
+        assert!(!is_reserved(hyper(true), Keysym::c));
+        let super_ctrl_shift = Mods {
+            alt: false,
+            ..hyper(true)
+        };
+        assert!(!is_reserved(super_ctrl_shift, Keysym::Left));
+        let ctrl_shift = Mods {
+            ctrl: true,
+            shift: true,
+            ..Mods::default()
+        };
+        assert!(is_reserved(ctrl_shift, Keysym::c));
     }
 
     #[test]

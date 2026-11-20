@@ -103,12 +103,17 @@ fn keycaps(bindings: &[(Mods, Keysym)]) -> Vec<String> {
                     names.push(name);
                 }
             }
-            let digits: Vec<u32> = names.iter().filter_map(|name| name.parse().ok()).collect();
+            // The digits count 1 to 9 and then 0, the tenth, as they sit on the keyboard.
+            let digits: Vec<u32> = names
+                .iter()
+                .filter_map(|name| name.parse().ok())
+                .map(|digit| if digit == 0 { 10 } else { digit })
+                .collect();
             let run = digits.len() == names.len()
                 && digits.len() > 2
                 && digits.windows(2).all(|pair| pair[1] == pair[0] + 1);
             let joined = if run {
-                format!("{}–{}", digits[0], digits[digits.len() - 1])
+                format!("{}–{}", digits[0], digits[digits.len() - 1] % 10)
             } else {
                 names.join(" ")
             };
@@ -774,7 +779,7 @@ fn paint_tour(look: &Look, step: usize, tried: bool, names: &KeyNames) -> Option
         p.text("TRY IT", cx, keys_y - 26.0, &panel::section_style());
     }
     let mut key_x = cx;
-    for key in lesson.keys {
+    for key in lesson.keys.iter().filter(|key| !names.missing(key)) {
         key_x += p.keycap(&names.cap(key), key_x, keys_y) + KEY_GAP;
     }
     // The lesson that chooses the keys has the three choices there instead, the one in force lit.

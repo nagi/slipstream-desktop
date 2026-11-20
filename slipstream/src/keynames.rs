@@ -45,6 +45,32 @@ impl KeyNames {
         self.style
     }
 
+    /// Whether `cap`, a Windows-style key, does something the style has no key for at all, as
+    /// hiding every window in the Omarchy style. The tour leaves such keys out.
+    pub fn missing(&self, cap: &str) -> bool {
+        let label = cap.replace('⏎', "Enter");
+        self.binding(&label).is_none()
+            && keys::checked(keys::defaults(KeyStyle::Windows), KeyStyle::Windows)
+                .iter()
+                .any(|binding| keys::label(binding.mods, binding.key) == label)
+    }
+
+    /// `text` without its sentences that name a key the style doesn't have.
+    fn without_missing(&self, text: &str) -> String {
+        let mut out = String::with_capacity(text.len());
+        for sentence in text.split_inclusive(". ") {
+            let names_missing = sentence
+                .split('{')
+                .skip(1)
+                .filter_map(|part| part.split_once('}').map(|(token, _)| token))
+                .any(|token| self.missing(token));
+            if !names_missing {
+                out.push_str(sentence);
+            }
+        }
+        out.trim_end().to_string()
+    }
+
     fn binding(&self, label: &str) -> Option<Binding> {
         let label = label.replace('⏎', "Enter");
         self.names
@@ -104,8 +130,9 @@ impl KeyNames {
     /// `text` with each key in braces named for the style. Arrows and Enter are spelled out
     /// (`Super+Ctrl+Up`), since running text has no symbols for them.
     pub fn fill(&self, text: &str) -> String {
+        let text = self.without_missing(text);
         let mut out = String::with_capacity(text.len());
-        let mut rest = text;
+        let mut rest = text.as_str();
         while let Some(open) = rest.find('{') {
             out.push_str(&rest[..open]);
             let Some(close) = rest[open..].find('}') else {
@@ -210,8 +237,8 @@ mod tests {
 
     #[test]
     fn a_key_the_style_has_no_action_for_is_left_as_written() {
-        // Omarchy has no key that sends a window to the next workspace along.
+        // Omarchy has no key that saves the whole screen straight away.
         let omarchy = KeyNames::new(KeyStyle::Omarchy);
-        assert_eq!(omarchy.cap("Super+Shift+→"), "Super+Shift+→");
+        assert_eq!(omarchy.cap("Super+Print"), "Super+Print");
     }
 }

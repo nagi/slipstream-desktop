@@ -29,6 +29,7 @@ mod emoji;
 mod fallback;
 mod floating;
 mod focus;
+mod follow;
 mod gamma;
 mod grabs;
 mod gravity;
