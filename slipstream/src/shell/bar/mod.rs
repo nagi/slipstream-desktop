@@ -82,7 +82,8 @@ pub struct Content {
     /// One per workspace: the icon of the app kept there, by icon name or path, which the bar
     /// shows instead of the name. Shorter than `labels` (empty, say) gives none past its end.
     pub icons: Vec<Option<String>>,
-    /// One per workspace: whether this bar leaves it out, as empty and set to hide while it is.
+    /// One per workspace: whether this bar leaves it out, as pinned to another screen or empty
+    /// and set to hide while it is.
     /// Shorter than `labels` (empty, say) hides none past its end.
     pub hidden: Vec<bool>,
     pub title: String,

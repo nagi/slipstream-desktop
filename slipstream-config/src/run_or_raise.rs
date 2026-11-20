@@ -69,11 +69,12 @@ mod tests {
     use crate::file::parse;
 
     #[test]
-    fn run_or_raise_apps_read_and_write_back_the_same() {
+    fn run_or_raise_apps_and_home_screens_read_and_write_back_the_same() {
         let text = r#"
             [[workspaces.list]]
             id = 1
             name = " Chrome "
+            screen = " DP-1 "
 
             [run-or-raise]
             raise = "ctrl+super+alt"
@@ -99,6 +100,7 @@ mod tests {
         let settings = parse(text).unwrap();
         let entries = settings.workspaces.entries();
         assert_eq!(entries[0].name, "Chrome");
+        assert_eq!(entries[0].screen, "DP-1");
         assert_eq!(settings.run_or_raise.app.len(), 3);
         assert_eq!(settings.run_or_raise.app[0].app, "browser");
         assert_eq!(settings.run_or_raise.app[1].key, "l");
@@ -119,5 +121,10 @@ mod tests {
         let settings = parse("").unwrap();
         assert_eq!(settings.run_or_raise.raise, "ctrl+super+alt");
         assert!(settings.run_or_raise.app.is_empty());
+        assert!(
+            !toml::to_string(&settings.workspaces)
+                .unwrap()
+                .contains("screen")
+        );
     }
 }

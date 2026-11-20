@@ -29,12 +29,14 @@ impl Slipstream {
     /// over to it, or, if another screen shows it, that screen becomes the focused one. `None`
     /// when it was already in view on the focused screen.
     pub(super) fn show_workspace(&mut self, index: usize) -> Option<crate::screen::Show> {
-        let here = self.focused_screen_name();
         let show = self.screens.show(index, self.workspaces.count());
         if !show.changed {
             return None;
         }
         if show.moved_to.is_none() {
+            // The screen that now shows it: the focused one, or the one it's pinned to, which the
+            // keyboard has moved to.
+            let here = self.focused_screen_name();
             // The camera runs on wall time: moving about is never slowed, even in bullet time.
             let wall = self.wall();
             self.motion.slide_to(&here, index, wall);
@@ -118,7 +120,7 @@ impl Slipstream {
     }
 
     /// Super+Ctrl+←/→: the previous or next workspace on this screen, passing over any another
-    /// screen is showing.
+    /// screen is showing or the settings pin to another screen.
     pub fn switch_workspace_by(&mut self, delta: i32) {
         if let Some(target) = self.workspace_beside(delta) {
             self.switch_workspace(target);
@@ -126,16 +128,20 @@ impl Slipstream {
     }
 
     /// The previous or next workspace along from this screen's, as `delta` says, passing over
-    /// any another screen is showing. Nothing past either end.
+    /// any another screen is showing or the settings pin to another screen. Nothing past either
+    /// end.
     pub fn workspace_beside(&self, delta: i32) -> Option<usize> {
         let count = self.workspaces.count() as i32;
+        let here = self.screens.focused_index();
         let mut target = self.active_workspace() as i32;
         loop {
             target += delta.signum();
             if target < 0 || target >= count || delta == 0 {
                 return None;
             }
-            if self.screens.showing(target as usize).is_none() {
+            if self.screens.showing(target as usize).is_none()
+                && self.screens.belongs(target as usize, here)
+            {
                 return Some(target as usize);
             }
         }
@@ -265,9 +271,20 @@ impl Slipstream {
         }
     }
 
+    /// The focused window to the previous or next of this screen's workspaces.
     pub fn move_focused_by(&mut self, delta: i32) {
-        let target =
-            (self.active_workspace() as i32 + delta).clamp(0, self.workspaces.count() as i32 - 1);
+        let count = self.workspaces.count() as i32;
+        let here = self.screens.focused_index();
+        let mut target = self.active_workspace() as i32;
+        loop {
+            target += delta.signum();
+            if target < 0 || target >= count || delta == 0 {
+                return;
+            }
+            if self.screens.belongs(target as usize, here) {
+                break;
+            }
+        }
         self.move_focused_to_workspace(target as usize);
     }
 

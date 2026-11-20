@@ -20,6 +20,10 @@ pub struct WorkspaceEntry {
     pub id: u32,
     /// Empty means the workspace goes by its number.
     pub name: String,
+    /// The screen it opens on, by connector name (`DP-1`). Empty, or a screen that isn't
+    /// connected, leaves it to open wherever the keyboard is.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub screen: String,
     /// Left off the bar while nothing is on it, as an app's workspace that comes and goes with
     /// the app. It still shows while it's on screen.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
@@ -62,6 +66,7 @@ impl Workspaces {
             out.push(WorkspaceEntry {
                 id,
                 name: entry.name.trim().to_string(),
+                screen: entry.screen.trim().to_string(),
                 hide_when_empty: entry.hide_when_empty,
             });
         }

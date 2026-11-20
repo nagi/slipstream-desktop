@@ -432,6 +432,7 @@ impl Slipstream {
         if settings.workspaces != self.settings.workspaces {
             let entries = workspace_entries(&settings);
             self.set_workspaces(&entries, self.screens.len());
+            self.refresh_pins(&settings.workspaces);
         }
         let rearrange = settings.display.screens != self.settings.display.screens;
         // A new bar style can move the bar's foot, and every tiling area with it.

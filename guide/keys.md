@@ -174,6 +174,14 @@ Usually only the windows an app's key starts go to its workspace. With `every-wi
 
 Ctrl+Super+Alt is the "hyper" chord a keyd layer on one key gives, for example right Alt as `[hyper_mod:C-M-A]`. A run-or-raise key takes over a built-in key on the same chord. Each app appears on the Super+K list under its workspace's name.
 
+A workspace can be pinned to a screen by its connector name, and then always opens there, taking the keyboard with it. The other screens' bars leave it out, and their Super+Tab passes over it. If that screen isn't connected, the workspace opens wherever the keyboard is:
+
+```toml
+[[workspaces.list]]
+id = 6
+screen = "HDMI-A-1"
+```
+
 Super+1–9 (and, in the Omarchy style, Super+0) go to the first workspaces in the list, so named run-or-raise workspaces go after those.
 
 An app's workspace can come and go with the app: with `hide-when-empty`, the bar leaves it out while nothing is on it, unless it's on screen.
