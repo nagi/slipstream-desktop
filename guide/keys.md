@@ -131,3 +131,58 @@ In any panel or card, Esc backs out one level, Tab and the arrows move, Enter pr
 | Esc | Back, with nothing changed |
 
 Once the desktop has faded to the wallpaper, F7 takes a screenshot of it and any other key brings the desktop back.
+
+## Run or raise
+
+One key per app: it goes to the app's own workspace and brings its window forward, or starts the app there if it isn't running. Only that workspace is searched, so the same app open somewhere else is left alone. A window the key started goes to the app's workspace even when it appears after you've moved on, and even when it comes from an app already running elsewhere, as a browser's or Ghostty's new windows do. Pressing the key again while the app is still starting waits for it rather than starting a second copy. If the app is minimised, it comes back onto its workspace. With two or more of the app's windows on its workspace, pressing the key again while one has the keyboard goes on to the next, and round to the first again.
+
+The apps are listed in `~/.config/slipstream/settings.toml`, and a change applies as soon as the file is saved:
+
+```toml
+[run-or-raise]
+raise = "ctrl+super+alt"   # the chord; with Shift added, it sends the focused window instead
+
+[[run-or-raise.app]]
+workspace = "Chrome"       # a workspace's name, from [[workspaces.list]]
+key = "c"
+app = "browser"            # browser, terminal or files: works out the class, and starts that app
+command = "chromium --new-window"   # optional with app; run with sh -c
+
+[[run-or-raise.app]]
+workspace = "Emacs"
+key = "e"
+class = "emacs"            # the window's app id (X11: class), any case
+title = ""                 # or its exact title, when the class isn't enough
+command = "emacsclient --alternate-editor= --create-frame"
+
+[[run-or-raise.app]]
+workspace = "Reading"
+key = "r"
+class = "io.github.peterwalker78.SlipstreamReader"
+command = "slipstream-reader"
+every-window = true        # its windows go there however they're opened, and you with them
+```
+
+Usually only the windows an app's key starts go to its workspace. With `every-window`, every new window of the app does, however it was opened, a book double-clicked in the file manager say, and you go to the workspace with it. Leave it off for an app you also open where you are, such as a terminal.
+
+| Keys | What they do |
+|---|---|
+| The chord and an app's key | Go to the app's workspace and raise it, or start it there; again, its next window there |
+| The chord, Shift and an app's key | Send the focused window to the app's workspace, and follow it |
+| The chord and 1–0 | Go to a workspace by its number |
+| The chord, Shift and 1–0 | Send the focused window to a workspace by its number |
+
+Ctrl+Super+Alt is the "hyper" chord a keyd layer on one key gives, for example right Alt as `[hyper_mod:C-M-A]`. A run-or-raise key takes over a built-in key on the same chord. Each app appears on the Super+K list under its workspace's name.
+
+Super+1–9 (and, in the Omarchy style, Super+0) go to the first workspaces in the list, so named run-or-raise workspaces go after those.
+
+An app's workspace can come and go with the app: with `hide-when-empty`, the bar leaves it out while nothing is on it, unless it's on screen.
+
+```toml
+[[workspaces.list]]
+id = 15
+name = "Discord"
+hide-when-empty = true
+```
+
+A run-or-raise app's workspace is shown on the bar as that app's icon: in colour while it's the one you're on, grey otherwise. The icon comes from the app's desktop entry, found by its `class`, by the workspace's name (so a web app called Discord finds Discord's entry) or by the program its `command` runs; with none found, the workspace keeps its name.

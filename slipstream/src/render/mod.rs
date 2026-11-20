@@ -155,6 +155,14 @@ fn bar_content(
     let bullet = state.bullet.as_ref().filter(|_| first_output);
     let (highlighted, home) = bullet::bar_workspaces(active, bullet);
     let keyboard_here = first_output;
+    let hide_when_empty: Vec<u32> = state
+        .settings
+        .workspaces
+        .entries()
+        .into_iter()
+        .filter(|entry| entry.hide_when_empty)
+        .map(|entry| entry.id)
+        .collect();
     let title = match bullet {
         Some(_) => state.bullet_bar_title(),
         None if keyboard_here => state.focused_title(),
@@ -183,6 +191,20 @@ fn bar_content(
         keyboard_here,
         labels: (0..state.workspaces.count())
             .map(|index| state.workspaces.label(index))
+            .collect(),
+        icons: (0..state.workspaces.count())
+            .map(|index| state.workspace_icon(index))
+            .collect(),
+        // A workspace set to hide while empty comes and goes with its windows, as an app's does,
+        // but stays while it's on screen.
+        hidden: (0..state.workspaces.count())
+            .map(|index| {
+                let id = state.workspaces.get(index).id;
+                !used.get(index).copied().unwrap_or(true)
+                    && index != highlighted
+                    && state.screens.showing(index).is_none()
+                    && hide_when_empty.contains(&id)
+            })
             .collect(),
         title,
         mode: state
@@ -298,11 +320,13 @@ fn card_elements(
     if state.sheet.is_open() {
         let colours = (ring, crate::panel::opaque(state.bullet_rgb));
         let effects = state.settings.motion.effects;
+        let apps = state.raise_names();
         let listing = crate::sheet::Listing {
             bindings: &state.bindings,
             style: state.settings.keys.style,
             screens: state.space.outputs().count(),
             own: state.shortcuts.own(),
+            apps: &apps,
         };
         lit(state
             .sheet

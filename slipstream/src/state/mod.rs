@@ -116,6 +116,7 @@ mod lifecycle;
 mod look;
 pub use look::Look;
 mod popped;
+mod raise;
 mod screens;
 mod streams;
 mod ui;
@@ -303,6 +304,13 @@ pub struct Slipstream {
     pub fullscreen_on_map: Vec<Window>,
     /// The recorded layout going back up, while the apps are still starting.
     pub restoring: Option<restore::Plan<Window>>,
+    /// The run-or-raise apps from the settings, one per entry, which `Action::RunOrRaise` indexes.
+    pub raise_targets: Vec<Option<crate::raise::Target>>,
+    /// Run-or-raise launches waiting for their windows.
+    pub launches: crate::raise::Launches,
+    /// New Wayland windows that hadn't said which app they are while a launch was waiting, to be
+    /// looked at again when they do.
+    pub raise_unnamed: Vec<Window>,
     /// The card at login asking whether to put the last layout back.
     pub offer: Option<Offer>,
     /// The card asking what a screen Slipstream has never seen should show.
@@ -572,7 +580,7 @@ impl Slipstream {
             seat,
             cursor_status: CursorImageStatus::default_named(),
 
-            bindings: keys::checked(keys::defaults(settings.keys.style), settings.keys.style),
+            bindings: keys::bindings(&settings.run_or_raise, settings.keys.style),
             awake: false,
             nested: false,
             keys_let_go: false,
@@ -634,6 +642,9 @@ impl Slipstream {
             background: background::Background::default(),
             fullscreen_on_map: Vec::new(),
             restoring: None,
+            raise_targets: crate::raise::targets(&settings.run_or_raise, launch::app_class),
+            launches: Default::default(),
+            raise_unnamed: Vec::new(),
             offer: None,
             connect: None,
             closing_cards: Vec::new(),

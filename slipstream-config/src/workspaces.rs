@@ -20,6 +20,10 @@ pub struct WorkspaceEntry {
     pub id: u32,
     /// Empty means the workspace goes by its number.
     pub name: String,
+    /// Left off the bar while nothing is on it, as an app's workspace that comes and goes with
+    /// the app. It still shows while it's on screen.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub hide_when_empty: bool,
 }
 
 impl Default for Workspaces {
@@ -30,6 +34,7 @@ impl Default for Workspaces {
                 .map(|id| WorkspaceEntry {
                     id,
                     name: String::new(),
+                    ..Default::default()
                 })
                 .collect(),
         }
@@ -57,12 +62,14 @@ impl Workspaces {
             out.push(WorkspaceEntry {
                 id,
                 name: entry.name.trim().to_string(),
+                hide_when_empty: entry.hide_when_empty,
             });
         }
         if out.is_empty() {
             out.push(WorkspaceEntry {
                 id: 1,
                 name: String::new(),
+                ..Default::default()
             });
         }
         out
@@ -103,6 +110,20 @@ mod tests {
     use crate::file::parse;
 
     #[test]
+    fn a_workspace_can_hide_while_empty_and_writes_back_only_when_it_does() {
+        let settings = parse(
+            "[[workspaces.list]]\nid = 1\nname = \"Chat\"\nhide-when-empty = true\n[[workspaces.list]]\nid = 2\nname = \"Web\"\n",
+        )
+        .unwrap();
+        let entries = settings.workspaces.entries();
+        assert!(entries[0].hide_when_empty);
+        assert!(!entries[1].hide_when_empty, "shown by default");
+        let text = toml::to_string(&settings).unwrap();
+        assert_eq!(text.matches("hide-when-empty").count(), 1);
+        assert_eq!(parse(&text).unwrap().workspaces, settings.workspaces);
+    }
+
+    #[test]
     fn workspaces_default_to_five_numbers_and_are_never_empty_or_doubled() {
         let settings = parse("").unwrap();
         let entries = settings.workspaces.entries();
@@ -130,6 +151,7 @@ mod tests {
                 .map(|id| WorkspaceEntry {
                     id,
                     name: String::new(),
+                    ..Default::default()
                 })
                 .collect(),
         };

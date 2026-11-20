@@ -63,6 +63,7 @@ mod portal;
 mod portal_inhibit;
 mod portal_units;
 mod power;
+mod raise;
 mod record_writer;
 mod render;
 mod restore;

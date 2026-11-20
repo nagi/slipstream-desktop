@@ -53,6 +53,12 @@ const SHAKE_MOST: f64 = 4.0;
 const SHAKE_LONG: f64 = 0.35;
 /// The same height in design pixels, which every size below is given in.
 const TALL: f32 = 40.0;
+/// The app icon an app's workspace goes by, square.
+const ICON_W: f32 = 20.0;
+/// How much of an app's icon shows, greyed, on a workspace that isn't the one highlighted: more
+/// when something's on it.
+const ICON_AWAY: f32 = 0.6;
+const ICON_EMPTY: f32 = 0.35;
 
 /// Everything the bar shows. It's repainted when this changes.
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -73,6 +79,12 @@ pub struct Content {
     pub keyboard_here: bool,
     /// One per workspace: its name, or its number.
     pub labels: Vec<String>,
+    /// One per workspace: the icon of the app kept there, by icon name or path, which the bar
+    /// shows instead of the name. Shorter than `labels` (empty, say) gives none past its end.
+    pub icons: Vec<Option<String>>,
+    /// One per workspace: whether this bar leaves it out, as empty and set to hide while it is.
+    /// Shorter than `labels` (empty, say) hides none past its end.
+    pub hidden: Vec<bool>,
     pub title: String,
     /// A mode's label, such as `BULLET TIME`, and the colour of its chip, 0xRRGGBBAA.
     pub mode: Option<(&'static str, u32)>,
@@ -107,6 +119,18 @@ pub struct Content {
     /// left and right edges, in logical pixels from the screen's left. The bar has no lower edge
     /// between them, where it runs on down into the frame, and keeps room for the pane's slot.
     pub dock: Option<(i32, i32)>,
+}
+
+impl Content {
+    /// Whether this bar leaves workspace `index` out.
+    fn is_hidden(&self, index: usize) -> bool {
+        self.hidden.get(index).copied().unwrap_or(false)
+    }
+
+    /// The icon of the app workspace `index` goes by, when it has one to draw.
+    fn app_icon<'a>(&self, index: usize, icons: &'a AppIcons) -> Option<&'a Pixmap> {
+        icons.get(self.icons.get(index)?.as_deref()?)
+    }
 }
 
 /// The part of the status reading the bar draws. The bar is repainted when its content changes,
@@ -284,12 +308,49 @@ pub struct Bar {
     glass: glass::Glass,
     /// A knock's shake: when it started, by the wall clock, and how hard, 0 to 1.
     shake: Option<(f64, f64)>,
+    /// The app icons its workspaces go by, by name, `ICON_PX` of them square.
+    app_icons: AppIcons,
+}
+
+/// App icons by name, each as many device pixels square as the bar's scale asks.
+type AppIcons = std::collections::HashMap<String, Pixmap>;
+
+/// How many device pixels square an app's icon on the bar is at `scale`.
+fn icon_px(scale: f64) -> u32 {
+    let (_, device_h) = device_size(1, scale);
+    (ICON_W * device_h as f32 / TALL).round() as u32
 }
 
 impl Bar {
     /// Paints its text again next frame: a face for characters it lacked has landed.
     pub fn forget_painted_text(&mut self) {
         self.shown = None;
+    }
+
+    /// Has the icons of the apps `content`'s workspaces go by ready for drawing at `scale`:
+    /// `icon` rasterises one by name, so many device pixels square, or has none.
+    pub fn find_icons(
+        &mut self,
+        content: &Content,
+        scale: f64,
+        icon: &mut dyn FnMut(&str, u32) -> Option<Pixmap>,
+    ) {
+        let px = icon_px(scale);
+        if self
+            .app_icons
+            .values()
+            .next()
+            .is_some_and(|held| held.width() != px)
+        {
+            self.app_icons.clear();
+        }
+        for name in content.icons.iter().flatten() {
+            if !self.app_icons.contains_key(name)
+                && let Some(pixmap) = icon(name, px)
+            {
+                self.app_icons.insert(name.clone(), pixmap);
+            }
+        }
     }
 
     /// The bar showing `content` as `draw` says, with the lit edge's air moving when it moves:
@@ -396,7 +457,13 @@ impl Bar {
         if self.shown.as_ref() == Some(&shown) {
             return None;
         }
-        let painted = paint(&shown.content, rect.w, draw.scale, draw.style)?;
+        let painted = paint_with(
+            &shown.content,
+            rect.w,
+            draw.scale,
+            draw.style,
+            &self.app_icons,
+        )?;
         // At rest the marker sits on its workspace however the bar is laid out, so a slide
         // starts from where it's really drawn.
         if self
@@ -511,7 +578,7 @@ impl Bar {
         {
             return;
         }
-        let chips = workspace_chips(content, design_width(width, scale));
+        let chips = workspace_chips(content, design_width(width, scale), &self.app_icons);
         let Some(&(_, x, w)) = chips.get(content.active) else {
             self.marker = None;
             return;
@@ -647,9 +714,40 @@ fn design_width(width: i32, scale: f64) -> f32 {
     device_w as f32 / (device_h as f32 / TALL)
 }
 
-/// Paints the bar for a screen `width` logical pixels wide, without the marker, and the numbers
-/// under it lit, and says where its buttons are.
+/// An app's icon as it shows on a workspace that isn't highlighted: grey, and `alpha` as strong.
+fn greyed(icon: &Pixmap, alpha: f32) -> Option<Pixmap> {
+    let mut out = icon.clone();
+    for pixel in out.pixels_mut() {
+        // Premultiplied, so the grey stays inside the alpha it's scaled with.
+        let grey =
+            0.3 * pixel.red() as f32 + 0.59 * pixel.green() as f32 + 0.11 * pixel.blue() as f32;
+        let grey = (grey * alpha).round() as u8;
+        let a = (pixel.alpha() as f32 * alpha).round() as u8;
+        *pixel = resvg::tiny_skia::PremultipliedColorU8::from_rgba(
+            grey.min(a),
+            grey.min(a),
+            grey.min(a),
+            a,
+        )?;
+    }
+    Some(out)
+}
+
+/// Paints the bar with no app icons, as the tests look at it.
+#[cfg(test)]
 fn paint(content: &Content, width: i32, scale: f64, style: BarStyle) -> Option<Painted> {
+    paint_with(content, width, scale, style, &AppIcons::new())
+}
+
+/// Paints the bar for a screen `width` logical pixels wide, without the marker, and the numbers
+/// under it lit, and says where its buttons are. An app's workspace goes by its icon in `icons`.
+fn paint_with(
+    content: &Content,
+    width: i32,
+    scale: f64,
+    style: BarStyle,
+    icons: &AppIcons,
+) -> Option<Painted> {
     let (device_w, device_h) = device_size(width, scale);
     let f = device_h as f32 / TALL;
     let mut lit = Painter::new(device_w, device_h, f)?;
@@ -680,7 +778,7 @@ fn paint(content: &Content, width: i32, scale: f64, style: BarStyle) -> Option<P
     if style == BarStyle::LitEdge {
         paint_top_light(&mut bar);
     }
-    let (x, at_rest, workspaces) = paint_left(&mut bar, &mut lit, content);
+    let (x, at_rest, workspaces) = paint_left(&mut bar, &mut lit, content, icons);
     let right = paint_right(&mut bar, content);
     let (centre_x, block_w) = paint_centre(&mut bar, content);
     paint_title(&mut bar, content, x, centre_x);
@@ -798,24 +896,42 @@ impl Strip {
 
 /// Each workspace's chip: its label, and its left edge and width in the bar's units. Names take
 /// room the clock needs: when they would run past a third of the bar, only the workspace in front
-/// shows its name and the rest go by their numbers.
-fn workspace_chips(content: &Content, wide: f32) -> Vec<(String, f32, f32)> {
+/// shows its name and the rest go by their numbers. A hidden workspace keeps its place in the
+/// list as a chip of no width at the end of the one before, so the rest close up around it.
+fn workspace_chips(content: &Content, wide: f32, icons: &AppIcons) -> Vec<(String, f32, f32)> {
     let style = Style::new(Face::Mono, 15.0, 0);
     let widths: Vec<f32> = content
         .labels
         .iter()
-        .map(|label| text::width(label, &style))
+        .enumerate()
+        .filter(|(index, _)| !content.is_hidden(*index))
+        .map(|(index, label)| {
+            if content.app_icon(index, icons).is_some() {
+                ICON_W
+            } else {
+                text::width(label, &style)
+            }
+        })
         .collect();
     let names_fit = names_fit(&widths, wide);
     let mut x = WORKSPACES_AT;
     let mut chips = Vec::with_capacity(content.labels.len());
     for (index, name) in content.labels.iter().enumerate() {
+        if content.is_hidden(index) {
+            chips.push((String::new(), (x - 6.0).max(WORKSPACES_AT), 0.0));
+            continue;
+        }
         let label = if names_fit || index == content.active {
             name.clone()
         } else {
             (index + 1).to_string()
         };
-        let w = (text::width(&label, &style) + 16.0).max(30.0);
+        let label_w = if content.app_icon(index, icons).is_some() {
+            ICON_W
+        } else {
+            text::width(&label, &style)
+        };
+        let w = (label_w + 16.0).max(30.0);
         chips.push((label, x, w));
         x += w + 6.0;
     }
@@ -829,11 +945,12 @@ fn paint_left(
     bar: &mut Strip,
     lit: &mut Painter,
     content: &Content,
+    icons: &AppIcons,
 ) -> (f32, Option<(f32, f32)>, (f32, f32)) {
     bar.p.icon(icons::LOGO, 8.0 + 6.5, 9.5, 21.0, None);
     // The buttons in the corners reach out to the screen's side edges as well.
     bar.target(Target::Apps, 0.0, 8.0 + 34.0);
-    let chips = workspace_chips(content, bar.wide);
+    let chips = workspace_chips(content, bar.wide, icons);
     let at_rest = chips.get(content.active).map(|&(_, x, w)| (x, x + w));
     let span = (
         WORKSPACES_AT,
@@ -841,6 +958,9 @@ fn paint_left(
     );
     let lit_style = Style::new(Face::Mono, 15.0, panel::lighter(content.ring, 1.0 / 3.0));
     for (index, (label, x, w)) in chips.iter().enumerate() {
+        if content.is_hidden(index) {
+            continue;
+        }
         let (x, w) = (*x, *w);
         let color = if content.occupied.get(index).copied().unwrap_or(false) {
             panel::PROSE
@@ -855,12 +975,23 @@ fn paint_left(
             let home = (content.bullet & 0xffffff00) | 0x99;
             bar.p.border(x, 7.0, w, 26.0, 6.0, 1.0, home);
         }
-        // A number is in the highlight colour where the marker covers it, and only there: the
-        // marker shows the lit one through it.
-        let style = Style::new(Face::Mono, 15.0, color);
-        let tx = x + (w - text::width(label, &style)) / 2.0;
-        bar.p.text(label, tx, 20.0, &style);
-        lit.text(label, tx, 20.0, &lit_style);
+        if let Some(app_icon) = content.app_icon(index, icons) {
+            // Grey on the bar, fainter while empty, and in colour where the marker shows it.
+            let (ix, iy) = (x + (w - ICON_W) / 2.0, 10.0);
+            let occupied = content.occupied.get(index).copied().unwrap_or(false);
+            let alpha = if occupied { ICON_AWAY } else { ICON_EMPTY };
+            if let Some(grey) = greyed(app_icon, alpha) {
+                bar.p.image(&grey, ix, iy);
+            }
+            lit.image(app_icon, ix, iy);
+        } else {
+            // A number is in the highlight colour where the marker covers it, and only there:
+            // the marker shows the lit one through it.
+            let style = Style::new(Face::Mono, 15.0, color);
+            let tx = x + (w - text::width(label, &style)) / 2.0;
+            bar.p.text(label, tx, 20.0, &style);
+            lit.text(label, tx, 20.0, &lit_style);
+        }
         bar.target(Target::Workspace(index), x, w);
     }
     let mut x = chips.last().map_or(WORKSPACES_AT, |&(_, x, w)| x + w + 6.0);
@@ -1266,7 +1397,7 @@ mod tests {
             None,
             "a new bar starts at rest"
         );
-        let chips = workspace_chips(&at(2, &numbers), design_width(1536, 1.25));
+        let chips = workspace_chips(&at(2, &numbers), design_width(1536, 1.25), &AppIcons::new());
         let (from, to) = (
             (chips[0].1, chips[0].1 + chips[0].2),
             (chips[2].1, chips[2].1 + chips[2].2),
@@ -1289,7 +1420,7 @@ mod tests {
         // On a narrow bar, where only the one in front shows its name, it heads for that name.
         let long = ["Messages", "Browsing", "Documents", "Music", "Terminal"];
         bar.follow(&at(1, &long), 400, 1.0, 11.0, false);
-        let chips = workspace_chips(&at(1, &long), design_width(400, 1.0));
+        let chips = workspace_chips(&at(1, &long), design_width(400, 1.0), &AppIcons::new());
         assert_eq!(chips[0].0, "1");
         assert_eq!(
             bar.marker.unwrap().right.to[0] as f32,
@@ -1306,7 +1437,7 @@ mod tests {
             active: 0,
             ..content()
         };
-        let chips = workspace_chips(&quiet, design_width(1536, 1.0));
+        let chips = workspace_chips(&quiet, design_width(1536, 1.0), &AppIcons::new());
         let painted = paint(&quiet, 1536, 1.0, BarStyle::Plain).unwrap();
         // Design pixels to device ones.
         let f = device_size(1536, 1.0).1 as f32 / TALL;
@@ -1506,6 +1637,8 @@ mod tests {
             elsewhere: vec![false; 5],
             keyboard_here: true,
             labels: (1..=5).map(|n| n.to_string()).collect(),
+            icons: Vec::new(),
+            hidden: Vec::new(),
             title: "Firefox".into(),
             mode: Some(("BULLET TIME", panel::AMBER)),
             ring: 0x42d3ffff,
@@ -1836,6 +1969,90 @@ mod tests {
         assert_eq!((pixmap.width(), pixmap.height()), (1920, 40));
         let (pixmap, _) = paint_plain(&content(), 1280, 2.0).unwrap();
         assert_eq!((pixmap.width(), pixmap.height()), (2560, 64));
+    }
+
+    #[test]
+    fn a_hidden_workspace_leaves_no_gap_and_the_rest_keep_their_numbers() {
+        let content = Content {
+            hidden: vec![false, false, true, true],
+            ..content()
+        };
+        let (_, targets) = paint_plain(&content, 1536, 1.25).unwrap();
+        let shown: Vec<_> = targets
+            .iter()
+            .filter_map(|(target, area)| match target {
+                Target::Workspace(index) => Some((*index, *area)),
+                _ => None,
+            })
+            .collect();
+        let indices: Vec<usize> = shown.iter().map(|(index, _)| *index).collect();
+        assert_eq!(indices, vec![0, 1, 4], "past the end of `hidden`, shown");
+        let (_, second) = shown[1];
+        let (_, fifth) = shown[2];
+        assert!(
+            fifth.loc.x - (second.loc.x + second.size.w) < 10.0,
+            "side by side"
+        );
+    }
+
+    #[test]
+    fn an_apps_workspace_goes_by_its_icon_grey_on_the_bar_and_in_colour_under_the_marker() {
+        let content = Content {
+            labels: vec!["1".into(), "Chrome".into(), "Nothing".into()],
+            icons: vec![None, Some("chromium".into()), Some("missing".into())],
+            occupied: vec![true; 3],
+            elsewhere: vec![false; 3],
+            active: 1,
+            ..content()
+        };
+        let mut bar = Bar::default();
+        bar.find_icons(&content, 1.25, &mut |name, px| {
+            let mut pixmap = Pixmap::new(px, px)?;
+            (name == "chromium")
+                .then(|| pixmap.fill(resvg::tiny_skia::Color::from_rgba8(255, 0, 0, 255)))?;
+            Some(pixmap)
+        });
+        let with = paint_with(&content, 1536, 1.25, BarStyle::Plain, &bar.app_icons).unwrap();
+        let by_name = paint(&content, 1536, 1.25, BarStyle::Plain).unwrap();
+        let width = |targets: &Targets, index| {
+            targets
+                .iter()
+                .find(|(target, _)| *target == Target::Workspace(index))
+                .map(|(_, area)| area.size.w)
+                .unwrap()
+        };
+        assert!(
+            width(&with.targets, 1) < width(&by_name.targets, 1),
+            "the icon is narrower than the name"
+        );
+        assert!(
+            (width(&with.targets, 2) - width(&by_name.targets, 2)).abs() < 0.01,
+            "no icon, so the name"
+        );
+        // Within workspace 1's button only.
+        let reddest = |pixmap: &Pixmap| {
+            let area = with
+                .targets
+                .iter()
+                .find(|(target, _)| *target == Target::Workspace(1))
+                .map(|(_, area)| *area)
+                .unwrap();
+            let (left, right) = (
+                (area.loc.x * 1.25) as u32,
+                ((area.loc.x + area.size.w) * 1.25) as u32,
+            );
+            (left..right)
+                .flat_map(|x| (0..pixmap.height()).map(move |y| (x, y)))
+                .filter_map(|(x, y)| pixmap.pixel(x, y))
+                .map(|px| px.red() as i32 - px.green() as i32)
+                .max()
+                .unwrap()
+        };
+        assert!(reddest(&with.pixmap) < 30, "grey on the bar");
+        assert!(
+            reddest(&with.numbers.pixmap) > 200,
+            "in colour where the marker shows it"
+        );
     }
 
     #[test]

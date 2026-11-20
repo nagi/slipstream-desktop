@@ -779,6 +779,11 @@ fn bar_elements(
 ) -> Vec<OutputElement> {
     let content = bar_content(state, v.active, v.screen_index, v.first, used);
     let docked = content.dock.is_some();
+    // An app's workspace goes by its icon, found in the icon themes as the explorer finds them.
+    let explorer = &mut state.explorer;
+    chrome.bar.find_icons(&content, v.scale.x, &mut |name, px| {
+        explorer.named_icon(name, px)
+    });
     let (ring, reduced_motion, demand) = (
         state.ring_rgb,
         state.clock.reduced_motion,

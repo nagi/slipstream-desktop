@@ -108,6 +108,7 @@ mod input;
 pub mod localtime;
 mod pages;
 pub mod plugins;
+mod run_or_raise;
 #[cfg(any(test, feature = "test-scratch"))]
 pub mod scratch;
 pub mod screens;
@@ -135,6 +136,7 @@ pub use input::{
     system_layouts_from_env,
 };
 pub use pages::{SETTINGS_PAGES, SettingsPage};
+pub use run_or_raise::{RaiseApp, RunOrRaise};
 pub use wallpaper::{
     PICTURE_LONGEST, PICTURE_MOST_PIXELS, PictureFit, VARIATIONS, Variation, Wallpaper, current_id,
     picture_path,
@@ -162,6 +164,7 @@ pub struct Settings {
     pub mouse: Mouse,
     pub touchpad: Touchpad,
     pub keyboard: Keyboard,
+    pub run_or_raise: RunOrRaise,
 }
 
 /// The keyboard shortcuts.
@@ -786,10 +789,12 @@ mod tests {
                     WorkspaceEntry {
                         id: 3,
                         name: "Mail".into(),
+                        ..Default::default()
                     },
                     WorkspaceEntry {
                         id: 1,
                         name: String::new(),
+                        ..Default::default()
                     },
                 ],
             },
@@ -817,6 +822,7 @@ mod tests {
                 layouts: vec![KeyboardLayout::new("gb", "dvorak")],
                 ..Keyboard::default()
             },
+            run_or_raise: RunOrRaise::default(),
         };
         let text = toml::to_string(&settings).unwrap();
         assert!(text.contains("fade-after-secs = 300"), "{text}");
